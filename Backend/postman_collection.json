@@ -1,0 +1,1752 @@
+{
+  "info": {
+    "name": "Service Center Management API",
+    "description": "Complete API collection for the multi-branch Service Center Management System (India)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organization_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "branch_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventory_item_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invoice_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Get Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.access) {",
+                  "    pm.collectionVariables.set('access_token', jsonData.access);",
+                  "    pm.collectionVariables.set('refresh_token', jsonData.refresh);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", ""]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.access) {",
+                  "    pm.collectionVariables.set('access_token', jsonData.access);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/refresh/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", "refresh", ""]
+            }
+          }
+        },
+        {
+          "name": "Verify Token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"{{access_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/verify/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "token", "verify", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "List Organizations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/organizations/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "organizations", ""]
+            }
+          }
+        },
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('organization_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Tech Solutions\",\n    \"legal_name\": \"Tech Solutions Private Limited\",\n    \"address_line1\": \"123 Tech Park\",\n    \"address_line2\": \"Sector 5\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400001\",\n    \"phone\": \"+919876543210\",\n    \"email\": \"contact@techsolutions.com\",\n    \"pan_number\": \"ABCDE1234F\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/organizations/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "organizations", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Organization",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/organizations/{{organization_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "organizations", "{{organization_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Organization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"+919876543211\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/organizations/{{organization_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "organizations", "{{organization_id}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Branches",
+      "item": [
+        {
+          "name": "List Branches",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/branches/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "branches", ""]
+            }
+          }
+        },
+        {
+          "name": "Create Branch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('branch_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"organization\": \"{{organization_id}}\",\n    \"name\": \"Mumbai Central\",\n    \"code\": \"MUM\",\n    \"gstin\": \"27ABCDE1234F1ZP\",\n    \"state_code\": \"27\",\n    \"address_line1\": \"Shop 101, Tech Plaza\",\n    \"address_line2\": \"Mumbai Central\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pincode\": \"400008\",\n    \"phone\": \"+919876543210\",\n    \"email\": \"mumbai@techsolutions.com\",\n    \"invoice_prefix\": \"INV\",\n    \"jobcard_prefix\": \"JOB\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/branches/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "branches", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Branch",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/branches/{{branch_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "branches", "{{branch_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Assign User to Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": \"{{user_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/branches/{{branch_id}}/assign_user/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "branches", "{{branch_id}}", "assign_user", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/users/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", ""]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('user_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"technician@techsolutions.com\",\n    \"password\": \"password123\",\n    \"first_name\": \"Rahul\",\n    \"last_name\": \"Sharma\",\n    \"phone\": \"+919876543212\",\n    \"organization\": \"{{organization_id}}\",\n    \"role\": \"TECHNICIAN\",\n    \"branches\": [\"{{branch_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/users/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/users/me/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", "me", ""]
+            }
+          }
+        },
+        {
+          "name": "My Branches",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/users/my_branches/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", "my_branches", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Roles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/core/users/roles/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", "roles", ""]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"password123\",\n    \"new_password\": \"newpassword456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/users/change_password/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", "change_password", ""]
+            }
+          }
+        },
+        {
+          "name": "Set Current Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch_id\": \"{{branch_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/core/users/set_current_branch/",
+              "host": ["{{base_url}}"],
+              "path": ["core", "users", "set_current_branch", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "List Customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/customers/customers/?branch={{branch_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["customers", "customers", ""],
+              "query": [
+                {
+                  "key": "branch",
+                  "value": "{{branch_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('customer_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch\": \"{{branch_id}}\",\n    \"first_name\": \"Amit\",\n    \"last_name\": \"Kumar\",\n    \"mobile\": \"9876543210\",\n    \"email\": \"amit.kumar@email.com\",\n    \"address_line1\": \"123, Sector 15\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"state_code\": \"27\",\n    \"pincode\": \"400001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/customers/customers/",
+              "host": ["{{base_url}}"],
+              "path": ["customers", "customers", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Customer",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/customers/customers/{{customer_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["customers", "customers", "{{customer_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Search by Mobile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/customers/customers/search_by_mobile/?mobile=9876543210",
+              "host": ["{{base_url}}"],
+              "path": ["customers", "customers", "search_by_mobile", ""],
+              "query": [
+                {
+                  "key": "mobile",
+                  "value": "9876543210"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Service History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/customers/customers/{{customer_id}}/service_history/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "customers",
+                "customers",
+                "{{customer_id}}",
+                "service_history",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Job Cards",
+      "item": [
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/?branch={{branch_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", ""],
+              "query": [
+                {
+                  "key": "branch",
+                  "value": "{{branch_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Job Card",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('job_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch\": \"{{branch_id}}\",\n    \"customer\": \"{{customer_id}}\",\n    \"device_type\": \"LAPTOP\",\n    \"brand\": \"Dell\",\n    \"model\": \"Inspiron 15 3520\",\n    \"serial_number\": \"ABC123XYZ\",\n    \"customer_complaint\": \"Laptop not turning on. No power LED.\",\n    \"physical_condition\": \"Minor scratches on lid. No visible damage.\",\n    \"device_password\": \"pass1234\",\n    \"is_urgent\": false,\n    \"accessories\": [\n        {\"accessory_type\": \"CHARGER\", \"is_present\": true, \"condition\": \"Good\"},\n        {\"accessory_type\": \"BAG\", \"is_present\": true, \"condition\": \"Fair\"}\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Job Card",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Assign Technician",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"technician_id\": \"{{user_id}}\",\n    \"notes\": \"Assigning for initial diagnosis\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/assign_technician/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "assign_technician", ""]
+            }
+          }
+        },
+        {
+          "name": "Add Diagnosis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"diagnosis_notes\": \"Faulty power jack. Needs replacement. Also found minor battery issue.\",\n    \"estimated_cost\": 2500.00,\n    \"estimated_completion_date\": \"2026-01-10\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/add_diagnosis/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "add_diagnosis", ""]
+            }
+          }
+        },
+        {
+          "name": "Share Estimate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/share_estimate/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "share_estimate", ""]
+            }
+          }
+        },
+        {
+          "name": "Record Customer Response (Approve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"approved\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/record_customer_response/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "jobs",
+                "jobs",
+                "{{job_id}}",
+                "record_customer_response",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Record Customer Response (Reject)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"approved\": false,\n    \"rejection_reason\": \"Cost too high\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/record_customer_response/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "jobs",
+                "jobs",
+                "{{job_id}}",
+                "record_customer_response",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"new_status\": \"REPAIR_IN_PROGRESS\",\n    \"notes\": \"Starting repair work\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/update_status/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "update_status", ""]
+            }
+          }
+        },
+        {
+          "name": "Mark Ready for Delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"completion_notes\": \"Replaced power jack. Tested OK. Battery holds charge.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/mark_ready/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "mark_ready", ""]
+            }
+          }
+        },
+        {
+          "name": "Deliver Job (OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"otp\": \"123456\",\n    \"notes\": \"Delivered to customer\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/deliver/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "deliver", ""]
+            }
+          }
+        },
+        {
+          "name": "Resend Delivery OTP",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/resend_delivery_otp/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "resend_delivery_otp", ""]
+            }
+          }
+        },
+        {
+          "name": "Access Device Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Need to access BIOS for diagnostics\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/access_device_password/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "jobs",
+                "jobs",
+                "{{job_id}}",
+                "access_device_password",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request Part",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"part_name\": \"Dell Power Jack\",\n    \"quantity\": 1,\n    \"notes\": \"Original Dell replacement needed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/request_part/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "request_part", ""]
+            }
+          }
+        },
+        {
+          "name": "Add Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"note\": \"Customer called to check status. Informed about ongoing repair.\",\n    \"is_internal\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/add_note/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "add_note", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Timeline",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/{{job_id}}/timeline/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "{{job_id}}", "timeline", ""]
+            }
+          }
+        },
+        {
+          "name": "List Pending Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/pending/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "pending", ""]
+            }
+          }
+        },
+        {
+          "name": "My Jobs (Technician)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/jobs/my_jobs/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "jobs", "my_jobs", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Job Statuses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/enums/statuses/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "enums", "statuses", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Device Types",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/enums/device_types/",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "enums", "device_types", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List Inventory Items",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/?branch={{branch_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", ""],
+              "query": [
+                {
+                  "key": "branch",
+                  "value": "{{branch_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Inventory Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('inventory_item_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch\": \"{{branch_id}}\",\n    \"name\": \"Dell Laptop Power Jack\",\n    \"sku\": \"DELL-PJ-001\",\n    \"description\": \"Original Dell power jack for Inspiron series\",\n    \"cost_price\": 500.00,\n    \"selling_price\": 800.00,\n    \"gst_rate\": 18.00,\n    \"hsn_code\": \"85366990\",\n    \"low_stock_threshold\": 5,\n    \"unit\": \"PCS\",\n    \"vendor_name\": \"Dell Parts India\",\n    \"vendor_contact\": \"+919876543220\",\n    \"warranty_period_months\": 6\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/items/",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Inventory Item",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/{{inventory_item_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", "{{inventory_item_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Add Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quantity\": 10,\n    \"reason\": \"Purchase Order #PO-2026-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/items/{{inventory_item_id}}/add_stock/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "inventory",
+                "items",
+                "{{inventory_item_id}}",
+                "add_stock",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deduct Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quantity\": 1,\n    \"reason\": \"Used for job {{job_id}}\",\n    \"job_id\": \"{{job_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/items/{{inventory_item_id}}/deduct_stock/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "inventory",
+                "items",
+                "{{inventory_item_id}}",
+                "deduct_stock",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Manual Stock Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"new_quantity\": 8,\n    \"reason\": \"Physical stock count correction. Found 2 units damaged.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/items/{{inventory_item_id}}/adjust_stock/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "inventory",
+                "items",
+                "{{inventory_item_id}}",
+                "adjust_stock",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Adjustments History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/{{inventory_item_id}}/adjustments/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "inventory",
+                "items",
+                "{{inventory_item_id}}",
+                "adjustments",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Low Stock Items",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/low_stock/",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", "low_stock", ""]
+            }
+          }
+        },
+        {
+          "name": "Out of Stock Items",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/out_of_stock/",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", "out_of_stock", ""]
+            }
+          }
+        },
+        {
+          "name": "Inventory Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/inventory/items/stats/",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "items", "stats", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Billing & Invoices",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/?branch={{branch_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", ""],
+              "query": [
+                {
+                  "key": "branch",
+                  "value": "{{branch_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('invoice_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch\": \"{{branch_id}}\",\n    \"job_id\": \"{{job_id}}\",\n    \"due_date\": \"2026-01-15\",\n    \"notes\": \"Thank you for your business!\",\n    \"line_items\": [\n        {\n            \"item_type\": \"SERVICE\",\n            \"description\": \"Laptop Repair - Power Jack Replacement\",\n            \"hsn_sac_code\": \"998719\",\n            \"quantity\": 1,\n            \"unit_price\": 1500.00,\n            \"gst_rate\": 18\n        },\n        {\n            \"item_type\": \"LABOUR\",\n            \"description\": \"Labour Charges\",\n            \"hsn_sac_code\": \"998719\",\n            \"quantity\": 1,\n            \"unit_price\": 500.00,\n            \"gst_rate\": 18\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Invoice",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "{{invoice_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Add Line Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"item_type\": \"PART\",\n    \"description\": \"Dell Power Jack\",\n    \"hsn_sac_code\": \"85366990\",\n    \"quantity\": 1,\n    \"unit_price\": 800.00,\n    \"gst_rate\": 18\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/add_line_item/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "billing",
+                "invoices",
+                "{{invoice_id}}",
+                "add_line_item",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Finalize Invoice",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/finalize/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "{{invoice_id}}", "finalize", ""]
+            }
+          }
+        },
+        {
+          "name": "Record Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amount\": 2000.00,\n    \"payment_method\": \"UPI\",\n    \"reference\": \"UPI123456789\",\n    \"notes\": \"Partial payment received\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/record_payment/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "billing",
+                "invoices",
+                "{{invoice_id}}",
+                "record_payment",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Payments for Invoice",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/payments/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "{{invoice_id}}", "payments", ""]
+            }
+          }
+        },
+        {
+          "name": "Download Invoice PDF",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/download_pdf/",
+              "host": ["{{base_url}}"],
+              "path": [
+                "billing",
+                "invoices",
+                "{{invoice_id}}",
+                "download_pdf",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Customer cancelled order\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/{{invoice_id}}/cancel/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "{{invoice_id}}", "cancel", ""]
+            }
+          }
+        },
+        {
+          "name": "Invoice Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/stats/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "stats", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pending Invoices",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/invoices/pending/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "invoices", "pending", ""]
+            }
+          }
+        },
+        {
+          "name": "Get Payment Methods",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/billing/payment-methods/list_methods/",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "payment-methods", "list_methods", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notification Templates",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/notifications/templates/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "templates", ""]
+            }
+          }
+        },
+        {
+          "name": "Create Default Templates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"branch_id\": \"{{branch_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/notifications/templates/create_defaults/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "templates", "create_defaults", ""]
+            }
+          }
+        },
+        {
+          "name": "List Notification Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/notifications/logs/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "logs", ""]
+            }
+          }
+        },
+        {
+          "name": "List Internal Alerts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/notifications/alerts/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "alerts", ""]
+            }
+          }
+        },
+        {
+          "name": "Unread Alerts Count",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/notifications/alerts/unread_count/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "alerts", "unread_count", ""]
+            }
+          }
+        },
+        {
+          "name": "Mark All Alerts Read",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/notifications/alerts/mark_all_read/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "alerts", "mark_all_read", ""]
+            }
+          }
+        },
+        {
+          "name": "Send Custom Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"channel\": \"SMS\",\n    \"recipient_mobile\": \"9876543210\",\n    \"recipient_name\": \"Amit Kumar\",\n    \"message\": \"Your device repair is complete. Please visit our center to collect.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/notifications/send/send/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "send", "send", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Revenue Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/revenue/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "revenue", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pending Jobs Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/pending_jobs/",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "pending_jobs", ""]
+            }
+          }
+        },
+        {
+          "name": "Technician Productivity",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/technician_productivity/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "technician_productivity", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory Consumption",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/inventory_consumption/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "inventory_consumption", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Low Stock Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/low_stock/",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "low_stock", ""]
+            }
+          }
+        },
+        {
+          "name": "Customer Analysis",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/customer_analysis/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "customer_analysis", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GST Summary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/gst_summary/?from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "gst_summary", ""],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export to Excel",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/export_excel/?report=revenue&from_date=2026-01-01&to_date=2026-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "export_excel", ""],
+              "query": [
+                {
+                  "key": "report",
+                  "value": "revenue"
+                },
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/logs/",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logs", ""]
+            }
+          }
+        },
+        {
+          "name": "Audit Logs for Object",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/logs/for_object/?model=JobCard&id={{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logs", "for_object", ""],
+              "query": [
+                {
+                  "key": "model",
+                  "value": "JobCard"
+                },
+                {
+                  "key": "id",
+                  "value": "{{job_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Device Password Access Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/password-access/",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "password-access", ""]
+            }
+          }
+        },
+        {
+          "name": "Password Access for Job",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/password-access/for_job/?job_id={{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "password-access", "for_job", ""],
+              "query": [
+                {
+                  "key": "job_id",
+                  "value": "{{job_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/logins/",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logins", ""]
+            }
+          }
+        },
+        {
+          "name": "Data Export Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit/exports/",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "exports", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Documentation",
+      "item": [
+        {
+          "name": "OpenAPI Schema",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/schema/",
+              "host": ["{{base_url}}"],
+              "path": ["schema", ""]
+            }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/docs/",
+              "host": ["{{base_url}}"],
+              "path": ["docs", ""]
+            }
+          }
+        },
+        {
+          "name": "ReDoc",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/redoc/",
+              "host": ["{{base_url}}"],
+              "path": ["redoc", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
