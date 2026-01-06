@@ -38,9 +38,9 @@ class NotificationService:
         from jobs.models import JobStatus
         
         notification_type_map = {
-            JobStatus.DIAGNOSED: NotificationType.JOB_DIAGNOSED,
+            JobStatus.DIAGNOSIS: NotificationType.JOB_DIAGNOSED,
             JobStatus.ESTIMATE_SHARED: NotificationType.ESTIMATE_SHARED,
-            JobStatus.READY: NotificationType.JOB_READY,
+            JobStatus.READY_FOR_DELIVERY: NotificationType.JOB_READY,
             JobStatus.DELIVERED: NotificationType.JOB_DELIVERED,
         }
         
