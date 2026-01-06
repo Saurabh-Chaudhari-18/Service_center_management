@@ -191,10 +191,10 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             
             job.save()
             
-            # Auto-transition to DIAGNOSED if still in RECEIVED
+            # Auto-transition to DIAGNOSIS if still in RECEIVED
             if job.status == JobStatus.RECEIVED:
                 job.transition_status(
-                    JobStatus.DIAGNOSED,
+                    JobStatus.DIAGNOSIS,
                     request.user,
                     'Diagnosis completed'
                 )
@@ -210,7 +210,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Share estimate with customer."""
         job = self.get_object()
         
-        if job.status != JobStatus.DIAGNOSED:
+        if job.status != JobStatus.DIAGNOSIS:
             return Response(
                 {'error': 'Job must be diagnosed before sharing estimate.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -282,7 +282,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Mark job as ready for pickup."""
         job = self.get_object()
         
-        if job.status not in [JobStatus.IN_PROGRESS, JobStatus.ON_HOLD]:
+        if job.status not in [JobStatus.REPAIR_IN_PROGRESS, JobStatus.WAITING_FOR_PARTS]:
             return Response(
                 {'error': 'Job must be in progress to mark as ready.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -296,7 +296,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             job.save()
             
             job.transition_status(
-                JobStatus.READY,
+                JobStatus.READY_FOR_DELIVERY,
                 request.user,
                 completion_notes
             )
@@ -317,7 +317,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """
         job = self.get_object()
         
-        if job.status != JobStatus.READY:
+        if job.status != JobStatus.READY_FOR_DELIVERY:
             return Response(
                 {'error': 'Job must be ready for pickup before delivery.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -353,7 +353,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Resend delivery OTP to customer."""
         job = self.get_object()
         
-        if job.status != JobStatus.READY:
+        if job.status != JobStatus.READY_FOR_DELIVERY:
             return Response(
                 {'error': 'Job must be ready for pickup.'},
                 status=status.HTTP_400_BAD_REQUEST

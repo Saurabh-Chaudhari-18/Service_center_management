@@ -21,30 +21,31 @@ import uuid
 class JobStatus(models.TextChoices):
     """
     Job status enum with enforced sequential transitions.
+    Based on FRD Section 8.1, with additional states for complete workflow coverage.
     """
     RECEIVED = 'RECEIVED', 'Received'  # Initial status when device is received
-    DIAGNOSED = 'DIAGNOSED', 'Diagnosed'  # Technician has diagnosed the issue
+    DIAGNOSIS = 'DIAGNOSIS', 'Under Diagnosis'  # Technician is diagnosing (FRD: DIAGNOSIS)
     ESTIMATE_SHARED = 'ESTIMATE_SHARED', 'Estimate Shared'  # Estimate shared with customer
-    APPROVED = 'APPROVED', 'Approved'  # Customer approved repair
-    REJECTED = 'REJECTED', 'Rejected'  # Customer rejected repair (dead end)
-    IN_PROGRESS = 'IN_PROGRESS', 'In Progress'  # Repair work in progress
-    ON_HOLD = 'ON_HOLD', 'On Hold'  # Waiting for parts/approval
-    READY = 'READY', 'Ready for Pickup'  # Repair complete, ready for delivery
+    APPROVED = 'APPROVED', 'Customer Approved'  # Customer approved repair
+    REJECTED = 'REJECTED', 'Customer Rejected'  # Customer rejected repair (dead end)
+    WAITING_FOR_PARTS = 'WAITING_FOR_PARTS', 'Waiting for Parts'  # FRD: WAITING_FOR_PARTS
+    REPAIR_IN_PROGRESS = 'REPAIR_IN_PROGRESS', 'Repair in Progress'  # FRD: REPAIR_IN_PROGRESS
+    READY_FOR_DELIVERY = 'READY_FOR_DELIVERY', 'Ready for Delivery'  # FRD: READY_FOR_DELIVERY
     DELIVERED = 'DELIVERED', 'Delivered'  # Device delivered to customer
     CANCELLED = 'CANCELLED', 'Cancelled'  # Job cancelled (dead end)
 
 
-# Define allowed status transitions
+# Define allowed status transitions (FRD Section 8.2: sequential only)
 ALLOWED_STATUS_TRANSITIONS = {
-    JobStatus.RECEIVED: [JobStatus.DIAGNOSED, JobStatus.CANCELLED],
-    JobStatus.DIAGNOSED: [JobStatus.ESTIMATE_SHARED, JobStatus.CANCELLED],
+    JobStatus.RECEIVED: [JobStatus.DIAGNOSIS, JobStatus.CANCELLED],
+    JobStatus.DIAGNOSIS: [JobStatus.ESTIMATE_SHARED, JobStatus.CANCELLED],
     JobStatus.ESTIMATE_SHARED: [JobStatus.APPROVED, JobStatus.REJECTED, JobStatus.CANCELLED],
-    JobStatus.APPROVED: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
+    JobStatus.APPROVED: [JobStatus.WAITING_FOR_PARTS, JobStatus.REPAIR_IN_PROGRESS, JobStatus.CANCELLED],
     JobStatus.REJECTED: [],  # Terminal state
-    JobStatus.IN_PROGRESS: [JobStatus.ON_HOLD, JobStatus.READY, JobStatus.CANCELLED],
-    JobStatus.ON_HOLD: [JobStatus.IN_PROGRESS, JobStatus.CANCELLED],
-    JobStatus.READY: [JobStatus.DELIVERED, JobStatus.IN_PROGRESS],  # Can go back to repair if issues found
-    JobStatus.DELIVERED: [],  # Terminal state
+    JobStatus.WAITING_FOR_PARTS: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.CANCELLED],
+    JobStatus.REPAIR_IN_PROGRESS: [JobStatus.WAITING_FOR_PARTS, JobStatus.READY_FOR_DELIVERY, JobStatus.CANCELLED],
+    JobStatus.READY_FOR_DELIVERY: [JobStatus.DELIVERED, JobStatus.REPAIR_IN_PROGRESS],  # Can go back if issues found
+    JobStatus.DELIVERED: [],  # Terminal state (FRD: Job becomes read-only after delivery)
     JobStatus.CANCELLED: [],  # Terminal state
 }
 
@@ -328,7 +329,7 @@ class JobCard(TimeStampedModel):
             self.status = new_status
             
             # Update related timestamps
-            if new_status == JobStatus.READY:
+            if new_status == JobStatus.READY_FOR_DELIVERY:
                 self.actual_completion_date = timezone.now()
             elif new_status == JobStatus.DELIVERED:
                 self.delivery_date = timezone.now()
