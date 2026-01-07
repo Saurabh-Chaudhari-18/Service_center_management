@@ -38,7 +38,7 @@ import type { Customer, DeviceType, AccessoryType } from "@/types";
 // =====================================================
 
 const createJobSchema = z.object({
-  customer: z.string().min(1, "Please select a customer"),
+  customer_id: z.string().min(1, "Please select a customer"),
   device_type: z.string().min(1, "Device type is required"),
   brand: z.string().min(1, "Brand is required"),
   model: z.string().min(1, "Model is required"),
@@ -398,7 +398,7 @@ export default function CreateJobCardPage() {
   // Update form when customer is selected
   React.useEffect(() => {
     if (selectedCustomer) {
-      setValue("customer", selectedCustomer.id);
+      setValue("customer_id", selectedCustomer.id);
     }
   }, [selectedCustomer, setValue]);
 
@@ -482,10 +482,10 @@ export default function CreateJobCardPage() {
                 selectedCustomer={selectedCustomer}
                 branchId={currentBranch.id}
               />
-              {errors.customer && (
+              {errors.customer_id && (
                 <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
-                  {errors.customer.message}
+                  {errors.customer_id.message}
                 </p>
               )}
             </Card>

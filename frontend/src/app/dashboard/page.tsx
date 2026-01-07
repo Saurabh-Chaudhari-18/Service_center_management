@@ -23,9 +23,7 @@ import {
   AlertTriangle,
   Plus,
   ArrowRight,
-  Wrench,
   Users,
-  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -39,7 +37,8 @@ function DashboardStats() {
   const { currentBranch } = useAuth();
 
   // Fetch pending jobs count
-  const { data: pendingJobs = [] } = useQuery({
+  // Fetch pending jobs
+  const { data: pendingJobsData } = useQuery({
     queryKey: ["pending-jobs", currentBranch?.id],
     queryFn: () => jobsApi.getPending(),
     enabled: !!currentBranch,
@@ -62,7 +61,7 @@ function DashboardStats() {
   const stats = [
     {
       label: "Pending Jobs",
-      value: pendingJobs.length,
+      value: pendingJobsData?.count || 0,
       icon: <FileText className="w-6 h-6 text-primary-600" />,
       variant: "primary" as const,
     },
@@ -317,7 +316,7 @@ function JobStatusSummary() {
     enabled: !!currentBranch,
   });
 
-  const jobs = data || [];
+  const jobs = data?.results || [];
 
   // Group by status
   const statusCounts = jobs.reduce((acc, job) => {

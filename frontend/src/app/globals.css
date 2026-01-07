@@ -168,6 +168,68 @@
   .stats-card-accent {
     @apply border-l-4 border-l-info-500;
   }
+
+  /* Sidebar & Layout */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 16rem;
+    background-color: var(--color-neutral-900);
+    z-index: 40;
+    transition: all 0.3s ease;
+  }
+
+  .gradient-sidebar {
+    background: linear-gradient(
+      180deg,
+      var(--color-neutral-900) 0%,
+      var(--color-neutral-800) 100%
+    );
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .gradient-accent {
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-600) 0%,
+      var(--color-primary-400) 100%
+    );
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-neutral-400);
+    transition: all 0.2s ease;
+    text-decoration: none;
+  }
+
+  .sidebar-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: white;
+  }
+
+  .sidebar-item.active {
+    background-color: var(--color-primary-600);
+    color: white;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .main-content {
+    margin-left: 16rem;
+    padding: 2rem;
+    min-height: 100vh;
+    transition: all 0.3s ease;
+  }
 }
 
 /* Loaders & Misc */
