@@ -9,7 +9,7 @@ import axios, {
 
 // API Base URL - configurable via environment
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api";
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = "scm_access_token";
