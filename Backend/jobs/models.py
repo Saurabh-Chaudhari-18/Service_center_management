@@ -413,7 +413,7 @@ class JobStatusHistory(TimeStampedModel):
         return f"{self.job.job_number}: {self.from_status} → {self.to_status}"
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        if not self._state.adding:
             raise ValueError("JobStatusHistory records are immutable")
         super().save(*args, **kwargs)
 

@@ -7,7 +7,6 @@ import {
   apiGet,
   apiPost,
   apiPatch,
-  apiDelete,
   apiUpload,
   apiDownload,
 } from "./client";
@@ -349,8 +348,8 @@ export const jobsApi = {
   },
 
   // Lists
-  getPending: async (): Promise<JobCard[]> => {
-    return apiGet<JobCard[]>("/jobs/jobs/pending/");
+  getPending: async (): Promise<PaginatedResponse<JobCard>> => {
+    return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/pending/");
   },
 
   getMyJobs: async (): Promise<JobCard[]> => {
