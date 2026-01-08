@@ -76,8 +76,7 @@ function JobCardItem({ job }: JobCardItemProps) {
               <div className="flex items-center gap-2 text-sm text-neutral-600">
                 <User className="w-4 h-4 text-neutral-400" />
                 <span className="truncate">
-                  {job.customer_details?.first_name}{" "}
-                  {job.customer_details?.last_name}
+                  {job.customer?.first_name} {job.customer?.last_name}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-neutral-600">

@@ -165,8 +165,8 @@ function RecentJobs() {
                     )}
                   </div>
                   <p className="mt-1 text-sm text-neutral-600 truncate">
-                    {job.customer_details?.first_name}{" "}
-                    {job.customer_details?.last_name} • {job.brand} {job.model}
+                    {job.customer?.first_name} {job.customer?.last_name} •{" "}
+                    {job.brand} {job.model}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">
                     {format(new Date(job.created_at), "MMM dd, yyyy h:mm a")}

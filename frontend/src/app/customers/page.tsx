@@ -26,7 +26,6 @@ import {
   Mail,
   MapPin,
   FileText,
-  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -49,7 +48,7 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
     >
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-lg font-medium flex-shrink-0">
-          {customer.first_name[0]}
+          {customer.first_name?.[0] || "?"}
           {customer.last_name?.[0]}
         </div>
         <div className="flex-1 min-w-0">
@@ -82,7 +81,9 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
             </Badge>
           )}
           <p className="text-xs text-neutral-400 mt-2">
-            Since {format(new Date(customer.created_at), "MMM yyyy")}
+            {customer.created_at
+              ? `Since ${format(new Date(customer.created_at), "MMM yyyy")}`
+              : "Recently joined"}
           </p>
         </div>
       </div>
@@ -134,7 +135,7 @@ function AddCustomerModal({
     resolver: zodResolver(customerSchema),
   });
 
-  const { mutate, isPending, error } = useMutation({
+  const { mutate, isPending } = useMutation({
     mutationFn: (data: CustomerFormData) =>
       customersApi.create({ ...data, branch: branchId }),
     onSuccess: () => {
@@ -237,7 +238,7 @@ function CustomerDetailsModal({
         {/* Customer Info */}
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-2xl font-medium">
-            {customer.first_name[0]}
+            {customer.first_name?.[0] || "?"}
             {customer.last_name?.[0]}
           </div>
           <div className="flex-1">
