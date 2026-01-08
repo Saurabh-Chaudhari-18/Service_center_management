@@ -240,8 +240,8 @@ export interface JobCard extends BaseEntity {
   branch: string;
   branch_name?: string;
   job_number: string;
-  customer: string;
-  customer_details?: Customer;
+  customer?: Customer;
+  customer_id?: string;
   device_type: DeviceType;
   brand: string;
   model: string;
@@ -275,7 +275,7 @@ export interface JobCard extends BaseEntity {
 
 export interface CreateJobCardData {
   branch: string;
-  customer: string;
+  customer_id: string;
   device_type: DeviceType;
   brand: string;
   model: string;

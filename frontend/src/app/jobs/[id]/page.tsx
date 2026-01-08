@@ -109,30 +109,61 @@ interface AssignTechnicianModalProps {
   isOpen: boolean;
   onClose: () => void;
   jobId: string;
+  branchId?: string;
 }
 
 function AssignTechnicianModal({
   isOpen,
   onClose,
   jobId,
+  branchId,
 }: AssignTechnicianModalProps) {
   const queryClient = useQueryClient();
   const [technicianId, setTechnicianId] = useState("");
   const [notes, setNotes] = useState("");
 
-  const { mutate, isPending } = useMutation({
+  // Fetch real technicians from API
+  const { data: techniciansData } = useQuery({
+    queryKey: ["technicians", branchId],
+    queryFn: () =>
+      jobsApi.list({ branch: branchId }).then(() =>
+        // Fetch users with TECHNICIAN role
+        fetch(
+          `${
+            process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
+          }/core/users/?role=TECHNICIAN${
+            branchId ? `&branch=${branchId}` : ""
+          }`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(
+                "scm_access_token"
+              )}`,
+              "Content-Type": "application/json",
+            },
+          }
+        ).then((res) => res.json())
+      ),
+    enabled: isOpen,
+  });
+
+  const technicians =
+    techniciansData?.results?.map(
+      (user: { id: string; first_name: string; last_name: string }) => ({
+        value: user.id,
+        label: `${user.first_name} ${user.last_name}`,
+      })
+    ) || [];
+
+  const { mutate, isPending, error } = useMutation({
     mutationFn: () => jobsApi.assignTechnician(jobId, technicianId, notes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      setTechnicianId("");
+      setNotes("");
       onClose();
     },
   });
-
-  // TODO: Fetch technicians list from API
-  const technicians = [
-    { value: "tech1", label: "John Doe - Technician" },
-    { value: "tech2", label: "Jane Smith - Technician" },
-  ];
 
   return (
     <Modal
@@ -155,14 +186,22 @@ function AssignTechnicianModal({
       }
     >
       <div className="space-y-4">
-        <Select
-          label="Select Technician"
-          options={technicians}
-          value={technicianId}
-          onChange={(e) => setTechnicianId(e.target.value)}
-          placeholder="Choose a technician..."
-          required
-        />
+        {error && <Alert variant="error">{(error as Error).message}</Alert>}
+        {technicians.length === 0 ? (
+          <Alert variant="info">
+            No technicians available. Please add technicians to this branch
+            first.
+          </Alert>
+        ) : (
+          <Select
+            label="Select Technician"
+            options={technicians}
+            value={technicianId}
+            onChange={(e) => setTechnicianId(e.target.value)}
+            placeholder="Choose a technician..."
+            required
+          />
+        )}
         <Textarea
           label="Notes (optional)"
           placeholder="Add any assignment notes..."
@@ -485,33 +524,31 @@ export default function JobDetailPage() {
                   <div>
                     <p className="text-sm text-neutral-500">Name</p>
                     <p className="font-medium text-neutral-900">
-                      {job.customer_details?.first_name}{" "}
-                      {job.customer_details?.last_name}
+                      {job.customer?.first_name} {job.customer?.last_name}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-neutral-500">Mobile</p>
                     <p className="font-medium text-neutral-900 flex items-center gap-2">
                       <Phone className="w-4 h-4 text-neutral-400" />
-                      {job.customer_details?.mobile}
+                      {job.customer?.mobile}
                     </p>
                   </div>
-                  {job.customer_details?.email && (
+                  {job.customer?.email && (
                     <div>
                       <p className="text-sm text-neutral-500">Email</p>
                       <p className="font-medium text-neutral-900 flex items-center gap-2">
                         <Mail className="w-4 h-4 text-neutral-400" />
-                        {job.customer_details.email}
+                        {job.customer.email}
                       </p>
                     </div>
                   )}
-                  {job.customer_details?.city && (
+                  {job.customer?.city && (
                     <div>
                       <p className="text-sm text-neutral-500">Location</p>
                       <p className="font-medium text-neutral-900 flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-neutral-400" />
-                        {job.customer_details.city},{" "}
-                        {job.customer_details.state}
+                        {job.customer.city}, {job.customer.state}
                       </p>
                     </div>
                   )}
@@ -727,6 +764,7 @@ export default function JobDetailPage() {
           isOpen={showAssignModal}
           onClose={() => setShowAssignModal(false)}
           jobId={jobId}
+          branchId={job.branch}
         />
         <UpdateStatusModal
           isOpen={showStatusModal}

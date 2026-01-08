@@ -96,11 +96,11 @@ function TechnicianJobCard({
             Customer
           </p>
           <p className="font-medium text-neutral-900">
-            {job.customer_details?.first_name} {job.customer_details?.last_name}
+            {job.customer?.first_name} {job.customer?.last_name}
           </p>
           <p className="text-sm text-neutral-500 flex items-center gap-1 mt-1">
             <Phone className="w-3.5 h-3.5" />
-            {job.customer_details?.mobile}
+            {job.customer?.mobile}
           </p>
         </div>
         <div>
