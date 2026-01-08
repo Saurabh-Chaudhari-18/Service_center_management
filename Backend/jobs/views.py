@@ -109,7 +109,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         try:
             job.transition_status(
-                new_status=serializer.validated_data['new_status'],
+                new_status=JobStatus(serializer.validated_data['new_status']),
                 user=request.user,
                 notes=serializer.validated_data.get('notes', ''),
                 is_override=serializer.validated_data.get('is_override', False)
