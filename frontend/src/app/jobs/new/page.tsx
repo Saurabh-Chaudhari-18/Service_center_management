@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -53,9 +54,30 @@ const createJobSchema = z.object({
   is_urgent: z.boolean().optional(),
   is_warranty_repair: z.boolean().optional(),
   warranty_details: z.string().optional(),
+  diagnosis_notes: z.string().optional(),
 });
 
 type CreateJobFormData = z.infer<typeof createJobSchema>;
+
+// =====================================================
+// Print Portal Component
+// =====================================================
+
+const PrintPortal = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div id="print-portal-root">{children}</div>,
+    document.body
+  );
+};
 
 // =====================================================
 // Customer Search Component
@@ -386,6 +408,9 @@ interface JobCardPreviewModalProps {
     Record<AccessoryType, { present: boolean; condition: string }>
   >;
   branchName: string;
+  serviceCharge: string;
+  predictedJobNumber: string;
+  accessoryManualDetails: string;
 }
 
 function JobCardPreviewModal({
@@ -397,15 +422,50 @@ function JobCardPreviewModal({
   customer,
   accessories,
   branchName,
+  serviceCharge,
+  predictedJobNumber,
+  accessoryManualDetails,
 }: JobCardPreviewModalProps) {
   const handlePrint = () => {
     window.print();
   };
 
-  const selectedAccessories = Object.entries(accessories)
-    .filter(([_, v]) => v.present)
-    .map(([type]) => type.toLowerCase().replace("_", " "));
+  // Helper to get accessory display list with details
+  const getAccessoryDisplayList = () => {
+    return Object.entries(accessories)
+      .filter(([_, v]) => v.present)
+      .map(([type, v]) => {
+        const label =
+          type === "CHARGER"
+            ? "Charger/Adapter"
+            : type === "BATTERY"
+            ? "Battery"
+            : type === "BAG"
+            ? "Laptop Bag"
+            : type === "SSD"
+            ? "SSD"
+            : type === "HDD"
+            ? "Hard Drive"
+            : type === "RAM"
+            ? "RAM Module"
+            : type;
 
+        // Simple parsing logic derived from main page
+        const lines = accessoryManualDetails.split("\n");
+        const matchingLine = lines.find((line) =>
+          line.toLowerCase().includes(label.toLowerCase())
+        );
+        const description = matchingLine
+          ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
+          : "";
+
+        return description && description.trim() !== ""
+          ? `${label} (${description})`
+          : label;
+      });
+  };
+
+  const selectedAccessories = getAccessoryDisplayList();
   const currentDate = new Date().toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -546,16 +606,16 @@ function JobCardPreviewModal({
             <div className="border border-neutral-300 p-2 text-[10px] bg-neutral-50">
               <h3 className="font-bold mb-1">TERMS & CONDITIONS</h3>
               <p>
-                <b>Note 1:</b> In case of hard disk failure, formatting may be
-                required which may lead to data loss. Customers are advised to
-                backup important data. Only recommended OS with drivers will be
-                installed. Physical/water/burn damage not covered under
+                <b>Condition:</b> In case of hard disk failure, formatting may
+                be required which may lead to data loss. Customers are advised
+                to backup important data. Only recommended OS with drivers will
+                be installed. Physical/water/burn damage not covered under
                 warranty. For warranty claims, provide purchase invoice.
                 Defective parts not returned. Product may become non-functional
                 during repair - we will not be responsible.
               </p>
               <p className="mt-1">
-                <b>Note 2:</b> Customer must confirm repair within 48 hours of
+                <b>Note:</b> Customer must confirm repair within 48 hours of
                 estimate, else repair will proceed automatically. Defective
                 parts not returned. Complaints must be reported within 24 hours
                 of delivery. Collect product within 45 days or it will be
@@ -573,8 +633,11 @@ function JobCardPreviewModal({
                   I authorize Shivangi Infotech for repair & service. I have
                   backed up all important data.
                 </p>
-                <div className="border-t border-dashed pt-2 mt-4">
-                  <p className="text-neutral-500">
+                <div className="mt-4 pt-2 border-t border-dashed border-black">
+                  <p className="font-bold mb-2">
+                    {customer?.first_name} {customer?.last_name}
+                  </p>
+                  <p className="font-bold">
                     Customer Signature: _________________
                   </p>
                 </div>
@@ -632,160 +695,225 @@ function JobCardPreviewModal({
       </div>
 
       {/* PRINT-ONLY CONTENT - Uses ID for CSS targeting */}
-      <div id="printable-job-card" className="hidden print:block bg-white">
-        {/* Enhanced Shop Header with Brand Logos */}
-        <div className="print-section border-2 border-black p-2 mb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2 text-[8pt]">
-              <span className="font-bold border border-black px-1">HP</span>
-              <span className="font-bold border border-black px-1">DELL</span>
-              <span className="font-bold border border-black px-1">ASUS</span>
-              <span className="font-bold border border-black px-1">LENOVO</span>
+      <PrintPortal>
+        <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
+          <div className="space-y-3">
+            {/* Enhanced Shop Header with Brand Logos */}
+            <div className="print-section border-2 border-black p-2 mb-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex gap-3 text-[10pt]">
+                  <span className="font-bold border-2 border-black px-2 py-0.5">
+                    HP
+                  </span>
+                  <span className="font-bold border-2 border-black px-2 py-0.5">
+                    DELL
+                  </span>
+                  <span className="font-bold border-2 border-black px-2 py-0.5">
+                    ASUS
+                  </span>
+                  <span className="font-bold border-2 border-black px-2 py-0.5">
+                    LENOVO
+                  </span>
+                </div>
+                <div className="text-right">
+                  <h1 className="text-2xl font-bold uppercase tracking-wider">
+                    SHIVANGI INFOTECH
+                  </h1>
+                  <p className="text-[10pt] font-semibold">
+                    HP | DELL | ASUS Authorised Partner
+                  </p>
+                </div>
+              </div>
+              <div className="text-center mt-2 pt-2 border-t-2 border-black">
+                <p className="text-[10pt] font-medium">
+                  Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom,
+                  Pune-411038
+                </p>
+                <p className="text-[10pt] font-bold mt-1">
+                  Mobile: 9890888295, 9850292673
+                </p>
+              </div>
+              <div className="text-center mt-2 pt-2 border-t-2 border-black">
+                <p className="font-bold text-lg uppercase tracking-wide">
+                  JOB CARD: {predictedJobNumber}
+                </p>
+                <p className="text-[11pt] font-medium">Date: {currentDate}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <h1 className="text-lg font-bold">SHIVANGI INFOTECH</h1>
-              <p className="text-[8pt]">HP | DELL | ASUS Authorised Partner</p>
+
+            {/* Customer & Device */}
+            <div className="print-grid print-section grid grid-cols-2 gap-4 mb-2">
+              <div className="border border-black p-2">
+                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                  CUSTOMER DETAILS
+                </p>
+                <div className="space-y-1">
+                  <p>
+                    <b>Name:</b> {customer?.first_name} {customer?.last_name}
+                  </p>
+                  <p>
+                    <b>Mobile:</b> {customer?.mobile}
+                  </p>
+                  {customer?.email && (
+                    <p>
+                      <b>Email:</b> {customer.email}
+                    </p>
+                  )}
+                  {customer?.city && (
+                    <p>
+                      <b>Address:</b> {customer.city}, {customer?.state}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="border border-black p-2">
+                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                  DEVICE DETAILS
+                </p>
+                <div className="space-y-1">
+                  <p>
+                    <b>Type:</b> {formData.device_type}
+                  </p>
+                  <p>
+                    <b>Brand/Model:</b> {formData.brand} {formData.model}
+                  </p>
+                  {formData.serial_number && (
+                    <p>
+                      <b>Serial:</b> {formData.serial_number}
+                    </p>
+                  )}
+                  <p>
+                    <b>Warranty:</b>{" "}
+                    {formData.is_warranty_repair ? "YES" : "NO"}
+                  </p>
+                  {formData.is_urgent && (
+                    <p className="text-red-600 font-bold text-[11pt] mt-1">
+                      ⚠ URGENT REPAIR
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Issue Details */}
+            <div className="print-section border border-black p-2 mb-2">
+              <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                ISSUE DETAILS
+              </p>
+              <div className="space-y-2">
+                <p>
+                  <b>Customer Complaint:</b> {formData.customer_complaint}
+                </p>
+                <p>
+                  <b>Physical Condition:</b> {formData.physical_condition}
+                </p>
+                {selectedAccessories.length > 0 && (
+                  <p>
+                    <b>Accessories:</b> {selectedAccessories.join(", ")}
+                  </p>
+                )}
+                {formData.is_warranty_repair && formData.warranty_details && (
+                  <p>
+                    <b>Warranty Info:</b> {formData.warranty_details}
+                  </p>
+                )}
+                {formData.diagnosis_notes && (
+                  <p>
+                    <b>Initial Observations:</b> {formData.diagnosis_notes}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Terms & Conditions */}
+            <div className="print-section border border-black p-2 terms-text mb-2">
+              <p className="font-bold text-[10pt] mb-1 uppercase underline">
+                TERMS & CONDITIONS
+              </p>
+              <div className="space-y-2 text-[9pt] leading-[1.4] text-justify">
+                <p>
+                  <b>1. Condition:</b> In case of hard disk failure, formatting
+                  may be required which may lead to data loss. Customers are
+                  advised to backup important data. Only recommended OS with
+                  drivers will be installed. Physical/water/burn damage not
+                  covered under warranty. For warranty claims, provide purchase
+                  invoice. Defective parts not returned. Product may become
+                  non-functional during repair - we will not be responsible.
+                </p>
+                <p>
+                  <b>2. Note:</b> Customer must confirm repair within 48 hours
+                  of estimate, else repair will proceed automatically. Defective
+                  parts not returned. Complaints must be reported within 24
+                  hours of delivery. Collect product within 45 days or it will
+                  be scrapped. After 45 days, ₹500/month handling charge
+                  applies.
+                </p>
+              </div>
             </div>
           </div>
-          <div className="text-center mt-1 pt-1 border-t border-black">
-            <p className="text-[8pt]">
-              Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom,
-              Pune-411038
-            </p>
-            <p className="text-[8pt]">Mobile: 9890888295, 9850292673</p>
-          </div>
-          <div className="text-center mt-1 pt-1 border-t border-black">
-            <p className="font-bold text-sm">SERVICE INWARD FORM / JOB CARD</p>
-            <p className="text-[9pt]">Date: {currentDate}</p>
-          </div>
-        </div>
 
-        {/* Customer & Device */}
-        <div className="print-grid print-section">
-          <div className="border border-black p-1">
-            <p className="font-bold border-b border-black text-[9pt]">
-              CUSTOMER DETAILS
-            </p>
-            <p>
-              <b>Name:</b> {customer?.first_name} {customer?.last_name}
-            </p>
-            <p>
-              <b>Mobile:</b> {customer?.mobile}
-            </p>
-            {customer?.email && (
+          <div className="space-y-2">
+            {/* Authorization & Charges */}
+            <div className="print-grid print-section grid grid-cols-2 gap-4">
+              <div className="border border-black p-2 h-full flex flex-col justify-between">
+                <div>
+                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                    CUSTOMER AUTHORIZATION
+                  </p>
+                  <p className="text-[10pt] mb-4 italic">
+                    I hereby authorize Shivangi Infotech to provide necessary
+                    repair & service. I have taken backup of all important data.
+                  </p>
+                </div>
+                <div className="mt-8 pt-2 border-t border-dashed border-black">
+                  <p className="font-bold mb-2">
+                    {customer?.first_name} {customer?.last_name}
+                  </p>
+                  <p className="font-bold">
+                    Customer Signature: _________________
+                  </p>
+                </div>
+              </div>
+              <div className="border border-black p-2">
+                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                  APPROX REPAIR CHARGES
+                </p>
+                <div className="space-y-3 text-[11pt]">
+                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                    <span>Service Charges:</span>
+                    <span className="w-24 border-b border-black text-right px-1">
+                      {serviceCharge ? `₹ ${serviceCharge}` : "₹"}
+                    </span>
+                  </p>
+                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                    <span>Parts/Spares:</span>
+                    <span className="w-24 border-b border-black">₹</span>
+                  </p>
+                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                    <span>Discount:</span>
+                    <span className="w-24 border-b border-black">₹</span>
+                  </p>
+                  <p className="flex justify-between font-bold text-lg pt-1">
+                    <span>FINAL COST:</span>
+                    <span className="w-24 border-b-2 border-black">₹</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="footer-text text-center mt-2 pt-2 border-t-2 border-black text-[9pt]">
               <p>
-                <b>Email:</b> {customer.email}
+                All estimates without taxes. GST are Extra as applicable.
+                Diagnosis: Laptop ₹750, Mobile/Tablet ₹500, Desktop ₹350-550
               </p>
-            )}
-            {customer?.city && (
-              <p>
-                <b>Address:</b> {customer.city}, {customer?.state}
+              <p className="font-bold text-[10pt] mt-1">
+                NON-WARRANTY PRODUCTS HAVE NO WARRANTY ON REPAIRING
               </p>
-            )}
-          </div>
-          <div className="border border-black p-1">
-            <p className="font-bold border-b border-black text-[9pt]">
-              DEVICE DETAILS
-            </p>
-            <p>
-              <b>Type:</b> {formData.device_type}
-            </p>
-            <p>
-              <b>Brand/Model:</b> {formData.brand} {formData.model}
-            </p>
-            {formData.serial_number && (
-              <p>
-                <b>Serial:</b> {formData.serial_number}
-              </p>
-            )}
-            <p>
-              <b>Warranty:</b> {formData.is_warranty_repair ? "YES" : "NO"}
-            </p>
-            {formData.is_urgent && (
-              <p style={{ color: "red", fontWeight: "bold" }}>⚠ URGENT</p>
-            )}
-          </div>
-        </div>
-
-        {/* Issue Details */}
-        <div className="print-section border border-black p-1">
-          <p className="font-bold border-b border-black text-[9pt]">
-            ISSUE DETAILS
-          </p>
-          <p>
-            <b>Customer Complaint:</b> {formData.customer_complaint}
-          </p>
-          <p>
-            <b>Physical Condition:</b> {formData.physical_condition}
-          </p>
-          {selectedAccessories.length > 0 && (
-            <p>
-              <b>Accessories:</b> {selectedAccessories.join(", ")}
-            </p>
-          )}
-          {formData.is_warranty_repair && formData.warranty_details && (
-            <p>
-              <b>Warranty Info:</b> {formData.warranty_details}
-            </p>
-          )}
-        </div>
-
-        {/* Terms & Conditions */}
-        <div className="print-section border border-black p-1 terms-text">
-          <p className="font-bold text-[9pt]">TERMS & CONDITIONS</p>
-          <p>
-            <b>Note 1:</b> Hard disk formatting may lead to data loss - backup
-            advised. Only OS with drivers installed. Physical/water/burn damage
-            not covered under warranty. Provide invoice for warranty claims.
-            Defective parts not returned. Not responsible if product becomes
-            non-functional during repair.
-          </p>
-          <p>
-            <b>Note 2:</b> Confirm repair within 48hrs of estimate or it
-            proceeds automatically. Complaints within 24hrs of delivery. Collect
-            within 45 days or product scrapped. ₹500/month handling charge after
-            45 days.
-          </p>
-        </div>
-
-        {/* Authorization & Charges */}
-        <div className="print-grid print-section">
-          <div className="border border-black p-1">
-            <p className="font-bold border-b border-black text-[9pt]">
-              CUSTOMER AUTHORIZATION
-            </p>
-            <p className="text-[8pt]">
-              I hereby authorize Shivangi Infotech to provide necessary repair &
-              service. I have taken backup of all important data.
-            </p>
-            <div className="mt-6 pt-2 border-t border-dashed">
-              <p>Customer Signature: _________________</p>
             </div>
           </div>
-          <div className="border border-black p-1">
-            <p className="font-bold border-b border-black text-[9pt]">
-              APPROX REPAIR CHARGES
-            </p>
-            <p>Service Charges: ₹ __________</p>
-            <p>Parts/Spares: ₹ __________</p>
-            <p>Discount: ₹ __________</p>
-            <p className="font-bold border-t border-black mt-1 pt-1">
-              FINAL COST: ₹ __________
-            </p>
-          </div>
         </div>
-
-        {/* Footer */}
-        <div className="footer-text text-center mt-1 pt-1 border-t border-black">
-          <p>
-            All estimates without taxes. GST are Extra as applicable. Diagnosis:
-            Laptop ₹750, Mobile/Tablet ₹500, Desktop ₹350-550
-          </p>
-          <p className="font-bold">
-            NON-WARRANTY PRODUCTS HAVE NO WARRANTY ON REPAIRING
-          </p>
-        </div>
-      </div>
+      </PrintPortal>
     </div>
   );
 }
@@ -806,6 +934,72 @@ export default function CreateJobCardPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewFormData, setPreviewFormData] =
     useState<CreateJobFormData | null>(null);
+
+  // New State for Service Charge
+  const [serviceCharge, setServiceCharge] = useState("");
+  // New State for Accessory Manual Details
+  const [accessoryManualDetails, setAccessoryManualDetails] = useState("");
+
+  // Auto-populate accessory details when checklist changes
+  useEffect(() => {
+    const presentAccessories = Object.entries(accessories)
+      .filter(([_, v]) => v.present)
+      .map(([k, _]) => {
+        // Get label from predefined list or format it
+        const labels: Record<string, string> = {
+          CHARGER: "Charger/Adapter",
+          BATTERY: "Battery",
+          BAG: "Laptop Bag",
+          MOUSE: "Mouse",
+          KEYBOARD: "Keyboard",
+          POWER_CABLE: "Power Cable",
+          USB_CABLE: "USB Cable",
+          HDMI_CABLE: "HDMI Cable",
+          RAM: "RAM Module",
+          HDD: "Hard Drive",
+          SSD: "SSD",
+          OTHER: "Other",
+        };
+        return labels[k] || k;
+      });
+
+    if (presentAccessories.length > 0) {
+      setAccessoryManualDetails((prev) => {
+        // Only append if not already in text to avoid duplicates
+        const lines = prev.split("\n");
+        let newText = prev;
+
+        presentAccessories.forEach((label) => {
+          const hasLabel = lines.some((line) =>
+            line.toLowerCase().includes(label.toLowerCase())
+          );
+          if (!hasLabel) {
+            newText += (newText ? "\n" : "") + `${label}: `;
+          }
+        });
+        return newText;
+      });
+    }
+  }, [accessories]);
+
+  // Helper to predict job number
+  const getPredictedJobNumber = () => {
+    if (!currentBranch) return "NEW";
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1; // 1-12
+    const fyStartYear = currentMonth >= 4 ? currentYear : currentYear - 1;
+    const fyShort = (fyStartYear + 1).toString().slice(-2);
+    const fy = `${fyStartYear}-${fyShort}`;
+
+    // Safety check for branch properties
+    const currentNum = currentBranch.jobcard_current_number || 0;
+    const nextNum = currentNum + 1;
+    const sequence = nextNum.toString().padStart(5, "0");
+    return `${currentBranch.jobcard_prefix || "JC"}/${fy}/${
+      currentBranch.code
+    }/${sequence}`;
+  };
 
   const {
     register,
@@ -838,11 +1032,40 @@ export default function CreateJobCardPage() {
         device_type: data.device_type as DeviceType,
         accessories: Object.entries(accessories)
           .filter(([_, v]) => v.present)
-          .map(([type, v]) => ({
-            accessory_type: type as AccessoryType,
-            is_present: true,
-            condition: v.condition,
-          })),
+          .map(([type, v]) => {
+            // Parse description from manual details
+            const label =
+              type === "CHARGER"
+                ? "Charger/Adapter"
+                : type === "BATTERY"
+                ? "Battery"
+                : type === "BAG"
+                ? "Laptop Bag"
+                : type === "SSD"
+                ? "SSD"
+                : type === "HDD"
+                ? "Hard Drive"
+                : type === "RAM"
+                ? "RAM Module"
+                : type;
+
+            // Simple extraction: find line starting with label
+            const lines = accessoryManualDetails.split("\n");
+            const matchingLine = lines.find((line) =>
+              line.toLowerCase().includes(label.toLowerCase())
+            );
+            const description = matchingLine
+              ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
+              : v.condition;
+
+            return {
+              accessory_type: type as AccessoryType,
+              is_present: true,
+              condition: v.condition,
+              description: description || v.condition, // Use parsed description or fallback
+            };
+          }),
+        diagnosis_notes: data.diagnosis_notes || accessoryManualDetails,
       }),
     onSuccess: (job) => {
       router.push(`/jobs/${job.id}`);
@@ -997,6 +1220,12 @@ export default function CreateJobCardPage() {
                   required
                   rows={2}
                 />
+                <Textarea
+                  label="Engineer Diagnosis (Initial Observations)"
+                  placeholder="Enter any initial technical observations..."
+                  {...register("diagnosis_notes")}
+                  rows={2}
+                />
               </div>
             </Card>
 
@@ -1012,6 +1241,15 @@ export default function CreateJobCardPage() {
                 value={accessories}
                 onChange={setAccessories}
               />
+              <div className="mt-4">
+                <Textarea
+                  label="Accessories Details"
+                  placeholder="Details will auto-populate here. Add Serial Numbers etc."
+                  value={accessoryManualDetails}
+                  onChange={(e) => setAccessoryManualDetails(e.target.value)}
+                  rows={4}
+                />
+              </div>
             </Card>
 
             {/* Warranty */}
@@ -1061,22 +1299,36 @@ export default function CreateJobCardPage() {
               </div>
             </Card>
 
-            {/* Priority */}
+            {/* Service Charge & Priority */}
             <Card>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    {...register("is_urgent")}
-                    className="w-5 h-5 rounded border-neutral-300 text-red-500 focus:ring-red-500"
-                  />
-                  <span className="font-medium text-neutral-900">
-                    Mark as Urgent
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register("is_urgent")}
+                      className="w-5 h-5 rounded border-neutral-300 text-red-500 focus:ring-red-500"
+                    />
+                    <span className="font-medium text-neutral-900">
+                      Mark as Urgent
+                    </span>
+                  </label>
+                  <span className="text-sm text-neutral-500">
+                    Prioritize this job
                   </span>
-                </label>
-                <span className="text-sm text-neutral-500">
-                  Urgent jobs are highlighted and prioritized
-                </span>
+                </div>
+
+                <div>
+                  <Input
+                    label="Service Charge (Estimate)"
+                    placeholder="0.00"
+                    value={serviceCharge}
+                    onChange={(e) => setServiceCharge(e.target.value)}
+                    leftIcon={
+                      <span className="text-neutral-500 font-bold px-1">₹</span>
+                    }
+                  />
+                </div>
               </div>
             </Card>
 
@@ -1107,6 +1359,9 @@ export default function CreateJobCardPage() {
             customer={selectedCustomer}
             accessories={accessories}
             branchName={currentBranch?.name || ""}
+            serviceCharge={serviceCharge}
+            predictedJobNumber={getPredictedJobNumber()}
+            accessoryManualDetails={accessoryManualDetails}
           />
         </div>
       </AppLayout>
