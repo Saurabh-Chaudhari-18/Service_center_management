@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.db import transaction
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
-    JobPhoto, JobNote, PartRequest, ALLOWED_STATUS_TRANSITIONS,
+    JobPhoto, JobNote, PartRequest, DiagnosisPart, ALLOWED_STATUS_TRANSITIONS,
     AccessoryType, DeviceType
 )
 from customers.serializers import CustomerMinimalSerializer
@@ -107,6 +107,14 @@ class PartRequestSerializer(serializers.ModelSerializer):
         ]
 
 
+class DiagnosisPartSerializer(serializers.ModelSerializer):
+    """Serializer for diagnosis spare parts."""
+    class Meta:
+        model = DiagnosisPart
+        fields = ['id', 'name', 'price', 'warranty_days', 'quantity']
+        read_only_fields = ['id']
+
+
 class JobCardSerializer(serializers.ModelSerializer):
     """Full job card serializer."""
     branch_name = serializers.CharField(source='branch.name', read_only=True)
@@ -124,6 +132,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     photos = JobPhotoSerializer(many=True, read_only=True)
     notes = JobNoteSerializer(many=True, read_only=True)
     status_history = JobStatusHistorySerializer(many=True, read_only=True)
+    diagnosis_parts = DiagnosisPartSerializer(many=True, read_only=True)
     allowed_transitions = serializers.SerializerMethodField()
     is_readonly = serializers.SerializerMethodField()
     total_parts_cost = serializers.DecimalField(
@@ -146,7 +155,7 @@ class JobCardSerializer(serializers.ModelSerializer):
             'delivery_date', 'delivered_by',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
             'total_parts_cost',
-            'accessories', 'photos', 'notes', 'status_history',
+            'accessories', 'photos', 'notes', 'status_history', 'diagnosis_parts',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -337,6 +346,12 @@ class JobAssignTechnicianSerializer(serializers.Serializer):
         return value
 
 
+    estimated_completion_date = serializers.DateField(required=False)
+
+
+
+
+
 class JobDiagnosisSerializer(serializers.Serializer):
     """Serializer for technician diagnosis."""
     diagnosis_notes = serializers.CharField()
@@ -344,6 +359,7 @@ class JobDiagnosisSerializer(serializers.Serializer):
         max_digits=10, decimal_places=2, required=False
     )
     estimated_completion_date = serializers.DateField(required=False)
+    parts = DiagnosisPartSerializer(many=True, required=False)
 
 
 class JobEstimateApprovalSerializer(serializers.Serializer):

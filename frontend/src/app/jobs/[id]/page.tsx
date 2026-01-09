@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
@@ -39,6 +39,9 @@ import {
   Wrench,
   Truck,
   History,
+  Plus,
+  Trash2,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -129,10 +132,8 @@ function AssignTechnicianModal({
       jobsApi.list({ branch: branchId }).then(() =>
         // Fetch users with TECHNICIAN role
         fetch(
-          `${
-            process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
-          }/core/users/?role=TECHNICIAN${
-            branchId ? `&branch=${branchId}` : ""
+          `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
+          }/core/users/?role=TECHNICIAN${branchId ? `&branch=${branchId}` : ""
           }`,
           {
             headers: {
@@ -313,13 +314,61 @@ interface DiagnosisModalProps {
   isOpen: boolean;
   onClose: () => void;
   jobId: string;
+  initialData?: JobCard;
 }
 
-function DiagnosisModal({ isOpen, onClose, jobId }: DiagnosisModalProps) {
+function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalProps) {
   const queryClient = useQueryClient();
   const [diagnosis, setDiagnosis] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [estimatedDate, setEstimatedDate] = useState("");
+  const [parts, setParts] = useState<
+    Array<{ name: string; price: string; warranty_days: string; quantity: string }>
+  >([]);
+
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setDiagnosis(initialData.diagnosis_notes || "");
+      setEstimatedCost(initialData.estimated_cost ? String(initialData.estimated_cost) : "");
+      setEstimatedDate(initialData.estimated_completion_date || "");
+
+      if (initialData.diagnosis_parts) {
+        setParts(initialData.diagnosis_parts.map(p => ({
+          name: p.name,
+          price: String(p.price),
+          warranty_days: String(p.warranty_days),
+          quantity: String(p.quantity)
+        })));
+      } else {
+        setParts([]);
+      }
+    }
+  }, [isOpen, initialData]);
+
+
+  // Calculate total from parts
+  const totalPartsPrice = parts.reduce((sum, part) => {
+    return sum + (parseFloat(part.price) || 0) * (parseInt(part.quantity) || 1);
+  }, 0);
+
+  const handleAddPart = () => {
+    setParts([...parts, { name: "", price: "", warranty_days: "0", quantity: "1" }]);
+  };
+
+  const handleRemovePart = (index: number) => {
+    setParts(parts.filter((_, i) => i !== index));
+  };
+
+  const handlePartChange = (
+    index: number,
+    field: keyof (typeof parts)[0],
+    value: string
+  ) => {
+    const newParts = [...parts];
+    newParts[index][field] = value;
+    setParts(newParts);
+  };
+
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
@@ -327,7 +376,13 @@ function DiagnosisModal({ isOpen, onClose, jobId }: DiagnosisModalProps) {
         jobId,
         diagnosis,
         estimatedCost ? parseFloat(estimatedCost) : undefined,
-        estimatedDate || undefined
+        estimatedDate || undefined,
+        parts.map((p) => ({
+          name: p.name,
+          price: parseFloat(p.price) || 0,
+          warranty_days: parseInt(p.warranty_days) || 0,
+          quantity: parseInt(p.quantity) || 1,
+        }))
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
@@ -380,6 +435,103 @@ function DiagnosisModal({ isOpen, onClose, jobId }: DiagnosisModalProps) {
             value={estimatedDate}
             onChange={(e) => setEstimatedDate(e.target.value)}
           />
+        </div>
+
+        {/* Spare Parts Section */}
+        <div className="space-y-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-neutral-900">Spare Parts</h4>
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={handleAddPart}
+            >
+              Add Part
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {parts.length > 0 && (
+              <div className="grid grid-cols-[1fr_6rem_5rem_8rem_2.5rem] gap-3 text-sm font-medium text-neutral-500 px-1 mb-2">
+                <div>Part Name</div>
+                <div>Price</div>
+                <div>Qty</div>
+                <div>Warranty</div>
+                <div></div>
+              </div>
+            )}
+            {parts.map((part, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-[1fr_6rem_5rem_8rem_2.5rem] gap-3 items-start"
+              >
+                <div>
+                  <Input
+                    placeholder="Part Name"
+                    value={part.name}
+                    onChange={(e) =>
+                      handlePartChange(index, "name", e.target.value)
+                    }
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="number"
+                    placeholder="Price"
+                    value={part.price}
+                    onChange={(e) =>
+                      handlePartChange(index, "price", e.target.value)
+                    }
+                    className="h-9"
+
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="number"
+                    placeholder="Qty"
+                    value={part.quantity}
+                    onChange={(e) =>
+                      handlePartChange(index, "quantity", e.target.value)
+                    }
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={part.warranty_days}
+                    onChange={(e) =>
+                      handlePartChange(index, "warranty_days", e.target.value)
+                    }
+                    className="h-9"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={() => handleRemovePart(index)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+            {parts.length === 0 && (
+              <p className="text-sm text-neutral-500 text-center py-2 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
+                No parts added. Click &quot;Add Part&quot; to include spares.
+              </p>
+            )}
+
+            {parts.length > 0 && (
+              <div className="flex justify-end pt-2">
+                <p className="text-sm font-medium">Total Parts Cost: <span className="text-green-600">₹{totalPartsPrice.toFixed(2)}</span></p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Modal>
@@ -624,6 +776,40 @@ export default function JobDetailPage() {
                 </div>
               </Card>
 
+              {/* Diagnosis Parts Display */}
+              {job.diagnosis_parts && job.diagnosis_parts.length > 0 && (
+                <Card>
+                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary-500" />
+                    Spare Parts Required
+                  </h3>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-neutral-50 px-4 py-2 border-b flex gap-4 text-sm font-medium text-neutral-500 text-xs uppercase tracking-wider">
+                      <div className="flex-1">Part Name</div>
+                      <div className="w-24 text-right">Price</div>
+                      <div className="w-16 text-center">Qty</div>
+                      <div className="w-24">Warranty</div>
+                      <div className="w-24 text-right">Total</div>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {job.diagnosis_parts.map((part) => (
+                        <div key={part.id} className="px-4 py-2 flex gap-4 text-sm text-neutral-900 hover:bg-neutral-50/50 transition-colors">
+                          <div className="flex-1 font-medium">{part.name}</div>
+                          <div className="w-24 text-right font-mono text-neutral-600">₹{Number(part.price).toFixed(2)}</div>
+                          <div className="w-16 text-center">{part.quantity}</div>
+                          <div className="w-24 text-neutral-600">{part.warranty_days ? `${part.warranty_days} Days` : '-'}</div>
+                          <div className="w-24 text-right font-mono font-medium">₹{(Number(part.price) * part.quantity).toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-neutral-50 px-4 py-3 flex justify-end gap-3 border-t">
+                      <span className="text-sm font-medium text-neutral-600">Total Parts Cost:</span>
+                      <span className="text-sm font-bold text-green-600 font-mono text-base">₹{Number(job.total_parts_cost || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               {/* Accessories */}
               {job.accessories && job.accessories.length > 0 && (
                 <Card>
@@ -635,11 +821,10 @@ export default function JobDetailPage() {
                     {job.accessories.map((acc) => (
                       <div
                         key={acc.id}
-                        className={`p-3 rounded-lg border ${
-                          acc.is_present
-                            ? "bg-green-50 border-green-200"
-                            : "bg-neutral-50 border-neutral-200"
-                        }`}
+                        className={`p-3 rounded-lg border ${acc.is_present
+                          ? "bg-green-50 border-green-200"
+                          : "bg-neutral-50 border-neutral-200"
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           {acc.is_present ? (
@@ -776,6 +961,7 @@ export default function JobDetailPage() {
           isOpen={showDiagnosisModal}
           onClose={() => setShowDiagnosisModal(false)}
           jobId={jobId}
+          initialData={job}
         />
       </AppLayout>
     </ProtectedRoute>
