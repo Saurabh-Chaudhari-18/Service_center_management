@@ -367,10 +367,10 @@ class JobCard(TimeStampedModel):
         return self.delivery_otp == otp
 
     def get_total_parts_cost(self):
-        """Calculate total cost of parts used."""
+        """Calculate total cost of diagnosis parts."""
         from django.db.models import Sum, F
-        total = self.part_usages.aggregate(
-            total=Sum(F('quantity') * F('unit_price'))
+        total = self.diagnosis_parts.aggregate(
+            total=Sum(F('quantity') * F('price'))
         )['total']
         return total or 0
 
@@ -601,3 +601,25 @@ class PartRequest(TimeStampedModel):
             self.status = 'APPROVED'
             self.approved_by = user
             self.save()
+
+
+class DiagnosisPart(models.Model):
+    """
+    Spare parts identified during diagnosis (manual entry).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        JobCard,
+        on_delete=models.CASCADE,
+        related_name='diagnosis_parts'
+    )
+    name = models.CharField(max_length=255, help_text="Part name")
+    price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per unit")
+    warranty_days = models.PositiveIntegerField(default=0, help_text="Warranty in days")
+    quantity = models.PositiveIntegerField(default=1)
+    
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.job.job_number} - {self.name}"

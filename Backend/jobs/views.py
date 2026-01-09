@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
-    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType
+    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType, DiagnosisPart
 )
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
@@ -190,6 +190,21 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 job.estimated_completion_date = serializer.validated_data['estimated_completion_date']
             
             job.save()
+
+            # Handle diagnosis parts
+            if 'parts' in serializer.validated_data:
+                # Clear existing manual parts for this diagnosis
+                DiagnosisPart.objects.filter(job=job).delete()
+                
+                parts_data = serializer.validated_data['parts']
+                for part in parts_data:
+                    DiagnosisPart.objects.create(
+                        job=job,
+                        name=part['name'],
+                        price=part['price'],
+                        warranty_days=part.get('warranty_days', 0),
+                        quantity=part.get('quantity', 1)
+                    )
             
             # Auto-transition to DIAGNOSIS if still in RECEIVED
             if job.status == JobStatus.RECEIVED:
@@ -202,7 +217,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return Response({
             'message': 'Diagnosis updated successfully.',
             'status': job.status,
-            'status_display': job.get_status_display()
+            'status_display': job.get_status_display(),
+            'diagnosis_parts_count': job.diagnosis_parts.count()
         })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember])

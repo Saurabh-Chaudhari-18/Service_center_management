@@ -235,12 +235,19 @@ export const jobsApi = {
     jobId: string,
     diagnosisNotes: string,
     estimatedCost?: number,
-    estimatedCompletionDate?: string
+    estimatedCompletionDate?: string,
+    parts?: Array<{
+      name: string;
+      price: number;
+      warranty_days?: number;
+      quantity?: number;
+    }>
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/add_diagnosis/`, {
       diagnosis_notes: diagnosisNotes,
       estimated_cost: estimatedCost,
       estimated_completion_date: estimatedCompletionDate,
+      parts,
     });
   },
 
@@ -705,10 +712,8 @@ export const reportsApi = {
   ): Promise<void> => {
     const filename = `${reportType}_report_${params.from_date}_${params.to_date}.xlsx`;
     return apiDownload(
-      `/reports/export_excel/?report=${reportType}&from_date=${
-        params.from_date
-      }&to_date=${params.to_date}${
-        params.branch ? `&branch=${params.branch}` : ""
+      `/reports/export_excel/?report=${reportType}&from_date=${params.from_date
+      }&to_date=${params.to_date}${params.branch ? `&branch=${params.branch}` : ""
       }`,
       filename
     );
