@@ -236,6 +236,14 @@ export interface PartRequest {
   created_at: string;
 }
 
+export interface DiagnosisPart {
+  id: string;
+  name: string;
+  price: number;
+  warranty_days: number;
+  quantity: number;
+}
+
 export interface JobCard extends BaseEntity {
   branch: string;
   branch_name?: string;
@@ -265,11 +273,13 @@ export interface JobCard extends BaseEntity {
   is_urgent: boolean;
   is_warranty_repair: boolean;
   warranty_details: string;
+  total_parts_cost?: number;
   accessories?: JobAccessory[];
   photos?: JobPhoto[];
   notes_list?: JobNote[];
   status_history?: JobStatusHistoryItem[];
   part_requests?: PartRequest[];
+  diagnosis_parts?: DiagnosisPart[];
   invoices?: Invoice[];
 }
 
