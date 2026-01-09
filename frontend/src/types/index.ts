@@ -284,6 +284,8 @@ export interface CreateJobCardData {
   physical_condition: string;
   device_password?: string;
   is_urgent?: boolean;
+  is_warranty_repair?: boolean;
+  warranty_details?: string;
   accessories?: Array<{
     accessory_type: AccessoryType;
     is_present: boolean;
