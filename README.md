@@ -37,7 +37,7 @@
 
 5. **Start the server:**
    ```bash
-   python manage.py runserver
+   python manage.py runserver 8001
    ```
 
 ### Frontend
