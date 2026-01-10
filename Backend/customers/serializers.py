@@ -99,11 +99,12 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'branch', 'first_name', 'last_name', 'email', 'mobile',
+            'id', 'branch', 'first_name', 'last_name', 'email', 'mobile',
             'alternate_mobile', 'address_line1', 'address_line2',
             'city', 'state', 'pincode', 'state_code', 'gstin',
             'company_name', 'sms_enabled', 'whatsapp_enabled', 'notes'
         ]
+        read_only_fields = ['id']
 
     def validate_mobile(self, value):
         """Normalize mobile number."""
@@ -133,7 +134,7 @@ class CustomerMinimalSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Customer
-        fields = ['id', 'full_name', 'mobile']
+        fields = ['id', 'full_name', 'first_name', 'last_name', 'mobile', 'email', 'city', 'state']
 
 
 class CustomerSearchSerializer(serializers.Serializer):

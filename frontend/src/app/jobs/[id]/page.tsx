@@ -132,8 +132,10 @@ function AssignTechnicianModal({
       jobsApi.list({ branch: branchId }).then(() =>
         // Fetch users with TECHNICIAN role
         fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
-          }/core/users/?role=TECHNICIAN${branchId ? `&branch=${branchId}` : ""
+          `${
+            process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
+          }/core/users/?role=TECHNICIAN${
+            branchId ? `&branch=${branchId}` : ""
           }`,
           {
             headers: {
@@ -317,34 +319,47 @@ interface DiagnosisModalProps {
   initialData?: JobCard;
 }
 
-function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalProps) {
+function DiagnosisModal({
+  isOpen,
+  onClose,
+  jobId,
+  initialData,
+}: DiagnosisModalProps) {
   const queryClient = useQueryClient();
   const [diagnosis, setDiagnosis] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [estimatedDate, setEstimatedDate] = useState("");
   const [parts, setParts] = useState<
-    Array<{ name: string; price: string; warranty_days: string; quantity: string }>
+    Array<{
+      name: string;
+      price: string;
+      warranty_days: string;
+      quantity: string;
+    }>
   >([]);
 
   useEffect(() => {
     if (isOpen && initialData) {
       setDiagnosis(initialData.diagnosis_notes || "");
-      setEstimatedCost(initialData.estimated_cost ? String(initialData.estimated_cost) : "");
+      setEstimatedCost(
+        initialData.estimated_cost ? String(initialData.estimated_cost) : ""
+      );
       setEstimatedDate(initialData.estimated_completion_date || "");
 
       if (initialData.diagnosis_parts) {
-        setParts(initialData.diagnosis_parts.map(p => ({
-          name: p.name,
-          price: String(p.price),
-          warranty_days: String(p.warranty_days),
-          quantity: String(p.quantity)
-        })));
+        setParts(
+          initialData.diagnosis_parts.map((p) => ({
+            name: p.name,
+            price: String(p.price),
+            warranty_days: String(p.warranty_days),
+            quantity: String(p.quantity),
+          }))
+        );
       } else {
         setParts([]);
       }
     }
   }, [isOpen, initialData]);
-
 
   // Calculate total from parts
   const totalPartsPrice = parts.reduce((sum, part) => {
@@ -352,7 +367,10 @@ function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalP
   }, 0);
 
   const handleAddPart = () => {
-    setParts([...parts, { name: "", price: "", warranty_days: "0", quantity: "1" }]);
+    setParts([
+      ...parts,
+      { name: "", price: "", warranty_days: "0", quantity: "1" },
+    ]);
   };
 
   const handleRemovePart = (index: number) => {
@@ -368,7 +386,6 @@ function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalP
     newParts[index][field] = value;
     setParts(newParts);
   };
-
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
@@ -485,7 +502,6 @@ function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalP
                       handlePartChange(index, "price", e.target.value)
                     }
                     className="h-9"
-
                   />
                 </div>
                 <div>
@@ -528,7 +544,12 @@ function DiagnosisModal({ isOpen, onClose, jobId, initialData }: DiagnosisModalP
 
             {parts.length > 0 && (
               <div className="flex justify-end pt-2">
-                <p className="text-sm font-medium">Total Parts Cost: <span className="text-green-600">₹{totalPartsPrice.toFixed(2)}</span></p>
+                <p className="text-sm font-medium">
+                  Total Parts Cost:{" "}
+                  <span className="text-green-600">
+                    ₹{totalPartsPrice.toFixed(2)}
+                  </span>
+                </p>
               </div>
             )}
           </div>
@@ -666,44 +687,84 @@ export default function JobDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Content - 2 columns */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Customer Information */}
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary-500" />
-                  Customer Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-neutral-500">Name</p>
-                    <p className="font-medium text-neutral-900">
-                      {job.customer?.first_name} {job.customer?.last_name}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-neutral-500">Mobile</p>
-                    <p className="font-medium text-neutral-900 flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-neutral-400" />
-                      {job.customer?.mobile}
-                    </p>
-                  </div>
-                  {job.customer?.email && (
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                    <User className="w-5 h-5 text-primary-500" />
+                    Customer Information
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Name */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-primary-600" />
+                    </div>
                     <div>
-                      <p className="text-sm text-neutral-500">Email</p>
-                      <p className="font-medium text-neutral-900 flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-neutral-400" />
-                        {job.customer.email}
+                      <p className="text-sm text-neutral-500 mb-1">
+                        Customer Name
+                      </p>
+                      <p className="font-semibold text-neutral-900 text-lg">
+                        {job.customer?.first_name} {job.customer?.last_name}
                       </p>
                     </div>
-                  )}
-                  {job.customer?.city && (
+                  </div>
+
+                  {/* Mobile */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                      <Phone className="w-5 h-5 text-green-600" />
+                    </div>
                     <div>
-                      <p className="text-sm text-neutral-500">Location</p>
-                      <p className="font-medium text-neutral-900 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-neutral-400" />
-                        {job.customer.city}, {job.customer.state}
+                      <p className="text-sm text-neutral-500 mb-1">
+                        Mobile Number
+                      </p>
+                      <p className="font-medium text-neutral-900 font-mono">
+                        {job.customer?.mobile}
                       </p>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-neutral-500 mb-1">
+                        Email Address
+                      </p>
+                      <p className="font-medium text-neutral-900 break-all">
+                        {job.customer?.email || (
+                          <span className="text-neutral-400 italic">
+                            Not provided
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-neutral-500 mb-1">Location</p>
+                      <p className="font-medium text-neutral-900">
+                        {job.customer?.city ? (
+                          `${job.customer.city}${
+                            job.customer.state ? `, ${job.customer.state}` : ""
+                          }`
+                        ) : (
+                          <span className="text-neutral-400 italic">
+                            Not provided
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </Card>
 
@@ -793,18 +854,35 @@ export default function JobDetailPage() {
                     </div>
                     <div className="divide-y divide-gray-100">
                       {job.diagnosis_parts.map((part) => (
-                        <div key={part.id} className="px-4 py-2 flex gap-4 text-sm text-neutral-900 hover:bg-neutral-50/50 transition-colors">
+                        <div
+                          key={part.id}
+                          className="px-4 py-2 flex gap-4 text-sm text-neutral-900 hover:bg-neutral-50/50 transition-colors"
+                        >
                           <div className="flex-1 font-medium">{part.name}</div>
-                          <div className="w-24 text-right font-mono text-neutral-600">₹{Number(part.price).toFixed(2)}</div>
-                          <div className="w-16 text-center">{part.quantity}</div>
-                          <div className="w-24 text-neutral-600">{part.warranty_days ? `${part.warranty_days} Days` : '-'}</div>
-                          <div className="w-24 text-right font-mono font-medium">₹{(Number(part.price) * part.quantity).toFixed(2)}</div>
+                          <div className="w-24 text-right font-mono text-neutral-600">
+                            ₹{Number(part.price).toFixed(2)}
+                          </div>
+                          <div className="w-16 text-center">
+                            {part.quantity}
+                          </div>
+                          <div className="w-24 text-neutral-600">
+                            {part.warranty_days
+                              ? `${part.warranty_days} Days`
+                              : "-"}
+                          </div>
+                          <div className="w-24 text-right font-mono font-medium">
+                            ₹{(Number(part.price) * part.quantity).toFixed(2)}
+                          </div>
                         </div>
                       ))}
                     </div>
                     <div className="bg-neutral-50 px-4 py-3 flex justify-end gap-3 border-t">
-                      <span className="text-sm font-medium text-neutral-600">Total Parts Cost:</span>
-                      <span className="text-sm font-bold text-green-600 font-mono text-base">₹{Number(job.total_parts_cost || 0).toFixed(2)}</span>
+                      <span className="text-sm font-medium text-neutral-600">
+                        Total Parts Cost:
+                      </span>
+                      <span className="text-sm font-bold text-green-600 font-mono text-base">
+                        ₹{Number(job.total_parts_cost || 0).toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </Card>
@@ -821,10 +899,11 @@ export default function JobDetailPage() {
                     {job.accessories.map((acc) => (
                       <div
                         key={acc.id}
-                        className={`p-3 rounded-lg border ${acc.is_present
-                          ? "bg-green-50 border-green-200"
-                          : "bg-neutral-50 border-neutral-200"
-                          }`}
+                        className={`p-3 rounded-lg border ${
+                          acc.is_present
+                            ? "bg-green-50 border-green-200"
+                            : "bg-neutral-50 border-neutral-200"
+                        }`}
                       >
                         <div className="flex items-center gap-2">
                           {acc.is_present ? (

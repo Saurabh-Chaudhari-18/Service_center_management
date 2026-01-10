@@ -413,6 +413,94 @@ interface JobCardPreviewModalProps {
   accessoryManualDetails: string;
 }
 
+// Simple Brand Logo Component
+function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
+  switch (brand) {
+    case "HP":
+      return (
+        <svg viewBox="0 0 100 100" className="w-8 h-8">
+          <circle cx="50" cy="50" r="45" fill="#0096D6" />
+          <text
+            x="50"
+            y="65"
+            fontSize="40"
+            fontWeight="bold"
+            fill="white"
+            textAnchor="middle"
+            style={{ fontStyle: "italic", fontFamily: "serif" }}
+          >
+            hp
+          </text>
+        </svg>
+      );
+    case "DELL":
+      return (
+        <svg viewBox="0 0 100 100" className="w-8 h-8">
+          <circle
+            cx="50"
+            cy="50"
+            r="48"
+            fill="none"
+            stroke="#007DB8"
+            strokeWidth="4"
+          />
+          <text
+            x="50"
+            y="60"
+            fontSize="24"
+            fontWeight="bold"
+            fill="#007DB8"
+            textAnchor="middle"
+            fontFamily="sans-serif"
+          >
+            DELL
+          </text>
+        </svg>
+      );
+    case "ASUS":
+      return (
+        <svg viewBox="0 0 100 30" className="w-12 h-6">
+          <text
+            x="50"
+            y="22"
+            fontSize="24"
+            fontWeight="bold"
+            fill="#00539B"
+            textAnchor="middle"
+            style={{ letterSpacing: "2px" }}
+          >
+            ASUS
+          </text>
+          <line
+            x1="10"
+            y1="12"
+            x2="90"
+            y2="12"
+            stroke="white"
+            strokeWidth="2"
+          />
+        </svg>
+      );
+    case "LENOVO":
+      return (
+        <svg viewBox="0 0 100 40" className="w-16 h-8">
+          <rect width="100" height="40" fill="#E2231A" />
+          <text
+            x="50"
+            y="28"
+            fontSize="20"
+            fontWeight="bold"
+            fill="white"
+            textAnchor="middle"
+            fontFamily="sans-serif"
+          >
+            Lenovo
+          </text>
+        </svg>
+      );
+  }
+}
+
 function JobCardPreviewModal({
   isOpen,
   onClose,
@@ -498,19 +586,11 @@ function JobCardPreviewModal({
             {/* Enhanced Shop Header with Brand Logos */}
             <div className="border-2 border-neutral-900 p-3 bg-neutral-50">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-2 text-xs">
-                  <span className="font-bold border border-neutral-800 px-2 py-0.5 rounded">
-                    HP
-                  </span>
-                  <span className="font-bold border border-neutral-800 px-2 py-0.5 rounded">
-                    DELL
-                  </span>
-                  <span className="font-bold border border-neutral-800 px-2 py-0.5 rounded">
-                    ASUS
-                  </span>
-                  <span className="font-bold border border-neutral-800 px-2 py-0.5 rounded">
-                    LENOVO
-                  </span>
+                <div className="flex gap-4 items-center">
+                  <BrandLogo brand="HP" />
+                  <BrandLogo brand="DELL" />
+                  <BrandLogo brand="ASUS" />
+                  <BrandLogo brand="LENOVO" />
                 </div>
                 <div className="text-right">
                   <h1 className="text-xl font-bold text-neutral-900">
@@ -701,19 +781,11 @@ function JobCardPreviewModal({
             {/* Enhanced Shop Header with Brand Logos */}
             <div className="print-section border-2 border-black p-2 mb-2">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-3 text-[10pt]">
-                  <span className="font-bold border-2 border-black px-2 py-0.5">
-                    HP
-                  </span>
-                  <span className="font-bold border-2 border-black px-2 py-0.5">
-                    DELL
-                  </span>
-                  <span className="font-bold border-2 border-black px-2 py-0.5">
-                    ASUS
-                  </span>
-                  <span className="font-bold border-2 border-black px-2 py-0.5">
-                    LENOVO
-                  </span>
+                <div className="flex gap-4 items-center">
+                  <BrandLogo brand="HP" />
+                  <BrandLogo brand="DELL" />
+                  <BrandLogo brand="ASUS" />
+                  <BrandLogo brand="LENOVO" />
                 </div>
                 <div className="text-right">
                   <h1 className="text-2xl font-bold uppercase tracking-wider">
@@ -934,6 +1006,7 @@ export default function CreateJobCardPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewFormData, setPreviewFormData] =
     useState<CreateJobFormData | null>(null);
+  const [predictedNumber, setPredictedNumber] = useState<string>("");
 
   // New State for Service Charge
   const [serviceCharge, setServiceCharge] = useState("");
@@ -982,23 +1055,30 @@ export default function CreateJobCardPage() {
     }
   }, [accessories]);
 
-  // Helper to predict job number
-  const getPredictedJobNumber = () => {
-    if (!currentBranch) return "NEW";
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1; // 1-12
-    const fyStartYear = currentMonth >= 4 ? currentYear : currentYear - 1;
-    const fyShort = (fyStartYear + 1).toString().slice(-2);
-    const fy = `${fyStartYear}-${fyShort}`;
-
-    // Safety check for branch properties
-    const currentNum = currentBranch.jobcard_current_number || 0;
-    const nextNum = currentNum + 1;
-    const sequence = nextNum.toString().padStart(5, "0");
-    return `${currentBranch.jobcard_prefix || "JC"}/${fy}/${
-      currentBranch.code
-    }/${sequence}`;
+  // Fetch predicted job number from API
+  const fetchPredictedNumber = async () => {
+    if (!currentBranch) return;
+    try {
+      const response = await jobsApi.nextNumber(currentBranch.id);
+      setPredictedNumber(response.next_number);
+    } catch (error) {
+      console.error("Failed to fetch next job number:", error);
+      // Fallback to client-side prediction if API fails
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      const fyStartYear = currentMonth >= 4 ? currentYear : currentYear - 1;
+      const fyShort = (fyStartYear + 1).toString().slice(-2);
+      const fy = `${fyStartYear}-${fyShort}`;
+      const currentNum = currentBranch.jobcard_current_number || 0;
+      const nextNum = currentNum + 1;
+      const sequence = nextNum.toString().padStart(5, "0");
+      setPredictedNumber(
+        `${currentBranch.jobcard_prefix || "JC"}/${fy}/${
+          currentBranch.code
+        }/${sequence}`
+      );
+    }
   };
 
   const {
@@ -1008,6 +1088,7 @@ export default function CreateJobCardPage() {
     setValue,
     watch,
     getValues,
+    trigger,
   } = useForm<CreateJobFormData>({
     resolver: zodResolver(createJobSchema),
     defaultValues: {
@@ -1333,7 +1414,8 @@ export default function CreateJobCardPage() {
             </Card>
 
             {/* Submit */}
-            <div className="flex justify-end gap-3">
+            {/* Submit */}
+            <div className="flex justify-end gap-3 mt-6">
               <Link href="/jobs">
                 <Button variant="secondary" type="button">
                   Cancel
@@ -1341,10 +1423,24 @@ export default function CreateJobCardPage() {
               </Link>
               <Button
                 type="button"
-                onClick={handleShowPreview}
-                leftIcon={<Eye className="w-4 h-4" />}
+                variant="secondary"
+                leftIcon={<Printer className="w-4 h-4" />}
+                onClick={async () => {
+                  const isValid = await trigger();
+                  if (isValid) {
+                    setPreviewFormData(getValues());
+                    await fetchPredictedNumber();
+                    setShowPreview(true);
+                  }
+                }}
               >
                 Preview & Print
+              </Button>
+              <Button
+                onClick={handleSubmit((data) => mutate(data))}
+                isLoading={isPending}
+              >
+                Create Job Card
               </Button>
             </div>
           </form>
@@ -1353,14 +1449,14 @@ export default function CreateJobCardPage() {
           <JobCardPreviewModal
             isOpen={showPreview}
             onClose={() => setShowPreview(false)}
-            onConfirm={handleConfirmCreate}
+            onConfirm={handleSubmit((data) => mutate(data))}
             isSubmitting={isPending}
             formData={previewFormData || getValues()}
             customer={selectedCustomer}
             accessories={accessories}
             branchName={currentBranch?.name || ""}
             serviceCharge={serviceCharge}
-            predictedJobNumber={getPredictedJobNumber()}
+            predictedJobNumber={predictedNumber}
             accessoryManualDetails={accessoryManualDetails}
           />
         </div>

@@ -3,13 +3,7 @@
  * All endpoints from the DRF backend
  */
 
-import {
-  apiGet,
-  apiPost,
-  apiPatch,
-  apiUpload,
-  apiDownload,
-} from "./client";
+import { apiGet, apiPost, apiPatch, apiUpload, apiDownload } from "./client";
 import type {
   AuthTokens,
   AuthUser,
@@ -217,6 +211,12 @@ export const jobsApi = {
 
   update: async (id: string, data: Partial<JobCard>): Promise<JobCard> => {
     return apiPatch<JobCard>(`/jobs/jobs/${id}/`, data);
+  },
+
+  nextNumber: async (branchId: string): Promise<{ next_number: string }> => {
+    return apiGet<{ next_number: string }>(`/jobs/jobs/next_number/`, {
+      branch: branchId,
+    });
   },
 
   // Job Lifecycle Actions
@@ -712,8 +712,10 @@ export const reportsApi = {
   ): Promise<void> => {
     const filename = `${reportType}_report_${params.from_date}_${params.to_date}.xlsx`;
     return apiDownload(
-      `/reports/export_excel/?report=${reportType}&from_date=${params.from_date
-      }&to_date=${params.to_date}${params.branch ? `&branch=${params.branch}` : ""
+      `/reports/export_excel/?report=${reportType}&from_date=${
+        params.from_date
+      }&to_date=${params.to_date}${
+        params.branch ? `&branch=${params.branch}` : ""
       }`,
       filename
     );
