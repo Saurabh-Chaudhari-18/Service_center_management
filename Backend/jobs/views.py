@@ -28,7 +28,7 @@ from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
     CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin
 )
-from core.models import Role, User
+from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition
 
 
@@ -542,6 +542,29 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         serializer = JobCardListSerializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def next_number(self, request):
+        """Predict next job number for a branch."""
+        branch_id = request.query_params.get('branch')
+        if not branch_id:
+             return Response({'error': 'Branch ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate access
+        try:
+            branch = Branch.objects.get(pk=branch_id)
+        except Branch.DoesNotExist:
+            return Response({'error': 'Branch not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not request.user.has_branch_access(branch):
+             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Predict
+        fy = branch.get_current_financial_year()
+        next_sequence = str(branch.jobcard_current_number + 1).zfill(5)
+        predicted_number = f"{branch.jobcard_prefix}/{fy}/{branch.code}/{next_sequence}"
+        
+        return Response({'next_number': predicted_number})
 
 
 class PartRequestViewSet(viewsets.ModelViewSet):
