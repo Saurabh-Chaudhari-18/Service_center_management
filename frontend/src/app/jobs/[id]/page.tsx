@@ -42,6 +42,7 @@ import {
   Plus,
   Trash2,
   Settings,
+  Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -340,12 +341,15 @@ function DiagnosisModal({
 
   useEffect(() => {
     if (isOpen && initialData) {
-      setDiagnosis(initialData.diagnosis_notes || "");
-      setEstimatedCost(
-        initialData.estimated_cost ? String(initialData.estimated_cost) : ""
-      );
-      setEstimatedDate(initialData.estimated_completion_date || "");
-
+      if (initialData.diagnosis_notes) {
+        setDiagnosis(initialData.diagnosis_notes);
+      }
+      if (initialData.estimated_cost) {
+        setEstimatedCost(String(initialData.estimated_cost));
+      }
+      if (initialData.estimated_completion_date) {
+        setEstimatedDate(initialData.estimated_completion_date);
+      }
       if (initialData.diagnosis_parts) {
         setParts(
           initialData.diagnosis_parts.map((p) => ({
@@ -646,32 +650,49 @@ export default function JobDetailPage() {
               </div>
 
               {/* Quick Actions */}
-              {canEdit && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {job.status === "RECEIVED" && isRole("OWNER", "MANAGER") && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Invoice Button - Always visible for valid statuses */}
+                {[
+                  "APPROVED",
+                  "REPAIR_IN_PROGRESS",
+                  "READY_FOR_DELIVERY",
+                  "DELIVERED",
+                ].includes(job.status) && (
+                  <Link href={`/billing/new?jobId=${job.id}`}>
                     <Button
                       size="sm"
                       variant="secondary"
-                      leftIcon={<UserCheck className="w-4 h-4" />}
-                      onClick={() => setShowAssignModal(true)}
+                      leftIcon={<Receipt className="w-4 h-4" />}
                     >
-                      Assign Technician
+                      Create Invoice
+                    </Button>
+                  </Link>
+                )}
+                {job.status === "RECEIVED" && isRole("OWNER", "MANAGER") && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    leftIcon={<UserCheck className="w-4 h-4" />}
+                    onClick={() => setShowAssignModal(true)}
+                  >
+                    Assign Technician
+                  </Button>
+                )}
+
+                {job.status === "DIAGNOSIS" &&
+                  (isRole("TECHNICIAN") ||
+                    hasPermission("canEditJobCards")) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      leftIcon={<Wrench className="w-4 h-4" />}
+                      onClick={() => setShowDiagnosisModal(true)}
+                    >
+                      Add Diagnosis
                     </Button>
                   )}
 
-                  {job.status === "DIAGNOSIS" &&
-                    (isRole("TECHNICIAN") ||
-                      hasPermission("canEditJobCards")) && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        leftIcon={<Wrench className="w-4 h-4" />}
-                        onClick={() => setShowDiagnosisModal(true)}
-                      >
-                        Add Diagnosis
-                      </Button>
-                    )}
-
+                {canEdit && (
                   <Button
                     size="sm"
                     leftIcon={<CheckCircle2 className="w-4 h-4" />}
@@ -679,8 +700,8 @@ export default function JobDetailPage() {
                   >
                     Update Status
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </Card>
 
