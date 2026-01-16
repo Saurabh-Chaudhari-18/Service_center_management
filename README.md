@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Service_center_management
 
 ## How to Run the Project
@@ -60,3 +61,6 @@
    ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+=======
+# Service_center_management
+>>>>>>> 9e44800a2c7eed93da99cce05e4fa036a833a1e0
