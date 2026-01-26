@@ -1,0 +1,2 @@
+# Docker Compose env (contains secrets)
+.env

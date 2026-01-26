@@ -1,5 +1,6 @@
 export {
   apiClient,
+  API_BASE_URL,
   tokenManager,
   apiGet,
   apiPost,

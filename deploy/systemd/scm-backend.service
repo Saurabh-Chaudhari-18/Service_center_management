@@ -1,0 +1,20 @@
+[Unit]
+Description=Service Center Management - Django API (Gunicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/Service_center_management/Backend
+Environment="PATH=/home/ubuntu/Service_center_management/Backend/venv/bin"
+EnvironmentFile=/home/ubuntu/Service_center_management/Backend/.env
+ExecStart=/home/ubuntu/Service_center_management/Backend/venv/bin/gunicorn config.wsgi:application -c gunicorn.conf.py
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

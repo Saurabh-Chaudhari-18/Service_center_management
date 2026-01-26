@@ -60,3 +60,10 @@
    ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+---
+
+## Deploy
+
+- **Deploy locally for testing** (Docker Compose): `cp deploy/env.docker.example .env`, edit `.env` (set `SECRET_KEY`, `ENCRYPTION_KEY`), then `docker compose up --build -d`. See [DEPLOYMENT.md](DEPLOYMENT.md#deploy-locally-for-testing-docker-compose).
+- **Deploy on AWS EC2** (bare metal): See [DEPLOYMENT.md](DEPLOYMENT.md) for step-by-step instructions, scripts, and troubleshooting.

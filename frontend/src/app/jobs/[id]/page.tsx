@@ -18,7 +18,7 @@ import {
   Alert,
   Badge,
 } from "@/components/ui";
-import { jobsApi } from "@/lib/api";
+import { jobsApi, API_BASE_URL } from "@/lib/api";
 import {
   ArrowLeft,
   User,
@@ -130,9 +130,7 @@ function AssignTechnicianModal({
       jobsApi.list({ branch: branchId }).then(() =>
         // Fetch users with TECHNICIAN role
         fetch(
-          `${
-            process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api"
-          }/core/users/?role=TECHNICIAN${
+          `${API_BASE_URL}/core/users/?role=TECHNICIAN${
             branchId ? `&branch=${branchId}` : ""
           }`,
           {

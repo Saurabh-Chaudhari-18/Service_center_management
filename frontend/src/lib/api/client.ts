@@ -7,8 +7,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 
-// API Base URL - configurable via environment
-const API_BASE_URL =
+// API Base URL - configurable via environment (export for direct fetch use)
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api";
 
 // Token storage keys
