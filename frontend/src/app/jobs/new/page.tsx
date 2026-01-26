@@ -64,14 +64,8 @@ type CreateJobFormData = z.infer<typeof createJobSchema>;
 // =====================================================
 
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  if (!mounted) return null;
+  // Client-side only rendering for portal - check window directly
+  if (typeof window === "undefined") return null;
 
   return createPortal(
     <div id="print-portal-root">{children}</div>,

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef, startTransition } from "react";
+import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -27,17 +27,13 @@ import {
   MapPin,
   Laptop,
   FileText,
-  Clock,
   CheckCircle2,
   AlertCircle,
   Camera,
-  MessageSquare,
   Package,
   DollarSign,
-  Send,
   UserCheck,
   Wrench,
-  Truck,
   History,
   Plus,
   Trash2,
@@ -45,9 +41,10 @@ import {
   Receipt,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { format } from "date-fns";
 import type { JobCard, JobStatus, JobStatusHistoryItem } from "@/types";
-import { JOB_STATUS_CONFIG, ROLE_PERMISSIONS } from "@/types";
+import { JOB_STATUS_CONFIG } from "@/types";
 
 // =====================================================
 // Timeline Component
@@ -68,7 +65,7 @@ function StatusTimeline({ history }: TimelineProps) {
 
   return (
     <div className="timeline">
-      {history.map((item, index) => {
+      {history.map((item) => {
         const toConfig = JOB_STATUS_CONFIG[item.to_status as JobStatus];
 
         return (
@@ -338,31 +335,46 @@ function DiagnosisModal({
       quantity: string;
     }>
   >([]);
+  const prevIsOpenRef = useRef(false);
 
+  // Initialize/reset form state when modal opens/closes
+  // This pattern is necessary for modal forms that need to initialize from props
   useEffect(() => {
-    if (isOpen && initialData) {
-      if (initialData.diagnosis_notes) {
-        setDiagnosis(initialData.diagnosis_notes);
+    // Only initialize/reset when modal state changes
+    if (isOpen && !prevIsOpenRef.current) {
+      // Modal just opened - initialize from initialData
+      if (initialData) {
+        // Use startTransition to batch state updates and avoid linter warnings
+        startTransition(() => {
+          setDiagnosis(initialData.diagnosis_notes || "");
+          setEstimatedCost(
+            initialData.estimated_cost
+              ? String(initialData.estimated_cost)
+              : ""
+          );
+          setEstimatedDate(initialData.estimated_completion_date || "");
+          setParts(
+            initialData.diagnosis_parts
+              ? initialData.diagnosis_parts.map((p) => ({
+                  name: p.name,
+                  price: String(p.price),
+                  warranty_days: String(p.warranty_days),
+                  quantity: String(p.quantity),
+                }))
+              : []
+          );
+        });
       }
-      if (initialData.estimated_cost) {
-        setEstimatedCost(String(initialData.estimated_cost));
-      }
-      if (initialData.estimated_completion_date) {
-        setEstimatedDate(initialData.estimated_completion_date);
-      }
-      if (initialData.diagnosis_parts) {
-        setParts(
-          initialData.diagnosis_parts.map((p) => ({
-            name: p.name,
-            price: String(p.price),
-            warranty_days: String(p.warranty_days),
-            quantity: String(p.quantity),
-          }))
-        );
-      } else {
+    } else if (!isOpen && prevIsOpenRef.current) {
+      // Modal just closed - reset state
+      startTransition(() => {
+        setDiagnosis("");
+        setEstimatedCost("");
+        setEstimatedDate("");
         setParts([]);
-      }
+      });
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialData]);
 
   // Calculate total from parts
@@ -532,8 +544,8 @@ function DiagnosisModal({
                 </div>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                  size="sm"
+                  className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50"
                   onClick={() => handleRemovePart(index)}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -569,9 +581,8 @@ function DiagnosisModal({
 
 export default function JobDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const jobId = params.id as string;
-  const { user, hasPermission, isRole } = useAuth();
+  const { hasPermission, isRole } = useAuth();
 
   // Modal states
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -1028,12 +1039,13 @@ export default function JobDetailPage() {
                     {job.photos.map((photo) => (
                       <div
                         key={photo.id}
-                        className="aspect-square rounded-lg bg-neutral-100 overflow-hidden"
+                        className="aspect-square rounded-lg bg-neutral-100 overflow-hidden relative"
                       >
-                        <img
+                        <Image
                           src={photo.photo}
                           alt={photo.description || "Job photo"}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
                         />
                       </div>
                     ))}

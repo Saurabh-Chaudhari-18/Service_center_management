@@ -293,6 +293,7 @@ export interface CreateJobCardData {
   customer_complaint: string;
   physical_condition: string;
   device_password?: string;
+  diagnosis_notes?: string;
   is_urgent?: boolean;
   is_warranty_repair?: boolean;
   warranty_details?: string;

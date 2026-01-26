@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
-import { Card, Button, Input, Select, Alert } from "@/components/ui";
+import { Card, Button, Input } from "@/components/ui";
 import { jobsApi, billingApi } from "@/lib/api";
 import {
   ArrowLeft,
@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import type { Invoice } from "@/types";
+import type { JobCard, Customer } from "@/types";
 
 // =====================================================
 // Schemas & Types
@@ -146,12 +146,11 @@ interface InvoicePreviewModalProps {
   onConfirm: () => void;
   isSubmitting: boolean;
   formData: CreateInvoiceFormData;
-  jobDetails: any; // Using any to simplify prop drilling for read-only display
+  jobDetails: JobCard | null | undefined;
   subtotal: number;
   totalTax: number;
   grandTotal: number;
-  customer: any;
-  branchName: string;
+  customer: Customer | null | undefined;
 }
 
 function InvoicePreviewModal({
@@ -165,7 +164,6 @@ function InvoicePreviewModal({
   totalTax,
   grandTotal,
   customer,
-  branchName,
 }: InvoicePreviewModalProps) {
   if (!isOpen) return null;
 
@@ -342,7 +340,7 @@ function InvoicePreviewModal({
             </Button>
             <Button
               onClick={() => window.print()}
-              variant="outline"
+              variant="secondary"
               leftIcon={<Printer className="w-4 h-4" />}
             >
               Print
@@ -376,7 +374,7 @@ function InvoicePreviewModal({
 // Main Page Component
 // =====================================================
 
-export default function CreateInvoicePage() {
+function CreateInvoiceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
@@ -423,7 +421,13 @@ export default function CreateInvoicePage() {
       setValue("job_id", job.id);
       setValue("branch", currentBranch.id);
 
-      const items: any[] = [];
+      const items: Array<{
+        item_type: "SERVICE" | "PART" | "LABOUR" | "OTHER";
+        description: string;
+        quantity: number;
+        unit_price: number;
+        gst_rate: number;
+      }> = [];
 
       // 1. Service Charge (Estimate)
       if (job.estimated_cost && Number(job.estimated_cost) > 0) {
@@ -458,10 +462,10 @@ export default function CreateInvoicePage() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: CreateInvoiceFormData) => billingApi.createInvoice(data),
-    onSuccess: (invoice) => {
-      router.push(`/billing`); // Or show success and redirect
+    onSuccess: () => {
+      router.push(`/billing`);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error(error);
     },
   });
@@ -478,7 +482,7 @@ export default function CreateInvoicePage() {
   }, 0);
   const grandTotal = subtotal + totalTax;
 
-  const handlePreview = (data: CreateInvoiceFormData) => {
+  const handlePreview = () => {
     setShowPreview(true);
   };
 
@@ -500,8 +504,16 @@ export default function CreateInvoicePage() {
           <Header
             title="Create Invoice"
             subtitle={job ? `For Job: ${job.job_number}` : "New Invoice"}
-            showBack
-            backUrl={jobId ? `/jobs/${jobId}` : "/billing"}
+            actions={
+              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
+                <Button
+                  variant="secondary"
+                  leftIcon={<ArrowLeft className="w-4 h-4" />}
+                >
+                  Back
+                </Button>
+              </Link>
+            }
           />
 
           <form onSubmit={handleSubmit(handlePreview)} className="space-y-6">
@@ -529,7 +541,10 @@ export default function CreateInvoicePage() {
             )}
 
             {/* Line Items Editor */}
-            <Card title="Invoice Items">
+            <Card>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+                Invoice Items
+              </h3>
               <div className="space-y-4">
                 {/* Header Row */}
                 <div className="grid grid-cols-[1fr_5rem_7rem_5rem_2rem] gap-4 text-sm font-medium text-neutral-500 px-2">
@@ -664,16 +679,32 @@ export default function CreateInvoicePage() {
               onConfirm={handleSubmit((data) => mutate(data))}
               isSubmitting={isPending}
               formData={watch()}
-              jobDetails={job}
+              jobDetails={job ?? null}
               subtotal={subtotal}
               totalTax={totalTax}
               grandTotal={grandTotal}
               customer={job?.customer}
-              branchName={currentBranch?.name || ""}
             />
           )}
         </div>
       </AppLayout>
     </ProtectedRoute>
+  );
+}
+
+export default function CreateInvoicePage() {
+  return (
+    <Suspense
+      fallback={
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+            <span className="ml-3 text-neutral-600">Loading...</span>
+          </div>
+        </AppLayout>
+      }
+    >
+      <CreateInvoiceContent />
+    </Suspense>
   );
 }
