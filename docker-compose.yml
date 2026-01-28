@@ -1,18 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: scm
-      POSTGRES_PASSWORD: scm
-      POSTGRES_DB: scm
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scm"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: ./Backend
@@ -24,10 +10,7 @@ services:
     volumes:
       - scm_static:/app/staticfiles
       - scm_media:/app/media
-    depends_on:
-      postgres:
-        condition: service_healthy
-
+    
   frontend:
     build:
       context: ./frontend
