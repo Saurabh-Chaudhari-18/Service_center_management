@@ -6,6 +6,8 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 # Install all deps (including devDependencies) so TypeScript etc. are available for build
+# Install all deps (including devDependencies) so TypeScript etc. are available for build
+
 RUN npm ci --include=dev
 
 FROM base AS builder
