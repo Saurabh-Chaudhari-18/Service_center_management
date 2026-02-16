@@ -107,7 +107,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
             'id', 'invoice_number', 'job_number', 'customer_name',
             'customer_mobile', 'invoice_date', 'total_amount',
             'paid_amount', 'balance_due', 'status', 'status_display',
-            'is_finalized'
+            'is_finalized', 'total_tax'
         ]
 
 
@@ -184,32 +184,132 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 unit_price=Decimal(str(item_data.get('unit_price', 0))),
                 gst_rate=Decimal(str(item_data.get('gst_rate', 18))),
                 discount_percent=Decimal(str(item_data.get('discount_percent', 0))),
-                inventory_item_id=item_data.get('inventory_item_id'),
-                job_part_usage_id=item_data.get('job_part_usage_id'),
+                inventory_item_id=item_data.get('inventory_item'),
+                job_part_usage_id=item_data.get('job_part_usage'),
             )
         
         # Auto-add parts used in job
-        for part_usage in job.part_usages.all():
-            # Check if already added
-            if not invoice.line_items.filter(job_part_usage=part_usage).exists():
-                InvoiceLineItem.objects.create(
-                    invoice=invoice,
-                    item_type='PART',
-                    description=part_usage.inventory_item.name,
-                    hsn_sac_code=part_usage.inventory_item.hsn_code,
-                    quantity=part_usage.quantity,
-                    unit=part_usage.inventory_item.unit,
-                    unit_price=part_usage.unit_price,
-                    gst_rate=part_usage.inventory_item.gst_rate,
-                    inventory_item=part_usage.inventory_item,
-                    job_part_usage=part_usage,
-                )
+        # Check if part_usages exists (handles potential attribute error gracefully)
+        if hasattr(job, 'part_usages'):
+            for part_usage in job.part_usages.all():
+                # Check if already added
+                if not invoice.line_items.filter(job_part_usage=part_usage).exists():
+                    InvoiceLineItem.objects.create(
+                        invoice=invoice,
+                        item_type='PART',
+                        description=part_usage.inventory_item.name,
+                        hsn_sac_code=part_usage.inventory_item.hsn_code,
+                        quantity=part_usage.quantity,
+                        unit=part_usage.inventory_item.unit,
+                        unit_price=part_usage.unit_price,
+                        gst_rate=part_usage.inventory_item.gst_rate,
+                        inventory_item=part_usage.inventory_item,
+                        job_part_usage=part_usage,
+                    )
+
+            # Calculate totals
+            invoice.calculate_totals()
+            invoice.save()
+            
+            # Refresh to ensure date fields are legitimate date objects
+            invoice.refresh_from_db()
+            
+            return invoice
+
+
+class LineItemUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for validating line item updates."""
+    id = serializers.UUIDField(required=False)
+    inventory_item = serializers.PrimaryKeyRelatedField(
+        queryset=InvoiceLineItem._meta.get_field('inventory_item').related_model.objects.all(),
+        required=False, 
+        allow_null=True
+    )
+    job_part_usage = serializers.PrimaryKeyRelatedField(
+        queryset=InvoiceLineItem._meta.get_field('job_part_usage').related_model.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = InvoiceLineItem
+        fields = [
+            'id', 'item_type', 'description', 'hsn_sac_code',
+            'quantity', 'unit', 'unit_price', 'gst_rate',
+            'discount_percent', 'inventory_item', 'job_part_usage'
+        ]
+        read_only_fields = ['unit'] # Unit usually comes from inventory key
+
+class InvoiceUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating invoices with nested line items."""
+    line_items = LineItemUpdateSerializer(many=True, required=False)
+    
+    class Meta:
+        model = Invoice
+        fields = [
+            'invoice_date', 'due_date', 'discount_amount', 
+            'notes', 'terms_and_conditions', 'line_items'
+        ]
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        line_items_data = validated_data.pop('line_items', None)
         
-        # Calculate totals
-        invoice.calculate_totals()
-        invoice.save()
+        # Update invoice fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
         
-        return invoice
+        # Update line items if provided
+        if line_items_data is not None:
+            # Get existing item IDs
+            existing_ids = set(instance.line_items.values_list('id', flat=True))
+            provided_ids = set()
+            
+            for item_data in line_items_data:
+                item_id = item_data.get('id')
+                
+                if item_id and item_id in existing_ids:
+                    # Update existing item
+                    provided_ids.add(item_id)
+                    item = InvoiceLineItem.objects.get(id=item_id, invoice=instance)
+                    
+                    # Update fields
+                    for field in ['item_type', 'description', 'hsn_sac_code', 
+                                  'quantity', 'unit_price', 'gst_rate', 
+                                  'discount_percent']:
+                        if field in item_data:
+                            setattr(item, field, item_data[field])
+                    
+                    # Handle FKs if present
+                    if 'inventory_item' in item_data:
+                        item.inventory_item = item_data['inventory_item']
+                    if 'job_part_usage' in item_data:
+                        item.job_part_usage = item_data['job_part_usage']
+                        
+                    item.save()
+                else:
+                    # Create new item
+                    # Remove 'id' if present (it might be a temp id)
+                    if 'id' in item_data:
+                        del item_data['id']
+                        
+                    InvoiceLineItem.objects.create(
+                        invoice=instance,
+                        **item_data
+                    )
+            
+            # Delete items not in provided list (if any were provided)
+            # This logic mimics a full "replace" of the list for UX consistency
+            # Items not in the payload are assumed deleted
+            items_to_delete = existing_ids - provided_ids
+            InvoiceLineItem.objects.filter(id__in=items_to_delete).delete()
+
+        # Recalculate totals
+        instance.calculate_totals()
+        instance.save()
+        
+        return instance
 
 
 class AddLineItemSerializer(serializers.ModelSerializer):

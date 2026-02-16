@@ -2,33 +2,26 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useRouter, useParams } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { ProtectedRoute, useAuth } from "@/context/AuthContext";
-import { Card, Button, Input } from "@/components/ui";
-import { jobsApi, billingApi } from "@/lib/api";
-import {
-  ArrowLeft,
-  Printer,
-  Plus,
-  Trash2,
-  FileText,
-  Save,
-  Loader2,
-} from "lucide-react";
+import { ProtectedRoute } from "@/context/AuthContext";
+import { Card, Button, Input, LoadingState } from "@/components/ui";
+import { billingApi } from "@/lib/api";
+import { ArrowLeft, Printer, Plus, Trash2, FileText, Save } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import type { JobCard, Customer } from "@/types";
+import type { Invoice } from "@/types";
 
 // =====================================================
 // Schemas & Types
 // =====================================================
 
 const invoiceLineItemSchema = z.object({
+  id: z.string().optional(),
   item_type: z.enum(["SERVICE", "PART", "LABOUR", "OTHER"]),
   description: z.string().min(1, "Description is required"),
   hsn_sac_code: z.string().optional(),
@@ -37,15 +30,13 @@ const invoiceLineItemSchema = z.object({
   gst_rate: z.number().min(0, "GST rate cannot be negative"),
 });
 
-const createInvoiceSchema = z.object({
-  job_id: z.string().uuid("Invalid Job ID"),
-  branch: z.string().uuid("Invalid Branch ID"),
+const updateInvoiceSchema = z.object({
   due_date: z.string().optional(),
   notes: z.string().optional(),
   line_items: z.array(invoiceLineItemSchema).min(1, "Add at least one item"),
 });
 
-type CreateInvoiceFormData = z.infer<typeof createInvoiceSchema>;
+type UpdateInvoiceFormData = z.infer<typeof updateInvoiceSchema>;
 
 // =====================================================
 // Brand Logo Component (Reused)
@@ -138,29 +129,23 @@ function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
 }
 
 // =====================================================
-// Invoice Preview Modal
-// =====================================================
-
-// =====================================================
 // Invoice Template Component (Shared for Screen & Print)
 // =====================================================
 
 interface InvoiceTemplateProps {
-  formData: CreateInvoiceFormData;
-  jobDetails: JobCard | null | undefined;
+  formData: UpdateInvoiceFormData;
+  invoice: Invoice;
   subtotal: number;
   totalTax: number;
   grandTotal: number;
-  customer: Customer | null | undefined;
 }
 
 function InvoiceTemplate({
   formData,
-  jobDetails,
+  invoice,
   subtotal,
   totalTax,
   grandTotal,
-  customer,
 }: InvoiceTemplateProps) {
   return (
     <div className="bg-white text-black p-8 max-w-4xl mx-auto">
@@ -197,34 +182,37 @@ function InvoiceTemplate({
           <h3 className="text-neutral-500 text-sm uppercase tracking-wider mb-1">
             Bill To
           </h3>
-          <p className="font-bold text-lg">
-            {customer?.first_name} {customer?.last_name}
+          <p className="font-bold text-lg">{invoice.customer_name}</p>
+          <p className="text-neutral-600">{invoice.customer_mobile}</p>
+          <p className="text-neutral-600 max-w-xs">
+            {invoice.customer_address}
           </p>
-          <p className="text-neutral-600">{customer?.mobile}</p>
-          <p className="text-neutral-600">{customer?.email}</p>
-          {customer?.address_line1 && (
-            <p className="text-neutral-600 text-sm max-w-xs mt-1">
-              {customer.address_line1}, {customer.city}
+          {invoice.customer_gstin && (
+            <p className="text-sm font-mono mt-2">
+              GSTIN: {invoice.customer_gstin}
             </p>
-          )}
-          {customer?.gstin && (
-            <p className="text-sm font-mono mt-2">GSTIN: {customer.gstin}</p>
           )}
         </div>
         <div className="text-right">
           <h2 className="text-3xl font-light text-primary-600 mb-2">INVOICE</h2>
           <div className="space-y-1 text-sm text-neutral-600">
             <p>
-              <span className="font-medium mr-2">Date:</span>
-              {format(new Date(), "dd MMM yyyy")}
+              <span className="font-medium mr-2">Invoice #:</span>
+              {invoice.invoice_number}
             </p>
             <p>
-              <span className="font-medium mr-2">Job Ref:</span>
-              {jobDetails?.job_number}
+              <span className="font-medium mr-2">Date:</span>
+              {format(new Date(invoice.invoice_date), "dd MMM yyyy")}
             </p>
+            {invoice.job_number && (
+              <p>
+                <span className="font-medium mr-2">Job Ref:</span>
+                {invoice.job_number}
+              </p>
+            )}
             <p>
               <span className="font-medium mr-2">Status:</span>
-              Unpaid
+              {invoice.status}
             </p>
           </div>
         </div>
@@ -310,6 +298,18 @@ function InvoiceTemplate({
 }
 
 // =====================================================
+// Print Portal Util
+// =====================================================
+
+const PrintPortal = ({ children }: { children: React.ReactNode }) => {
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div id="print-portal-root">{children}</div>,
+    document.body,
+  );
+};
+
+// =====================================================
 // Invoice Preview Modal
 // =====================================================
 
@@ -318,12 +318,11 @@ interface InvoicePreviewModalProps {
   onClose: () => void;
   onConfirm: () => void;
   isSubmitting: boolean;
-  formData: CreateInvoiceFormData;
-  jobDetails: JobCard | null | undefined;
+  formData: UpdateInvoiceFormData;
+  invoice: Invoice;
   subtotal: number;
   totalTax: number;
   grandTotal: number;
-  customer: Customer | null | undefined;
 }
 
 function InvoicePreviewModal({
@@ -332,24 +331,11 @@ function InvoicePreviewModal({
   onConfirm,
   isSubmitting,
   formData,
-  jobDetails,
+  invoice,
   subtotal,
   totalTax,
   grandTotal,
-  customer,
 }: InvoicePreviewModalProps) {
-  // Portal for print content - MUST match globals.css #print-portal-root
-  const PrintPortal = ({ children }: { children: React.ReactNode }) => {
-    // Client-side only rendering for portal
-    if (typeof window === "undefined") return null;
-
-    // Create portal to document.body with specific ID that is exempted from print hiding in globals.css
-    return createPortal(
-      <div id="print-portal-root">{children}</div>,
-      document.body,
-    );
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -367,7 +353,7 @@ function InvoicePreviewModal({
                 Invoice Preview
               </h2>
               <p className="text-sm text-neutral-500">
-                Review details before creating the invoice.
+                Review details before saving.
               </p>
             </div>
 
@@ -375,11 +361,10 @@ function InvoicePreviewModal({
             <div className="p-0">
               <InvoiceTemplate
                 formData={formData}
-                jobDetails={jobDetails}
+                invoice={invoice}
                 subtotal={subtotal}
                 totalTax={totalTax}
                 grandTotal={grandTotal}
-                customer={customer}
               />
             </div>
 
@@ -401,22 +386,21 @@ function InvoicePreviewModal({
                 isLoading={isSubmitting}
                 leftIcon={<Save className="w-4 h-4" />}
               >
-                Confirm & Create Invoice
+                Confirm & Save Changes
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Printable Area - Rendered via Portal to escape main layout hiding */}
+      {/* Printable Area */}
       <PrintPortal>
         <InvoiceTemplate
           formData={formData}
-          jobDetails={jobDetails}
+          invoice={invoice}
           subtotal={subtotal}
           totalTax={totalTax}
           grandTotal={grandTotal}
-          customer={customer}
         />
       </PrintPortal>
     </>
@@ -427,39 +411,31 @@ function InvoicePreviewModal({
 // Main Page Component
 // =====================================================
 
-function CreateInvoiceContent() {
+function EditInvoiceContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const jobId = searchParams.get("jobId");
-  const { currentBranch } = useAuth();
+  const params = useParams();
+  const id = params?.id as string;
   const [showPreview, setShowPreview] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Fetch job details to pre-fill
-  const { data: job, isLoading: isLoadingJob } = useQuery({
-    queryKey: ["job", jobId],
-    queryFn: () => jobsApi.get(jobId!),
-    enabled: !!jobId,
+  // Fetch invoice details
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: () => billingApi.getInvoice(id),
+    enabled: !!id,
   });
 
   const {
     register,
     control,
     handleSubmit,
-    setValue,
     watch,
     formState: { errors },
-  } = useForm<CreateInvoiceFormData>({
-    resolver: zodResolver(createInvoiceSchema),
+    reset,
+  } = useForm<UpdateInvoiceFormData>({
+    resolver: zodResolver(updateInvoiceSchema),
     defaultValues: {
-      line_items: [
-        {
-          item_type: "SERVICE",
-          description: "",
-          quantity: 1,
-          unit_price: 0,
-          gst_rate: 18,
-        },
-      ],
+      line_items: [],
     },
   });
 
@@ -468,60 +444,55 @@ function CreateInvoiceContent() {
     name: "line_items",
   });
 
-  // Effect to pre-populate form when job loads
+  // Pre-fill form when invoice loads
   useEffect(() => {
-    if (job && currentBranch) {
-      setValue("job_id", job.id);
-      setValue("branch", currentBranch.id);
-
-      const items: Array<{
-        item_type: "SERVICE" | "PART" | "LABOUR" | "OTHER";
-        description: string;
-        quantity: number;
-        unit_price: number;
-        gst_rate: number;
-      }> = [];
-
-      // 1. Service Charge (Estimate)
-      if (job.estimated_cost && Number(job.estimated_cost) > 0) {
-        items.push({
-          item_type: "SERVICE",
-          description: "Service Charge / Repair Cost",
-          quantity: 1,
-          unit_price: Number(job.estimated_cost),
-          gst_rate: 18, // Default service tax
-        });
+    if (invoice) {
+      if (invoice.is_finalized) {
+        alert("This invoice is already finalized and cannot be edited.");
+        router.push(`/billing/${id}`);
+        return;
       }
 
-      // 2. Spare Parts
-      if (job.diagnosis_parts && job.diagnosis_parts.length > 0) {
-        job.diagnosis_parts.forEach((part) => {
-          items.push({
-            item_type: "PART",
-            description: part.name,
-            quantity: part.quantity || 1,
-            unit_price: Number(part.price),
-            gst_rate: 18, // Default goods tax
-          });
-        });
-      }
-
-      // If we found items, set them; else keep default
-      if (items.length > 0) {
-        setValue("line_items", items);
-      }
+      reset({
+        due_date: invoice.due_date
+          ? new Date(invoice.due_date).toISOString().split("T")[0]
+          : "",
+        notes: invoice.notes,
+        line_items: (invoice.line_items || []).map((item) => ({
+          id: item.id,
+          item_type: item.item_type,
+          description: item.description,
+          hsn_sac_code: item.hsn_sac_code || "",
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          gst_rate: Number(item.gst_rate),
+        })),
+      });
     }
-  }, [job, currentBranch, setValue]);
+  }, [invoice, reset, router, id]);
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: CreateInvoiceFormData) => billingApi.createInvoice(data),
+    mutationFn: (data: UpdateInvoiceFormData) =>
+      billingApi.updateInvoice(id, data),
     onSuccess: () => {
-      router.push(`/billing`);
+      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      router.push(`/billing/${id}`);
     },
     onError: (error: Error) => {
       console.error(error);
+      alert("Failed to update invoice");
     },
   });
+
+  const onSubmit = (data: UpdateInvoiceFormData) => {
+    const payload = {
+      ...data,
+      due_date: data.due_date || null,
+    };
+    // Cast is safe because schema is flexible but backend expects null for empty string
+    mutate(payload as unknown as UpdateInvoiceFormData);
+  };
 
   // Calculations
   const lineItems = watch("line_items");
@@ -539,13 +510,10 @@ function CreateInvoiceContent() {
     setShowPreview(true);
   };
 
-  if (isLoadingJob) {
+  if (isLoading || !invoice) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-          <span className="ml-3 text-neutral-600">Loading Job Details...</span>
-        </div>
+        <LoadingState />
       </AppLayout>
     );
   }
@@ -555,15 +523,15 @@ function CreateInvoiceContent() {
       <AppLayout>
         <div className="max-w-4xl mx-auto p-6">
           <Header
-            title="Create Invoice"
-            subtitle={job ? `For Job: ${job.job_number}` : "New Invoice"}
+            title={`Edit Invoice ${invoice.invoice_number}`}
+            subtitle={format(new Date(invoice.invoice_date), "MMMM dd, yyyy")}
             actions={
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
+              <Link href={`/billing/${id}`}>
                 <Button
                   variant="secondary"
                   leftIcon={<ArrowLeft className="w-4 h-4" />}
                 >
-                  Back
+                  Cancel
                 </Button>
               </Link>
             }
@@ -571,27 +539,24 @@ function CreateInvoiceContent() {
 
           <form onSubmit={handleSubmit(handlePreview)} className="space-y-6">
             {/* Customer Summary (Read Only) */}
-            {job && (
-              <Card>
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-primary-50 rounded-lg text-primary-600">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-medium text-neutral-900">
-                      Bill To: {job.customer?.first_name}{" "}
-                      {job.customer?.last_name}
-                    </h3>
-                    <p className="text-neutral-500">
-                      {job.customer?.mobile} • {job.customer?.email}
-                    </p>
-                    <p className="text-sm text-neutral-400 mt-1">
-                      Device: {job.brand} {job.model} ({job.device_type})
-                    </p>
-                  </div>
+            <Card>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-primary-50 rounded-lg text-primary-600">
+                  <FileText className="w-6 h-6" />
                 </div>
-              </Card>
-            )}
+                <div>
+                  <h3 className="text-lg font-medium text-neutral-900">
+                    Bill To: {invoice.customer_name}
+                  </h3>
+                  <p className="text-neutral-500">
+                    {invoice.customer_mobile} • {invoice.customer_email}
+                  </p>
+                  <p className="text-sm text-neutral-400 mt-1">
+                    {invoice.customer_address}
+                  </p>
+                </div>
+              </div>
+            </Card>
 
             {/* Line Items Editor */}
             <Card>
@@ -713,13 +678,13 @@ function CreateInvoiceContent() {
             </Card>
 
             <div className="flex justify-end gap-4">
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
+              <Link href={`/billing/${id}`}>
                 <Button variant="secondary" type="button">
                   Cancel
                 </Button>
               </Link>
               <Button type="submit" leftIcon={<FileText className="w-4 h-4" />}>
-                Preview Invoice
+                Preview & Save
               </Button>
             </div>
           </form>
@@ -729,14 +694,13 @@ function CreateInvoiceContent() {
             <InvoicePreviewModal
               isOpen={showPreview}
               onClose={() => setShowPreview(false)}
-              onConfirm={handleSubmit((data) => mutate(data))}
+              onConfirm={handleSubmit(onSubmit)}
               isSubmitting={isPending}
               formData={watch()}
-              jobDetails={job ?? null}
+              invoice={invoice}
               subtotal={subtotal}
               totalTax={totalTax}
               grandTotal={grandTotal}
-              customer={job?.customer}
             />
           )}
         </div>
@@ -745,19 +709,16 @@ function CreateInvoiceContent() {
   );
 }
 
-export default function CreateInvoicePage() {
+export default function EditInvoicePage() {
   return (
     <Suspense
       fallback={
         <AppLayout>
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-            <span className="ml-3 text-neutral-600">Loading...</span>
-          </div>
+          <LoadingState />
         </AppLayout>
       }
     >
-      <CreateInvoiceContent />
+      <EditInvoiceContent />
     </Suspense>
   );
 }

@@ -20,7 +20,8 @@ from billing.serializers import (
     InvoiceSerializer, InvoiceListSerializer, InvoiceCreateSerializer,
     InvoiceLineItemSerializer, AddLineItemSerializer,
     PaymentSerializer, RecordPaymentSerializer,
-    CreditNoteSerializer, InvoiceStatsSerializer
+    CreditNoteSerializer, InvoiceStatsSerializer,
+    InvoiceUpdateSerializer
 )
 from core.permissions import (
     IsBranchMember, CanManageBilling, BranchScopedMixin,
@@ -71,6 +72,8 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             return InvoiceCreateSerializer
         if self.action == 'list':
             return InvoiceListSerializer
+        if self.action in ['update', 'partial_update']:
+            return InvoiceUpdateSerializer
         return InvoiceSerializer
 
     @action(detail=True, methods=['post'])
@@ -248,18 +251,18 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if to_date:
             queryset = queryset.filter(invoice_date__lte=to_date)
         
+        # Calculate stats with keys fetching frontend expectations
         stats = queryset.aggregate(
-            total_invoices=models.Count('id'),
-            total_revenue=models.Sum('total_amount'),
-            total_collected=models.Sum('paid_amount'),
+            invoice_count=models.Count('id'),
+            total_invoiced=models.Sum('total_amount'),
+            total_paid=models.Sum('paid_amount'),
         )
         
-        stats['total_revenue'] = stats['total_revenue'] or Decimal('0')
-        stats['total_collected'] = stats['total_collected'] or Decimal('0')
-        stats['total_outstanding'] = stats['total_revenue'] - stats['total_collected']
-        
-        stats['pending_count'] = queryset.filter(status=InvoiceStatus.PENDING).count()
-        stats['partial_count'] = queryset.filter(status=InvoiceStatus.PARTIAL).count()
+        # Handle None values and calculate pending
+        stats['total_invoiced'] = stats['total_invoiced'] or Decimal('0')
+        stats['total_paid'] = stats['total_paid'] or Decimal('0')
+        stats['invoice_count'] = stats['invoice_count'] or 0
+        stats['total_pending'] = stats['total_invoiced'] - stats['total_paid']
         
         return Response(stats)
 
@@ -278,6 +281,8 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         serializer = InvoiceListSerializer(queryset, many=True)
         return Response(serializer.data)
+
+
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):

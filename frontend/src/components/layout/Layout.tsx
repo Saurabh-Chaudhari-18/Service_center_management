@@ -18,6 +18,7 @@ import {
   LogOut,
   ChevronDown,
   Check,
+  UserPlus,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -82,6 +83,12 @@ const navigationItems: NavItem[] = [
     href: "/branches",
     icon: Building2,
     permission: "canManageBranches",
+  },
+  {
+    name: "Staff",
+    href: "/users",
+    icon: UserPlus,
+    permission: "canManageUsers",
   },
   {
     name: "Settings",

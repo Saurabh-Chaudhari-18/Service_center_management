@@ -122,7 +122,7 @@ export default function BillingPage() {
 
   const { data: stats } = useQuery({
     queryKey: ["invoice-stats", currentBranch?.id],
-    queryFn: () => billingApi.getStats(),
+    queryFn: () => billingApi.getStats({ branch: currentBranch?.id }),
     enabled: !!currentBranch,
   });
 

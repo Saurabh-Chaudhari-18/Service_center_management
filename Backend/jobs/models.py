@@ -139,6 +139,12 @@ class JobCard(TimeStampedModel):
     physical_condition = models.TextField(
         help_text="Physical condition of device on receipt (scratches, dents, etc.)"
     )
+
+    # Additional Comments
+    additional_comments = models.TextField(
+        blank=True,
+        help_text="Additional comments or notes"
+    )
     
     # Status
     status = models.CharField(
@@ -325,30 +331,39 @@ class JobCard(TimeStampedModel):
         
         old_status = self.status
         
-        with transaction.atomic():
-            self.status = new_status
-            
-            # Update related timestamps
-            if new_status == JobStatus.READY_FOR_DELIVERY:
-                self.actual_completion_date = timezone.now()
-            elif new_status == JobStatus.DELIVERED:
-                self.delivery_date = timezone.now()
-            
-            self.save()
-            
-            # Create status history record
-            JobStatusHistory.objects.create(
-                job=self,
-                from_status=old_status,
-                to_status=new_status,
-                changed_by=user,
-                notes=notes,
-                is_override=is_override
-            )
-            
-            # Trigger notifications
-            from notifications.services import NotificationService
-            NotificationService.on_job_status_change(self, old_status, new_status)
+        from django.db import connection
+        
+        # Call the stored procedure
+        with connection.cursor() as cursor:
+            try:
+                cursor.execute(
+                    "CALL transition_job_status(%s, %s, %s, %s, %s)",
+                    [
+                        self.id,
+                        new_status,
+                        user.id,
+                        notes,
+                        is_override
+                    ]
+                )
+            except Exception as e:
+                # Map database exceptions to application exceptions if needed
+                # For now, re-raise or handle specific PG errors
+                if 'Job is in terminal status' in str(e):
+                    raise JobReadOnlyError(str(e))
+                elif 'Invalid transition' in str(e):
+                    raise InvalidStatusTransition(str(e))
+                elif 'Only OWNER or MANAGER' in str(e):
+                    raise InvalidStatusTransition(str(e))
+                else:
+                    raise e
+        
+        # Refresh instance from DB to get updated status and timestamps
+        self.refresh_from_db()
+
+        # Trigger notifications (keeping this in app layer for now)
+        from notifications.services import NotificationService
+        NotificationService.on_job_status_change(self, old_status, new_status)
 
     def generate_delivery_otp(self):
         """Generate OTP for delivery."""

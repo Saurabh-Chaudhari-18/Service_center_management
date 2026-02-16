@@ -145,7 +145,7 @@ class JobCardSerializer(serializers.ModelSerializer):
             'id', 'branch', 'branch_name', 'job_number',
             'customer', 'customer_id',
             'device_type', 'device_type_display', 'brand', 'model', 'serial_number',
-            'customer_complaint', 'physical_condition',
+            'customer_complaint', 'physical_condition', 'additional_comments',
             'status', 'status_display', 'allowed_transitions', 'is_readonly',
             'assigned_technician', 'assigned_technician_name',
             'received_by', 'received_by_name',
@@ -171,6 +171,9 @@ class JobCardSerializer(serializers.ModelSerializer):
 
     def get_is_readonly(self, obj):
         """Check if job is in read-only terminal state."""
+        request = self.context.get('request')
+        if request and request.user.role == 'OWNER':
+            return False
         return obj.is_terminal_status()
 
     def validate_branch(self, value):
@@ -203,7 +206,7 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
             'serial_number', 'device_password', 'bios_password',
             'customer_complaint', 'physical_condition', 'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
-            'accessories'
+            'accessories', 'additional_comments'
         ]
         read_only_fields = ['id', 'job_number']
 
@@ -272,6 +275,62 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
         NotificationService.on_job_created(job)
         
         return job
+
+
+
+class JobCardUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for full job card updates (Owner only).
+    Allows updating accessories and other read-only fields.
+    """
+    accessories = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        write_only=True
+    )
+    customer_id = serializers.UUIDField(required=False, allow_null=True)
+    
+    class Meta:
+        model = JobCard
+        fields = [
+            'id', 'job_number', 'branch', 'customer_id',
+            'device_type', 'brand', 'model', 'serial_number',
+            'customer_complaint', 'physical_condition', 'diagnosis_notes',
+            'estimated_cost', 'estimated_completion_date',
+            'is_urgent', 'is_warranty_repair', 'warranty_details',
+            'accessories', 'additional_comments'
+        ]
+        read_only_fields = ['id', 'job_number', 'branch']
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        accessories_data = validated_data.pop('accessories', None)
+        customer_id = validated_data.pop('customer_id', None)
+        
+        # Update customer if provided
+        if customer_id:
+            from customers.models import Customer
+            instance.customer = Customer.objects.get(pk=customer_id)
+
+        # Update standard fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update accessories if provided
+        if accessories_data is not None:
+            # Delete existing and recreate (simplest approach for full update)
+            instance.accessories.all().delete()
+            for acc in accessories_data:
+                JobAccessory.objects.create(
+                    job=instance,
+                    accessory_type=acc.get('accessory_type'),
+                    description=acc.get('description', ''),
+                    condition=acc.get('condition', ''),
+                    is_present=acc.get('is_present', True)
+                )
+        
+        return instance
 
 
 class JobCardListSerializer(serializers.ModelSerializer):

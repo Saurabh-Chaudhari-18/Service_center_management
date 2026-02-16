@@ -85,7 +85,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // =====================================================
@@ -141,7 +141,7 @@ apiClient.interceptors.response.use(
           `${API_BASE_URL}/auth/token/refresh/`,
           {
             refresh: refreshToken,
-          }
+          },
         );
 
         const { access } = response.data;
@@ -165,7 +165,7 @@ apiClient.interceptors.response.use(
     // Format error message
     const errorMessage = formatErrorMessage(error);
     return Promise.reject(new Error(errorMessage));
-  }
+  },
 );
 
 // =====================================================
@@ -198,6 +198,8 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
         if (errors.length > 0) {
           return errors.join("\n");
         }
+        // Fallback: dump the object if we couldn't format it nicely
+        return `Invalid request: ${JSON.stringify(data)}`;
       }
       return "Invalid request. Please check your input.";
 
@@ -240,7 +242,7 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
 
 export async function apiGet<T>(
   url: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
 ): Promise<T> {
   const response = await apiClient.get<T>(url, { params });
   return response.data;
@@ -271,7 +273,7 @@ export async function apiUpload<T>(
   url: string,
   file: File,
   fieldName: string = "file",
-  additionalData?: Record<string, string>
+  additionalData?: Record<string, string>,
 ): Promise<T> {
   const formData = new FormData();
   formData.append(fieldName, file);
@@ -293,7 +295,7 @@ export async function apiUpload<T>(
 // For file downloads
 export async function apiDownload(
   url: string,
-  filename: string
+  filename: string,
 ): Promise<void> {
   const response = await apiClient.get(url, {
     responseType: "blob",

@@ -3,7 +3,14 @@
  * All endpoints from the DRF backend
  */
 
-import { apiGet, apiPost, apiPatch, apiUpload, apiDownload } from "./client";
+import {
+  apiGet,
+  apiPost,
+  apiPatch,
+  apiUpload,
+  apiDownload,
+  apiDelete,
+} from "./client";
 import type {
   AuthTokens,
   AuthUser,
@@ -58,7 +65,7 @@ export const authApi = {
 
   changePassword: async (
     oldPassword: string,
-    newPassword: string
+    newPassword: string,
   ): Promise<void> => {
     return apiPost("/core/users/change_password/", {
       old_password: oldPassword,
@@ -86,7 +93,7 @@ export const organizationsApi = {
 
   update: async (
     id: string,
-    data: Partial<Organization>
+    data: Partial<Organization>,
   ): Promise<Organization> => {
     return apiPatch<Organization>(`/core/organizations/${id}/`, data);
   },
@@ -144,8 +151,21 @@ export const usersApi = {
     return apiPatch<User>(`/core/users/${id}/`, data);
   },
 
+  delete: async (id: string): Promise<void> => {
+    return apiDelete(`/core/users/${id}/`);
+  },
+
+  assignBranches: async (
+    id: string,
+    branchIds: string[],
+  ): Promise<{ message: string }> => {
+    return apiPost(`/core/users/${id}/assign_branches/`, {
+      branch_ids: branchIds,
+    });
+  },
+
   getRoles: async (): Promise<Array<{ value: string; label: string }>> => {
-    return apiGet("/core/users/roles/");
+    return apiGet("/core/roles/");
   },
 };
 
@@ -223,7 +243,7 @@ export const jobsApi = {
   assignTechnician: async (
     jobId: string,
     technicianId: string,
-    notes?: string
+    notes?: string,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/assign_technician/`, {
       technician_id: technicianId,
@@ -241,7 +261,7 @@ export const jobsApi = {
       price: number;
       warranty_days?: number;
       quantity?: number;
-    }>
+    }>,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/add_diagnosis/`, {
       diagnosis_notes: diagnosisNotes,
@@ -258,7 +278,7 @@ export const jobsApi = {
   recordCustomerResponse: async (
     jobId: string,
     approved: boolean,
-    rejectionReason?: string
+    rejectionReason?: string,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/record_customer_response/`, {
       approved,
@@ -269,7 +289,7 @@ export const jobsApi = {
   updateStatus: async (
     jobId: string,
     newStatus: string,
-    notes?: string
+    notes?: string,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/update_status/`, {
       new_status: newStatus,
@@ -279,7 +299,7 @@ export const jobsApi = {
 
   markReady: async (
     jobId: string,
-    completionNotes?: string
+    completionNotes?: string,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/mark_ready/`, {
       completion_notes: completionNotes,
@@ -289,7 +309,7 @@ export const jobsApi = {
   deliver: async (
     jobId: string,
     otp: string,
-    notes?: string
+    notes?: string,
   ): Promise<JobCard> => {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/deliver/`, { otp, notes });
   },
@@ -300,7 +320,7 @@ export const jobsApi = {
 
   accessDevicePassword: async (
     jobId: string,
-    reason: string
+    reason: string,
   ): Promise<{ password: string }> => {
     return apiPost(`/jobs/jobs/${jobId}/access_device_password/`, { reason });
   },
@@ -309,7 +329,7 @@ export const jobsApi = {
     jobId: string,
     partName: string,
     quantity: number,
-    notes?: string
+    notes?: string,
   ): Promise<void> => {
     return apiPost(`/jobs/jobs/${jobId}/request_part/`, {
       part_name: partName,
@@ -321,7 +341,7 @@ export const jobsApi = {
   addNote: async (
     jobId: string,
     note: string,
-    isInternal: boolean = true
+    isInternal: boolean = true,
   ): Promise<void> => {
     return apiPost(`/jobs/jobs/${jobId}/add_note/`, {
       note,
@@ -330,7 +350,7 @@ export const jobsApi = {
   },
 
   getTimeline: async (
-    jobId: string
+    jobId: string,
   ): Promise<
     Array<{
       timestamp: string;
@@ -346,7 +366,7 @@ export const jobsApi = {
     jobId: string,
     file: File,
     photoType: string,
-    description?: string
+    description?: string,
   ) => {
     return apiUpload(`/jobs/jobs/${jobId}/upload_photo/`, file, "photo", {
       photo_type: photoType,
@@ -388,7 +408,7 @@ export const inventoryApi = {
   }): Promise<PaginatedResponse<InventoryItem>> => {
     return apiGet<PaginatedResponse<InventoryItem>>(
       "/inventory/items/",
-      params
+      params,
     );
   },
 
@@ -402,7 +422,7 @@ export const inventoryApi = {
 
   update: async (
     id: string,
-    data: Partial<InventoryItem>
+    data: Partial<InventoryItem>,
   ): Promise<InventoryItem> => {
     return apiPatch<InventoryItem>(`/inventory/items/${id}/`, data);
   },
@@ -410,7 +430,7 @@ export const inventoryApi = {
   addStock: async (
     id: string,
     quantity: number,
-    reason: string
+    reason: string,
   ): Promise<InventoryItem> => {
     return apiPost<InventoryItem>(`/inventory/items/${id}/add_stock/`, {
       quantity,
@@ -422,7 +442,7 @@ export const inventoryApi = {
     id: string,
     quantity: number,
     reason: string,
-    jobId?: string
+    jobId?: string,
   ): Promise<InventoryItem> => {
     return apiPost<InventoryItem>(`/inventory/items/${id}/deduct_stock/`, {
       quantity,
@@ -434,7 +454,7 @@ export const inventoryApi = {
   adjustStock: async (
     id: string,
     newQuantity: number,
-    reason: string
+    reason: string,
   ): Promise<InventoryItem> => {
     return apiPost<InventoryItem>(`/inventory/items/${id}/adjust_stock/`, {
       new_quantity: newQuantity,
@@ -500,13 +520,32 @@ export const billingApi = {
     return apiPost<Invoice>("/billing/invoices/", data);
   },
 
+  updateInvoice: async (
+    id: string,
+    data: {
+      due_date?: string;
+      notes?: string;
+      line_items?: Array<{
+        id?: string;
+        item_type: string;
+        description: string;
+        hsn_sac_code?: string;
+        quantity: number;
+        unit_price: number;
+        gst_rate: number;
+      }>;
+    },
+  ): Promise<Invoice> => {
+    return apiPatch<Invoice>(`/billing/invoices/${id}/`, data);
+  },
+
   addLineItem: async (
     invoiceId: string,
-    lineItem: Partial<InvoiceLineItem>
+    lineItem: Partial<InvoiceLineItem>,
   ): Promise<Invoice> => {
     return apiPost<Invoice>(
       `/billing/invoices/${invoiceId}/add_line_item/`,
-      lineItem
+      lineItem,
     );
   },
 
@@ -519,7 +558,7 @@ export const billingApi = {
     amount: number,
     paymentMethod: string,
     reference?: string,
-    notes?: string
+    notes?: string,
   ): Promise<Payment> => {
     return apiPost<Payment>(`/billing/invoices/${invoiceId}/record_payment/`, {
       amount,
@@ -535,17 +574,17 @@ export const billingApi = {
 
   downloadPdf: async (
     invoiceId: string,
-    invoiceNumber: string
+    invoiceNumber: string,
   ): Promise<void> => {
     return apiDownload(
       `/billing/invoices/${invoiceId}/download_pdf/`,
-      `${invoiceNumber}.pdf`
+      `${invoiceNumber}.pdf`,
     );
   },
 
   cancelInvoice: async (
     invoiceId: string,
-    reason: string
+    reason: string,
   ): Promise<Invoice> => {
     return apiPost<Invoice>(`/billing/invoices/${invoiceId}/cancel/`, {
       reason,
@@ -555,6 +594,7 @@ export const billingApi = {
   getStats: async (params?: {
     from_date?: string;
     to_date?: string;
+    branch?: string;
   }): Promise<{
     total_invoiced: number;
     total_paid: number;
@@ -598,6 +638,13 @@ export const notificationsApi = {
     });
   },
 
+  updateTemplate: async (
+    id: string,
+    data: { is_active: boolean; template?: string },
+  ): Promise<void> => {
+    return apiPatch(`/notifications/templates/${id}/`, data);
+  },
+
   listLogs: async (params?: {
     status?: string;
     channel?: string;
@@ -605,7 +652,7 @@ export const notificationsApi = {
   }): Promise<PaginatedResponse<NotificationLog>> => {
     return apiGet<PaginatedResponse<NotificationLog>>(
       "/notifications/logs/",
-      params
+      params,
     );
   },
 
@@ -646,30 +693,67 @@ export const reportsApi = {
 
   getPendingJobs: async (params?: {
     branch?: string;
-  }): Promise<PendingJobsReportData[]> => {
-    return apiGet<PendingJobsReportData[]>("/reports/pending_jobs/", params);
+  }): Promise<{
+    total_pending: number;
+    urgent_count: number;
+    overdue_count: number;
+    by_status: Array<{ status: string; count: number }>;
+    by_branch: Array<{
+      branch: string;
+      branch__name: string;
+      count: number;
+      urgent_count: number;
+    }>;
+    by_age: Record<string, number>;
+  }> => {
+    return apiGet("/reports/pending_jobs/", params);
   },
 
   getTechnicianProductivity: async (params: {
     from_date: string;
     to_date: string;
     branch?: string;
-  }): Promise<TechnicianProductivityData[]> => {
-    return apiGet<TechnicianProductivityData[]>(
-      "/reports/technician_productivity/",
-      params
-    );
+  }): Promise<{
+    from_date: string;
+    to_date: string;
+    technicians: TechnicianProductivityData[];
+  }> => {
+    return apiGet("/reports/technician_productivity/", params);
   },
 
   getInventoryConsumption: async (params: {
     from_date: string;
     to_date: string;
     branch?: string;
-  }): Promise<InventoryConsumptionData[]> => {
-    return apiGet<InventoryConsumptionData[]>(
-      "/reports/inventory_consumption/",
-      params
-    );
+  }): Promise<{
+    from_date: string;
+    to_date: string;
+    top_items: Array<{
+      inventory_item: string;
+      inventory_item__name: string;
+      inventory_item__sku: string;
+      total_quantity: number;
+      total_value: number;
+      usage_count: number;
+    }>;
+    by_category: Array<{
+      inventory_item__category: string;
+      inventory_item__category__name: string;
+      total_quantity: number;
+      total_value: number;
+    }>;
+    daily_usage: Array<{
+      date: string;
+      quantity: number;
+      value: number;
+    }>;
+    totals: {
+      total_quantity: number;
+      total_value: number;
+      total_transactions: number;
+    };
+  }> => {
+    return apiGet("/reports/inventory_consumption/", params);
   },
 
   getLowStock: async (): Promise<InventoryItem[]> => {
@@ -680,15 +764,20 @@ export const reportsApi = {
     from_date: string;
     to_date: string;
     branch?: string;
-  }): Promise<
-    Array<{
-      customer_id: string;
-      customer_name: string;
-      total_jobs: number;
-      total_spent: number;
-      last_visit: string;
-    }>
-  > => {
+  }): Promise<{
+    from_date: string;
+    to_date: string;
+    total_customers: number;
+    new_customers: number;
+    top_customers: Array<{
+      job__customer: string;
+      job__customer__first_name: string;
+      job__customer__last_name: string;
+      job__customer__mobile: string;
+      total_revenue: number;
+      invoice_count: number;
+    }>;
+  }> => {
     return apiGet("/reports/customer_analysis/", params);
   },
 
@@ -697,18 +786,36 @@ export const reportsApi = {
     to_date: string;
     branch?: string;
   }): Promise<{
-    total_cgst: number;
-    total_sgst: number;
-    total_igst: number;
-    total_tax: number;
-    taxable_amount: number;
+    from_date: string;
+    to_date: string;
+    summary: {
+      total_taxable: number;
+      total_cgst: number;
+      total_sgst: number;
+      total_igst: number;
+      total_tax: number;
+      total_value: number;
+      invoice_count: number;
+    };
+    by_rate: Array<{
+      gst_rate: number;
+      taxable_amount: number;
+      cgst_amount: number;
+      sgst_amount: number;
+      igst_amount: number;
+    }>;
+    by_supply_type: Array<{
+      is_interstate: boolean;
+      count: number;
+      total: number;
+    }>;
   }> => {
     return apiGet("/reports/gst_summary/", params);
   },
 
   exportExcel: async (
     reportType: string,
-    params: { from_date: string; to_date: string; branch?: string }
+    params: { from_date: string; to_date: string; branch?: string },
   ): Promise<void> => {
     const filename = `${reportType}_report_${params.from_date}_${params.to_date}.xlsx`;
     return apiDownload(
@@ -717,7 +824,7 @@ export const reportsApi = {
       }&to_date=${params.to_date}${
         params.branch ? `&branch=${params.branch}` : ""
       }`,
-      filename
+      filename,
     );
   },
 };

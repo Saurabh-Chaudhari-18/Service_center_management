@@ -18,6 +18,7 @@ from jobs.models import (
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
     JobStatusUpdateSerializer, JobAssignTechnicianSerializer,
+    JobCardUpdateSerializer,
     JobDiagnosisSerializer, JobEstimateApprovalSerializer,
     JobDeliverySerializer, DevicePasswordAccessSerializer,
     JobAccessorySerializer, JobPhotoSerializer, JobNoteSerializer,
@@ -83,6 +84,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return JobCardCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return JobCardUpdateSerializer
         if self.action == 'list':
             return JobCardListSerializer
         return JobCardSerializer
@@ -95,7 +98,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """
         job = self.get_object()
         
-        if job.is_terminal_status():
+        # Allow Owner to update status even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
             return Response(
                 {'error': f'Job is in terminal status ({job.get_status_display()}) and cannot be modified.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -128,7 +132,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Assign or reassign technician to job."""
         job = self.get_object()
         
-        if job.is_terminal_status():
+        # Allow Owner to assign technician even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
             return Response(
                 {'error': 'Cannot assign technician to a completed job.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -172,7 +177,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Add or update diagnosis notes."""
         job = self.get_object()
         
-        if job.is_terminal_status():
+        # Allow Owner to add diagnosis even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
             return Response(
                 {'error': 'Cannot modify a completed job.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -298,6 +304,12 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Mark job as ready for pickup."""
         job = self.get_object()
         
+        # Allow Owner to mark ready even if not in expected status (via override effectively, but here we check status)
+        # Actually, standard flow enforces status. Owner can use update_status to force move.
+        # But let's leave this strict unless requested, or relax if owner?
+        # User said "edit the form till last status".
+        # Let's keep this strict for workflow, Owner can use update_status for arbitrary jumps.
+        
         if job.status not in [JobStatus.REPAIR_IN_PROGRESS, JobStatus.WAITING_FOR_PARTS]:
             return Response(
                 {'error': 'Job must be in progress to mark as ready.'},
@@ -412,7 +424,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Request a part for this job."""
         job = self.get_object()
         
-        if job.is_terminal_status():
+        # Allow Owner to request parts even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
             return Response(
                 {'error': 'Cannot request parts for a completed job.'},
                 status=status.HTTP_400_BAD_REQUEST

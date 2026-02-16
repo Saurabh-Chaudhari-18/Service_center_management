@@ -273,6 +273,7 @@ export interface JobCard extends BaseEntity {
   is_urgent: boolean;
   is_warranty_repair: boolean;
   warranty_details: string;
+  additional_comments?: string;
   total_parts_cost?: number;
   accessories?: JobAccessory[];
   photos?: JobPhoto[];
@@ -292,6 +293,7 @@ export interface CreateJobCardData {
   serial_number?: string;
   customer_complaint: string;
   physical_condition: string;
+  additional_comments?: string;
   device_password?: string;
   diagnosis_notes?: string;
   is_urgent?: boolean;

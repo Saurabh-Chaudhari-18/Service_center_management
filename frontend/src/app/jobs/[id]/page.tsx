@@ -21,6 +21,7 @@ import {
 import { jobsApi, API_BASE_URL } from "@/lib/api";
 import {
   ArrowLeft,
+  Edit,
   User,
   Phone,
   Mail,
@@ -136,12 +137,12 @@ function AssignTechnicianModal({
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem(
-                "scm_access_token"
+                "scm_access_token",
               )}`,
               "Content-Type": "application/json",
             },
-          }
-        ).then((res) => res.json())
+          },
+        ).then((res) => res.json()),
       ),
     enabled: isOpen,
   });
@@ -151,7 +152,7 @@ function AssignTechnicianModal({
       (user: { id: string; first_name: string; last_name: string }) => ({
         value: user.id,
         label: `${user.first_name} ${user.last_name}`,
-      })
+      }),
     ) || [];
 
   const { mutate, isPending, error } = useMutation({
@@ -252,7 +253,7 @@ function UpdateStatusModal({
     (status) => ({
       value: status,
       label: JOB_STATUS_CONFIG[status as JobStatus]?.label || status,
-    })
+    }),
   );
 
   return (
@@ -348,7 +349,7 @@ function DiagnosisModal({
           setEstimatedCost(
             initialData.estimated_cost
               ? String(initialData.estimated_cost)
-              : ""
+              : "",
           );
           setEstimatedDate(initialData.estimated_completion_date || "");
           setParts(
@@ -359,7 +360,7 @@ function DiagnosisModal({
                   warranty_days: String(p.warranty_days),
                   quantity: String(p.quantity),
                 }))
-              : []
+              : [],
           );
         });
       }
@@ -394,7 +395,7 @@ function DiagnosisModal({
   const handlePartChange = (
     index: number,
     field: keyof (typeof parts)[0],
-    value: string
+    value: string,
   ) => {
     const newParts = [...parts];
     newParts[index][field] = value;
@@ -413,7 +414,7 @@ function DiagnosisModal({
           price: parseFloat(p.price) || 0,
           warranty_days: parseInt(p.warranty_days) || 0,
           quantity: parseInt(p.quantity) || 1,
-        }))
+        })),
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
@@ -622,9 +623,12 @@ export default function JobDetailPage() {
   }
 
   const isTerminalStatus = ["DELIVERED", "CANCELLED", "REJECTED"].includes(
-    job.status
+    job.status,
   );
-  const canEdit = hasPermission("canEditJobCards") && !isTerminalStatus;
+  // Allow Owner/Manager to edit even if terminal
+  const canEdit =
+    (hasPermission("canEditJobCards") && !isTerminalStatus) ||
+    isRole("OWNER", "MANAGER");
 
   return (
     <ProtectedRoute requiredPermission="canViewJobCards">
@@ -634,6 +638,16 @@ export default function JobDetailPage() {
           subtitle={`${job.brand} ${job.model}`}
           actions={
             <div className="flex items-center gap-3">
+              {isRole("OWNER") && (
+                <Link href={`/jobs/${jobId}/edit`}>
+                  <Button
+                    variant="secondary"
+                    leftIcon={<Edit className="w-4 h-4" />}
+                  >
+                    Edit Job
+                  </Button>
+                </Link>
+              )}
               <Link href="/jobs">
                 <Button
                   variant="secondary"
@@ -677,20 +691,24 @@ export default function JobDetailPage() {
                     </Button>
                   </Link>
                 )}
-                {job.status === "RECEIVED" && isRole("OWNER", "MANAGER") && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    leftIcon={<UserCheck className="w-4 h-4" />}
-                    onClick={() => setShowAssignModal(true)}
-                  >
-                    Assign Technician
-                  </Button>
-                )}
+                {(job.status === "RECEIVED" ||
+                  (isTerminalStatus && isRole("OWNER"))) &&
+                  isRole("OWNER", "MANAGER") && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      leftIcon={<UserCheck className="w-4 h-4" />}
+                      onClick={() => setShowAssignModal(true)}
+                    >
+                      Assign Technician
+                    </Button>
+                  )}
 
-                {job.status === "DIAGNOSIS" &&
+                {(job.status === "DIAGNOSIS" ||
+                  (isTerminalStatus && isRole("OWNER"))) &&
                   (isRole("TECHNICIAN") ||
-                    hasPermission("canEditJobCards")) && (
+                    hasPermission("canEditJobCards") ||
+                    isRole("OWNER")) && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -1009,7 +1027,7 @@ export default function JobDetailPage() {
                       <span className="text-sm">
                         {format(
                           new Date(job.estimated_completion_date),
-                          "MMM dd, yyyy"
+                          "MMM dd, yyyy",
                         )}
                       </span>
                     </div>

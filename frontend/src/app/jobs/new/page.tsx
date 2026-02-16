@@ -55,6 +55,7 @@ const createJobSchema = z.object({
   is_warranty_repair: z.boolean().optional(),
   warranty_details: z.string().optional(),
   diagnosis_notes: z.string().optional(),
+  additional_comments: z.string().optional(),
 });
 
 type CreateJobFormData = z.infer<typeof createJobSchema>;
@@ -69,7 +70,7 @@ const PrintPortal = ({ children }: { children: React.ReactNode }) => {
 
   return createPortal(
     <div id="print-portal-root">{children}</div>,
-    document.body
+    document.body,
   );
 };
 
@@ -325,7 +326,7 @@ interface AccessoriesChecklistProps {
   onChange: (
     value: Partial<
       Record<AccessoryType, { present: boolean; condition: string }>
-    >
+    >,
   ) => void;
 }
 
@@ -521,21 +522,21 @@ function JobCardPreviewModal({
           type === "CHARGER"
             ? "Charger/Adapter"
             : type === "BATTERY"
-            ? "Battery"
-            : type === "BAG"
-            ? "Laptop Bag"
-            : type === "SSD"
-            ? "SSD"
-            : type === "HDD"
-            ? "Hard Drive"
-            : type === "RAM"
-            ? "RAM Module"
-            : type;
+              ? "Battery"
+              : type === "BAG"
+                ? "Laptop Bag"
+                : type === "SSD"
+                  ? "SSD"
+                  : type === "HDD"
+                    ? "Hard Drive"
+                    : type === "RAM"
+                      ? "RAM Module"
+                      : type;
 
         // Simple parsing logic derived from main page
         const lines = accessoryManualDetails.split("\n");
         const matchingLine = lines.find((line) =>
-          line.toLowerCase().includes(label.toLowerCase())
+          line.toLowerCase().includes(label.toLowerCase()),
         );
         const description = matchingLine
           ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
@@ -888,6 +889,11 @@ function JobCardPreviewModal({
                     <b>Initial Observations:</b> {formData.diagnosis_notes}
                   </p>
                 )}
+                {formData.additional_comments && (
+                  <p>
+                    <b>Additional Comments:</b> {formData.additional_comments}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -992,7 +998,7 @@ export default function CreateJobCardPage() {
   const router = useRouter();
   const { currentBranch } = useAuth();
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
+    null,
   );
   const [accessories, setAccessories] = useState<
     Partial<Record<AccessoryType, { present: boolean; condition: string }>>
@@ -1038,7 +1044,7 @@ export default function CreateJobCardPage() {
 
         presentAccessories.forEach((label) => {
           const hasLabel = lines.some((line) =>
-            line.toLowerCase().includes(label.toLowerCase())
+            line.toLowerCase().includes(label.toLowerCase()),
           );
           if (!hasLabel) {
             newText += (newText ? "\n" : "") + `${label}: `;
@@ -1070,7 +1076,7 @@ export default function CreateJobCardPage() {
       setPredictedNumber(
         `${currentBranch.jobcard_prefix || "JC"}/${fy}/${
           currentBranch.code
-        }/${sequence}`
+        }/${sequence}`,
       );
     }
   };
@@ -1113,21 +1119,21 @@ export default function CreateJobCardPage() {
               type === "CHARGER"
                 ? "Charger/Adapter"
                 : type === "BATTERY"
-                ? "Battery"
-                : type === "BAG"
-                ? "Laptop Bag"
-                : type === "SSD"
-                ? "SSD"
-                : type === "HDD"
-                ? "Hard Drive"
-                : type === "RAM"
-                ? "RAM Module"
-                : type;
+                  ? "Battery"
+                  : type === "BAG"
+                    ? "Laptop Bag"
+                    : type === "SSD"
+                      ? "SSD"
+                      : type === "HDD"
+                        ? "Hard Drive"
+                        : type === "RAM"
+                          ? "RAM Module"
+                          : type;
 
             // Simple extraction: find line starting with label
             const lines = accessoryManualDetails.split("\n");
             const matchingLine = lines.find((line) =>
-              line.toLowerCase().includes(label.toLowerCase())
+              line.toLowerCase().includes(label.toLowerCase()),
             );
             const description = matchingLine
               ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
@@ -1299,6 +1305,12 @@ export default function CreateJobCardPage() {
                   label="Engineer Diagnosis (Initial Observations)"
                   placeholder="Enter any initial technical observations..."
                   {...register("diagnosis_notes")}
+                  rows={2}
+                />
+                <Textarea
+                  label="Additional Comments"
+                  placeholder="Any other details or comments..."
+                  {...register("additional_comments")}
                   rows={2}
                 />
               </div>
