@@ -51,56 +51,87 @@ class ReportsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def revenue(self, request):
         """
-        Branch-wise revenue report.
-        Returns revenue breakdown by branch and date.
+        Revenue report based on actual payments received.
+        Filters by payment_date so "Today" shows payments collected today.
         """
-        from billing.models import Invoice, InvoiceStatus
+        from billing.models import Payment, InvoiceStatus
         
         branches = self.get_accessible_branches()
         from_date, to_date = self.get_date_range()
         
-        # Get invoice data
-        invoices = Invoice.objects.filter(
-            branch__in=branches,
-            is_finalized=True,
-            invoice_date__gte=from_date,
-            invoice_date__lte=to_date
-        ).exclude(status=InvoiceStatus.CANCELLED)
+        # Query payments by payment_date (when money was actually collected)
+        payments = Payment.objects.filter(
+            invoice__branch__in=branches,
+            invoice__is_finalized=True,
+            payment_date__date__gte=from_date,
+            payment_date__date__lte=to_date,
+            is_verified=True,
+        ).exclude(invoice__status=InvoiceStatus.CANCELLED)
         
         # Summary by branch
-        branch_summary = invoices.values('branch', 'branch__name').annotate(
-            total_revenue=Sum('total_amount'),
-            total_collected=Sum('paid_amount'),
-            invoice_count=Count('id'),
-            cgst_total=Sum('cgst_total'),
-            sgst_total=Sum('sgst_total'),
-            igst_total=Sum('igst_total'),
-        ).order_by('branch__name')
+        branch_summary = payments.values(
+            'invoice__branch', 'invoice__branch__name'
+        ).annotate(
+            total_collected=Sum('amount'),
+            payment_count=Count('id'),
+        ).order_by('invoice__branch__name')
         
-        # Daily breakdown
-        daily_revenue = invoices.annotate(
-            date=TruncDate('invoice_date')
+        # Rename keys for frontend compatibility
+        branch_list = []
+        for b in branch_summary:
+            branch_list.append({
+                'branch': b['invoice__branch'],
+                'branch__name': b['invoice__branch__name'],
+                'total_revenue': b['total_collected'],
+                'invoice_count': b['payment_count'],
+            })
+        
+        # Daily breakdown by payment date
+        daily_revenue = payments.annotate(
+            date=TruncDate('payment_date')
         ).values('date').annotate(
-            revenue=Sum('total_amount'),
-            collected=Sum('paid_amount'),
+            revenue=Sum('amount'),
+            collected=Sum('amount'),
             count=Count('id')
         ).order_by('date')
         
         # Calculate totals
-        totals = invoices.aggregate(
-            total_revenue=Sum('total_amount'),
-            total_collected=Sum('paid_amount'),
-            total_outstanding=Sum(F('total_amount') - F('paid_amount')),
-            total_invoices=Count('id'),
-            total_tax=Sum('total_tax'),
+        totals = payments.aggregate(
+            total_revenue=Sum('amount'),
+            total_collected=Sum('amount'),
+            total_invoices=Count('invoice', distinct=True),
         )
+        # Fill None values with 0
+        totals = {k: v or 0 for k, v in totals.items()}
+        totals['total_outstanding'] = 0
+        totals['total_tax'] = 0
+        
+        # Recent payments detail (for owner visibility)
+        recent_payments = payments.select_related(
+            'invoice', 'received_by'
+        ).order_by('-payment_date')[:20]
+        
+        payments_detail = [
+            {
+                'id': str(p.id),
+                'payment_date': p.payment_date.isoformat(),
+                'amount': float(p.amount),
+                'payment_method': p.payment_method,
+                'reference': p.reference,
+                'invoice_number': p.invoice.invoice_number,
+                'received_by': p.received_by.get_full_name() or p.received_by.email,
+                'notes': p.notes,
+            }
+            for p in recent_payments
+        ]
         
         return Response({
             'from_date': str(from_date),
             'to_date': str(to_date),
-            'branches': list(branch_summary),
+            'branches': branch_list,
             'daily_breakdown': list(daily_revenue),
-            'totals': totals
+            'totals': totals,
+            'recent_payments': payments_detail,
         })
 
     @action(detail=False, methods=['get'])

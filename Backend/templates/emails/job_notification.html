@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f6f9fc;
+        margin: 0;
+        padding: 0;
+        color: #333333;
+      }
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 20px 0;
+      }
+      .email-content {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      }
+      .email-header {
+        padding: 20px;
+        text-align: center;
+        border-bottom: 2px solid #e2e8f0;
+      }
+      .company-name {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1a202c;
+        margin: 0 0 5px 0;
+        text-transform: uppercase;
+      }
+      .branch-details {
+        font-size: 12px;
+        color: #718096;
+        margin: 0;
+        line-height: 1.4;
+      }
+      .email-body {
+        padding: 30px 20px;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .info-box {
+        background-color: #f7fafc;
+        border-left: 4px solid #4299e1;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .info-box p {
+        margin: 5px 0;
+      }
+      .info-title {
+        font-weight: bold;
+        color: #2d3748;
+        margin-right: 10px;
+      }
+      .email-footer {
+        background-color: #f8fafc;
+        padding: 20px;
+        text-align: center;
+        border-top: 1px solid #e2e8f0;
+        font-size: 12px;
+        color: #a0aec0;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #4299e1;
+        color: #ffffff !important;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-wrapper">
+      <div class="email-content">
+        <!-- Header section matching the Job Card banner -->
+        <div class="email-header">
+          <h1 class="company-name">{{ branch.organization.legal_name }}</h1>
+          <p class="branch-details">
+            {{ branch.address_line1 }}<br />
+            {{ branch.city }} - {{ branch.pincode }}<br />
+            {% if branch.phone %}Mobile: {{ branch.phone }} | {% endif %}GSTIN:
+            <strong>{{ branch.gstin }}</strong>
+          </p>
+        </div>
+
+        <!-- Dynamic Message Body -->
+        <div class="email-body">
+          {{ message|linebreaks }} {% if job_number or invoice_number %}
+          <div class="info-box">
+            {% if job_number %}
+            <p><span class="info-title">Job Number:</span> {{ job_number }}</p>
+            {% endif %} {% if device %}
+            <p><span class="info-title">Device:</span> {{ device }}</p>
+            {% endif %} {% if invoice_number %}
+            <p>
+              <span class="info-title">Invoice Number:</span> {{ invoice_number
+              }}
+            </p>
+            {% endif %} {% if amount %}
+            <p><span class="info-title">Amount:</span> Rs. {{ amount }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          <p>Thank you for choosing {{ branch.name }}!</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="email-footer">
+          <p>
+            &copy; {{ branch.get_current_financial_year }} {{
+            branch.organization.legal_name }}. All rights reserved.
+          </p>
+          <p>
+            This is an automated message, please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

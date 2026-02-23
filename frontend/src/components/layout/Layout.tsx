@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Check,
   UserPlus,
+  Truck,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -89,6 +90,12 @@ const navigationItems: NavItem[] = [
     href: "/users",
     icon: UserPlus,
     permission: "canManageUsers",
+  },
+  {
+    name: "Pickup & Drop",
+    href: "/pickups",
+    icon: Truck,
+    permission: "canViewPickups",
   },
   {
     name: "Settings",

@@ -262,7 +262,12 @@ function InvoiceTemplate({
                 {item.gst_rate}%
               </td>
               <td className="px-4 py-3 text-right font-medium">
-                ₹{(item.quantity * item.unit_price).toFixed(2)}
+                ₹
+                {(
+                  item.quantity *
+                  item.unit_price *
+                  (1 + item.gst_rate / 100)
+                ).toFixed(2)}
               </td>
             </tr>
           ))}

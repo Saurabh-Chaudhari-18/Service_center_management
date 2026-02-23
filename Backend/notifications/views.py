@@ -29,6 +29,7 @@ class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['notification_type', 'channel', 'is_active']
     branch_field = 'branch'
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -251,9 +252,15 @@ class SendNotificationView(viewsets.ViewSet):
             NotificationService._send_sms(data['recipient_mobile'], data['message'], log)
         elif data['channel'] == NotificationChannel.WHATSAPP:
             NotificationService._send_whatsapp(data['recipient_mobile'], data['message'], log)
+            
+        if log.status == 'FAILED':
+            return Response({
+                'error': f"Failed to send message: {log.error_message}",
+                'details': log.error_message
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
-            'message': 'Notification sent.',
+            'message': 'Notification sent successfully.',
             'log_id': str(log.id)
         })
 

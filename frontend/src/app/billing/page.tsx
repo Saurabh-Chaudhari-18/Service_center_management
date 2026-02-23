@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -27,8 +27,31 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import type { Invoice, InvoiceStatus } from "@/types";
+
+// =====================================================
+// Debounce Hook
+// =====================================================
+
+function useDebounce<T>(value: T, delayMs: number, onDebounce?: () => void): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+      onDebounce?.();
+    }, delayMs);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, delayMs]);
+  return debouncedValue;
+}
 
 // =====================================================
 // Invoice Row Component
@@ -105,16 +128,45 @@ function InvoiceRow({ invoice, onDownload }: InvoiceRowProps) {
 
 export default function BillingPage() {
   const { currentBranch } = useAuth();
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  // Read initial status from URL (e.g. /billing?status=PENDING)
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") || "";
+
+  // Local input state (updates instantly as user types)
+  const [searchInput, setSearchInput] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
+  const [customerInput, setCustomerInput] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
 
+  // Debounced values (used for API queries, with delay)
+  const resetPage = useCallback(() => setPage(1), []);
+  const debouncedSearch = useDebounce(searchInput, 1000, resetPage);
+  const debouncedCustomer = useDebounce(customerInput, 3000, resetPage);
+  const debouncedDateFrom = useDebounce(dateFrom, 1500, resetPage);
+  const debouncedDateTo = useDebounce(dateTo, 1500, resetPage);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["invoices", currentBranch?.id, search, statusFilter, page],
+    queryKey: [
+      "invoices",
+      currentBranch?.id,
+      debouncedSearch,
+      statusFilter,
+      debouncedCustomer,
+      debouncedDateFrom,
+      debouncedDateTo,
+      page,
+    ],
     queryFn: () =>
       billingApi.listInvoices({
         branch: currentBranch?.id,
+        search: debouncedSearch || undefined,
         status: statusFilter || undefined,
+        customer_name: debouncedCustomer || undefined,
+        invoice_date_after: debouncedDateFrom || undefined,
+        invoice_date_before: debouncedDateTo || undefined,
         page,
       }),
     enabled: !!currentBranch,
@@ -144,6 +196,14 @@ export default function BillingPage() {
     { value: "PAID", label: "Paid" },
     { value: "CANCELLED", label: "Cancelled" },
   ];
+
+  const hasColumnFilters = customerInput || dateFrom || dateTo;
+
+  const clearColumnFilters = () => {
+    setCustomerInput("");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   return (
     <ProtectedRoute requiredPermission="canViewBilling">
@@ -189,15 +249,15 @@ export default function BillingPage() {
             />
           </div>
 
-          {/* Filters */}
+          {/* Universal Search + Status */}
           <Card padding="md">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <Input
                   placeholder="Search by invoice number or customer..."
                   leftIcon={<Search className="w-5 h-5" />}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                 />
               </div>
               <div className="w-48">
@@ -222,13 +282,14 @@ export default function BillingPage() {
                 icon={<Receipt className="w-8 h-8 text-neutral-400" />}
                 title="No invoices found"
                 description={
-                  search || statusFilter
+                  searchInput || statusFilter || hasColumnFilters
                     ? "Try adjusting your search or filter"
                     : "Create your first invoice"
                 }
                 action={
-                  !search &&
-                  !statusFilter && (
+                  !searchInput &&
+                  !statusFilter &&
+                  !hasColumnFilters && (
                     <Link href="/billing/new">
                       <Button leftIcon={<Plus className="w-4 h-4" />}>
                         Create Invoice
@@ -248,10 +309,37 @@ export default function BillingPage() {
                         Invoice #
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                        Customer
+                        <div className="space-y-1.5">
+                          <span>Customer</span>
+                          <input
+                            type="text"
+                            placeholder="Filter..."
+                            value={customerInput}
+                            onChange={(e) => setCustomerInput(e.target.value)}
+                            className="block w-full px-2 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800 placeholder-neutral-400"
+                          />
+                        </div>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                        Date
+                        <div className="space-y-1.5">
+                          <span>Date</span>
+                          <div className="flex gap-1">
+                            <input
+                              type="date"
+                              value={dateFrom}
+                              onChange={(e) => setDateFrom(e.target.value)}
+                              className="block w-full px-1.5 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800"
+                              title="From date"
+                            />
+                            <input
+                              type="date"
+                              value={dateTo}
+                              onChange={(e) => setDateTo(e.target.value)}
+                              className="block w-full px-1.5 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800"
+                              title="To date"
+                            />
+                          </div>
+                        </div>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                         Amount
@@ -266,6 +354,28 @@ export default function BillingPage() {
                         Actions
                       </th>
                     </tr>
+                    {/* Clear column filters row */}
+                    {hasColumnFilters && (
+                      <tr className="bg-primary-50 border-b border-primary-100">
+                        <td colSpan={7} className="px-4 py-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-primary-700">
+                              Column filters active
+                              {customerInput &&
+                                ` · Customer: "${customerInput}"`}
+                              {dateFrom && ` · From: ${dateFrom}`}
+                              {dateTo && ` · To: ${dateTo}`}
+                            </span>
+                            <button
+                              onClick={clearColumnFilters}
+                              className="text-xs text-primary-600 hover:text-primary-800 font-medium underline"
+                            >
+                              Clear filters
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
                     {invoices.map((invoice) => (

@@ -240,8 +240,51 @@ export interface DiagnosisPart {
   id: string;
   name: string;
   price: number;
-  warranty_days: number;
+  warranty_months: number;
   quantity: number;
+}
+
+// =====================================================
+// Pickup & Drop Types
+// =====================================================
+
+export type PickupRequestStatus =
+  | "REQUESTED"
+  | "ASSIGNED"
+  | "EN_ROUTE"
+  | "PICKED_UP"
+  | "DELIVERED_TO_CENTER"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface PickupRequest extends BaseEntity {
+  branch: string;
+  branch_name?: string;
+  pickup_number: string;
+  customer?: Customer;
+  customer_id?: string;
+  job?: string | null;
+  job_number?: string | null;
+  status: PickupRequestStatus;
+  status_display?: string;
+  allowed_transitions?: { value: string; label: string }[];
+  assigned_technician?: string | null;
+  assigned_technician_name?: string | null;
+  device_type: DeviceType;
+  device_type_display?: string;
+  brand: string;
+  model_name: string;
+  customer_complaint: string;
+  pickup_address: string;
+  pickup_date: string;
+  pickup_time_slot: string;
+  contact_number: string;
+  notes: string;
+  is_urgent: boolean;
+  created_by?: string;
+  created_by_name?: string;
+  customer_name?: string;
+  customer_mobile?: string;
 }
 
 export interface JobCard extends BaseEntity {
@@ -523,6 +566,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: boolean;
     canManageBranches: boolean;
     canManageUsers: boolean;
+    canViewPickups: boolean;
   }
 > = {
   OWNER: {
@@ -537,6 +581,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: true,
     canManageBranches: true,
     canManageUsers: true,
+    canViewPickups: true,
   },
   MANAGER: {
     canViewDashboard: true,
@@ -550,6 +595,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: true,
     canManageBranches: false,
     canManageUsers: false,
+    canViewPickups: true,
   },
   RECEPTIONIST: {
     canViewDashboard: true,
@@ -563,6 +609,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: false,
     canManageBranches: false,
     canManageUsers: false,
+    canViewPickups: true,
   },
   TECHNICIAN: {
     canViewDashboard: false,
@@ -576,6 +623,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: false,
     canManageBranches: false,
     canManageUsers: false,
+    canViewPickups: true,
   },
   ACCOUNTANT: {
     canViewDashboard: false,
@@ -589,6 +637,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewReports: true,
     canManageBranches: false,
     canManageUsers: false,
+    canViewPickups: false,
   },
 };
 
@@ -680,4 +729,57 @@ export const INVOICE_STATUS_CONFIG: Record<
   PARTIAL: { label: "Partially Paid", color: "#8b5cf6", bgColor: "#f5f3ff" },
   PAID: { label: "Paid", color: "#10b981", bgColor: "#ecfdf5" },
   CANCELLED: { label: "Cancelled", color: "#ef4444", bgColor: "#fef2f2" },
+};
+
+export const PICKUP_STATUS_CONFIG: Record<
+  PickupRequestStatus,
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    textColor: string;
+  }
+> = {
+  REQUESTED: {
+    label: "Requested",
+    color: "#6366f1",
+    bgColor: "#eef2ff",
+    textColor: "#4338ca",
+  },
+  ASSIGNED: {
+    label: "Assigned",
+    color: "#f59e0b",
+    bgColor: "#fffbeb",
+    textColor: "#b45309",
+  },
+  EN_ROUTE: {
+    label: "En Route",
+    color: "#06b6d4",
+    bgColor: "#ecfeff",
+    textColor: "#0e7490",
+  },
+  PICKED_UP: {
+    label: "Picked Up",
+    color: "#8b5cf6",
+    bgColor: "#f5f3ff",
+    textColor: "#6d28d9",
+  },
+  DELIVERED_TO_CENTER: {
+    label: "At Center",
+    color: "#10b981",
+    bgColor: "#ecfdf5",
+    textColor: "#047857",
+  },
+  COMPLETED: {
+    label: "Completed",
+    color: "#22c55e",
+    bgColor: "#f0fdf4",
+    textColor: "#15803d",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    color: "#64748b",
+    bgColor: "#f1f5f9",
+    textColor: "#334155",
+  },
 };

@@ -321,33 +321,75 @@ export default function EditJobPage() {
                 />
               </div>
 
-              <div className="mt-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                    {...register("is_warranty_repair")}
-                  />
-                  <span className="text-sm font-medium text-neutral-700">
-                    Warranty Repair
-                  </span>
-                </label>
+              <div className="mt-4 pt-4 border-t border-neutral-100">
+                <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                  Warranty Information
+                </h4>
+                <div className="space-y-4">
+                  <div className="mt-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                        {...register("is_warranty_repair")}
+                      />
+                      <span className="text-sm font-medium text-neutral-700">
+                        Warranty Repair
+                      </span>
+                    </label>
+                  </div>
+                  {isWarrantyRepair && (
+                    <div className="mt-4">
+                      <Textarea
+                        label="Warranty Details"
+                        {...register("warranty_details")}
+                        placeholder="Enter warranty details..."
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-              {isWarrantyRepair && (
-                <div className="mt-4">
-                  <Textarea
-                    label="Warranty Details"
-                    {...register("warranty_details")}
-                    placeholder="Enter warranty details..."
+            </Card>
+
+            {/* Accessories & Condition */}
+            <Card>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+                Accessories & Condition
+              </h3>
+
+              <div className="space-y-6">
+                {/* Accessories Subsection */}
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                    Accessories
+                  </h4>
+                  <AccessoriesChecklist
+                    value={accessories}
+                    onChange={setAccessories}
                   />
                 </div>
-              )}
+
+                <div className="border-t border-neutral-100"></div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                    Physical Condition
+                  </h4>
+                  <Textarea
+                    label="Physical Condition"
+                    {...register("physical_condition")}
+                    error={errors.physical_condition?.message}
+                    required
+                    rows={2}
+                  />
+                </div>
+              </div>
             </Card>
 
             {/* Problem Info */}
             <Card>
               <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Problem & Condition
+                Problem Description
               </h3>
               <div className="space-y-4">
                 <Textarea
@@ -357,13 +399,7 @@ export default function EditJobPage() {
                   required
                   rows={3}
                 />
-                <Textarea
-                  label="Physical Condition"
-                  {...register("physical_condition")}
-                  error={errors.physical_condition?.message}
-                  required
-                  rows={2}
-                />
+
                 <Textarea
                   label="Additional Comments"
                   {...register("additional_comments")}
@@ -371,17 +407,6 @@ export default function EditJobPage() {
                   rows={2}
                 />
               </div>
-            </Card>
-
-            {/* Accessories */}
-            <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Accessories
-              </h3>
-              <AccessoriesChecklist
-                value={accessories}
-                onChange={setAccessories}
-              />
             </Card>
 
             <div className="flex justify-end pt-4">

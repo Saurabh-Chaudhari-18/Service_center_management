@@ -647,13 +647,33 @@ function JobCardPreviewModal({
                     <b>Serial:</b> {formData.serial_number}
                   </p>
                 )}
-                <p>
-                  <b>Warranty:</b> {formData.is_warranty_repair ? "YES" : "NO"}
-                </p>
                 {formData.is_urgent && (
                   <p className="text-red-600 font-bold">⚠ URGENT</p>
                 )}
+                <p>
+                  <b>Warranty:</b> {formData.is_warranty_repair ? "YES" : "NO"}
+                </p>
+                {formData.is_warranty_repair && formData.warranty_details && (
+                  <p>
+                    <b>Warranty Details:</b> {formData.warranty_details}
+                  </p>
+                )}
               </div>
+            </div>
+
+            {/* Accessories & Warranty */}
+            <div className="border border-neutral-300 p-2 text-xs">
+              <h3 className="font-bold border-b mb-1 pb-1">ACCESSORIES</h3>
+              {selectedAccessories.length > 0 ? (
+                <p>
+                  <b>Accessories:</b> {selectedAccessories.join(", ")}
+                </p>
+              ) : (
+                <p className="text-neutral-400">No accessories submitted</p>
+              )}
+              <p className="mt-1">
+                <b>Physical Condition:</b> {formData.physical_condition}
+              </p>
             </div>
 
             {/* Issue Details */}
@@ -662,17 +682,14 @@ function JobCardPreviewModal({
               <p>
                 <b>Customer Complaint:</b> {formData.customer_complaint}
               </p>
-              <p className="mt-1">
-                <b>Physical Condition:</b> {formData.physical_condition}
-              </p>
-              {selectedAccessories.length > 0 && (
+              {formData.diagnosis_notes && (
                 <p className="mt-1">
-                  <b>Accessories:</b> {selectedAccessories.join(", ")}
+                  <b>Initial Observations:</b> {formData.diagnosis_notes}
                 </p>
               )}
-              {formData.is_warranty_repair && formData.warranty_details && (
+              {formData.additional_comments && (
                 <p className="mt-1">
-                  <b>Warranty Info:</b> {formData.warranty_details}
+                  <b>Additional Comments:</b> {formData.additional_comments}
                 </p>
               )}
             </div>
@@ -849,16 +866,40 @@ function JobCardPreviewModal({
                       <b>Serial:</b> {formData.serial_number}
                     </p>
                   )}
-                  <p>
-                    <b>Warranty:</b>{" "}
-                    {formData.is_warranty_repair ? "YES" : "NO"}
-                  </p>
                   {formData.is_urgent && (
                     <p className="text-red-600 font-bold text-[11pt] mt-1">
                       ⚠ URGENT REPAIR
                     </p>
                   )}
+                  <p>
+                    <b>Warranty:</b>{" "}
+                    {formData.is_warranty_repair ? "YES" : "NO"}
+                  </p>
+                  {formData.is_warranty_repair && formData.warranty_details && (
+                    <p>
+                      <b>Warranty Details:</b> {formData.warranty_details}
+                    </p>
+                  )}
                 </div>
+              </div>
+            </div>
+
+            {/* Accessories & Warranty */}
+            <div className="print-section border border-black p-2 mb-2">
+              <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                ACCESSORIES
+              </p>
+              <div className="space-y-2">
+                {selectedAccessories.length > 0 ? (
+                  <p>
+                    <b>Accessories:</b> {selectedAccessories.join(", ")}
+                  </p>
+                ) : (
+                  <p className="text-neutral-400">No accessories submitted</p>
+                )}
+                <p>
+                  <b>Physical Condition:</b> {formData.physical_condition}
+                </p>
               </div>
             </div>
 
@@ -871,19 +912,6 @@ function JobCardPreviewModal({
                 <p>
                   <b>Customer Complaint:</b> {formData.customer_complaint}
                 </p>
-                <p>
-                  <b>Physical Condition:</b> {formData.physical_condition}
-                </p>
-                {selectedAccessories.length > 0 && (
-                  <p>
-                    <b>Accessories:</b> {selectedAccessories.join(", ")}
-                  </p>
-                )}
-                {formData.is_warranty_repair && formData.warranty_details && (
-                  <p>
-                    <b>Warranty Info:</b> {formData.warranty_details}
-                  </p>
-                )}
                 {formData.diagnosis_notes && (
                   <p>
                     <b>Initial Observations:</b> {formData.diagnosis_notes}
@@ -1276,6 +1304,104 @@ export default function CreateJobCardPage() {
                   helperText="Stored securely and only visible to authorized technicians"
                 />
               </div>
+
+              <div className="mt-6 pt-6 border-t border-neutral-100">
+                <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                  Warranty Information
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-700 mb-3">
+                      Is this a warranty repair?
+                    </p>
+                    <div className="flex items-center gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="true"
+                          checked={watch("is_warranty_repair") === true}
+                          onChange={() => setValue("is_warranty_repair", true)}
+                          className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
+                        />
+                        <span className="font-medium text-neutral-900">
+                          Yes
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="false"
+                          checked={
+                            watch("is_warranty_repair") === false ||
+                            watch("is_warranty_repair") === undefined
+                          }
+                          onChange={() => setValue("is_warranty_repair", false)}
+                          className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
+                        />
+                        <span className="font-medium text-neutral-900">No</span>
+                      </label>
+                    </div>
+                  </div>
+                  {watch("is_warranty_repair") && (
+                    <Textarea
+                      label="Warranty Details"
+                      placeholder="Enter warranty claim details, warranty card number, etc."
+                      {...register("warranty_details")}
+                      rows={2}
+                    />
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Accessories & Warranty */}
+            <Card>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+                Accessories & Condition
+              </h3>
+
+              <div className="space-y-6">
+                {/* Accessories Subsection */}
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                    Accessories Received
+                  </h4>
+                  <p className="text-sm text-neutral-500 mb-3">
+                    Check all accessories received with the device
+                  </p>
+                  <AccessoriesChecklist
+                    value={accessories}
+                    onChange={setAccessories}
+                  />
+                  <div className="mt-3">
+                    <Textarea
+                      label="Accessories Details"
+                      placeholder="Details will auto-populate here. Add Serial Numbers etc."
+                      value={accessoryManualDetails}
+                      onChange={(e) =>
+                        setAccessoryManualDetails(e.target.value)
+                      }
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-200"></div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                    Physical Condition
+                  </h4>
+                  <Textarea
+                    label="Physical Condition"
+                    placeholder="Describe the physical condition of the device (scratches, dents, etc.)..."
+                    {...register("physical_condition")}
+                    error={errors.physical_condition?.message}
+                    required
+                    rows={2}
+                  />
+                </div>
+              </div>
             </Card>
 
             {/* Problem Description */}
@@ -1293,14 +1419,7 @@ export default function CreateJobCardPage() {
                   required
                   rows={3}
                 />
-                <Textarea
-                  label="Physical Condition"
-                  placeholder="Describe the physical condition of the device (scratches, dents, etc.)..."
-                  {...register("physical_condition")}
-                  error={errors.physical_condition?.message}
-                  required
-                  rows={2}
-                />
+
                 <Textarea
                   label="Engineer Diagnosis (Initial Observations)"
                   placeholder="Enter any initial technical observations..."
@@ -1313,76 +1432,6 @@ export default function CreateJobCardPage() {
                   {...register("additional_comments")}
                   rows={2}
                 />
-              </div>
-            </Card>
-
-            {/* Accessories */}
-            <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Accessories Received
-              </h3>
-              <p className="text-sm text-neutral-500 mb-4">
-                Check all accessories received with the device
-              </p>
-              <AccessoriesChecklist
-                value={accessories}
-                onChange={setAccessories}
-              />
-              <div className="mt-4">
-                <Textarea
-                  label="Accessories Details"
-                  placeholder="Details will auto-populate here. Add Serial Numbers etc."
-                  value={accessoryManualDetails}
-                  onChange={(e) => setAccessoryManualDetails(e.target.value)}
-                  rows={4}
-                />
-              </div>
-            </Card>
-
-            {/* Warranty */}
-            <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Warranty Information
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-neutral-700 mb-3">
-                    Is this a warranty repair?
-                  </p>
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="true"
-                        checked={watch("is_warranty_repair") === true}
-                        onChange={() => setValue("is_warranty_repair", true)}
-                        className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
-                      />
-                      <span className="font-medium text-neutral-900">Yes</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="false"
-                        checked={
-                          watch("is_warranty_repair") === false ||
-                          watch("is_warranty_repair") === undefined
-                        }
-                        onChange={() => setValue("is_warranty_repair", false)}
-                        className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
-                      />
-                      <span className="font-medium text-neutral-900">No</span>
-                    </label>
-                  </div>
-                </div>
-                {watch("is_warranty_repair") && (
-                  <Textarea
-                    label="Warranty Details"
-                    placeholder="Enter warranty claim details, warranty card number, etc."
-                    {...register("warranty_details")}
-                    rows={2}
-                  />
-                )}
               </div>
             </Card>
 

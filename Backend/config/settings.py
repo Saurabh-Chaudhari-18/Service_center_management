@@ -201,13 +201,11 @@ GST_RATES = {
     'EXEMPT': 0,     # Exempt items
 }
 
-# SMS/WhatsApp Configuration
-SMS_PROVIDER = env('SMS_PROVIDER', default='')
-SMS_API_KEY = env('SMS_API_KEY', default='')
-SMS_SENDER_ID = env('SMS_SENDER_ID', default='SRVCTR')
-
-WHATSAPP_PROVIDER = env('WHATSAPP_PROVIDER', default='')
-WHATSAPP_API_KEY = env('WHATSAPP_API_KEY', default='')
+# SMS/WhatsApp Configuration (Twilio)
+TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
+TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
+TWILIO_SMS_FROM = env('TWILIO_SMS_FROM', default='')
+TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='')
 
 # Low stock alert threshold (default)
 LOW_STOCK_THRESHOLD = env.int('LOW_STOCK_THRESHOLD', default=5)
@@ -252,3 +250,12 @@ LOGGING = {
         },
     },
 }
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER', default='noreply@servicecenter.com')

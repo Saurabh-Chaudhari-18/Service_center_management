@@ -13,21 +13,22 @@ import {
   EmptyState,
   Button,
 } from "@/components/ui";
-import { jobsApi, billingApi, inventoryApi } from "@/lib/api";
+import { jobsApi, billingApi, pickupsApi } from "@/lib/api";
 import {
   FileText,
   DollarSign,
-  Package,
   Clock,
   TrendingUp,
   AlertTriangle,
   Plus,
   ArrowRight,
   Users,
+  Truck,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import type { JobCard } from "@/types";
+import type { JobCard, PickupRequest } from "@/types";
+import { PICKUP_STATUS_CONFIG } from "@/types";
 
 // =====================================================
 // Dashboard Stats Component
@@ -51,10 +52,10 @@ function DashboardStats() {
     enabled: !!currentBranch,
   });
 
-  // Fetch inventory stats
-  const { data: inventoryStats } = useQuery({
-    queryKey: ["inventory-stats", currentBranch?.id],
-    queryFn: () => inventoryApi.getStats(),
+  // Fetch pickup stats
+  const { data: pickupStats } = useQuery({
+    queryKey: ["pickup-stats", currentBranch?.id],
+    queryFn: () => pickupsApi.getStats(),
     enabled: !!currentBranch,
   });
 
@@ -64,37 +65,46 @@ function DashboardStats() {
       value: pendingJobsData?.count || 0,
       icon: <FileText className="w-6 h-6 text-primary-600" />,
       variant: "primary" as const,
+      href: "/jobs",
     },
     {
       label: "Total Revenue",
       value: `₹${(invoiceStats?.total_paid || 0).toLocaleString("en-IN")}`,
       icon: <DollarSign className="w-6 h-6 text-green-600" />,
       variant: "success" as const,
+      href: "/billing",
     },
     {
       label: "Pending Payments",
       value: `₹${(invoiceStats?.total_pending || 0).toLocaleString("en-IN")}`,
       icon: <Clock className="w-6 h-6 text-amber-600" />,
       variant: "warning" as const,
+      href: "/billing?status=PENDING",
     },
     {
-      label: "Low Stock Items",
-      value: inventoryStats?.low_stock_count || 0,
-      icon: <Package className="w-6 h-6 text-red-600" />,
-      variant: "danger" as const,
+      label: "Pending Pickups",
+      value: pickupStats?.pending || 0,
+      icon: <Truck className="w-6 h-6 text-indigo-600" />,
+      variant: "accent" as const,
+      href: "/pickups",
     },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {stats.map((stat) => (
-        <StatsCard
+        <Link
           key={stat.label}
-          label={stat.label}
-          value={stat.value}
-          icon={stat.icon}
-          variant={stat.variant}
-        />
+          href={stat.href}
+          className="block hover:scale-[1.02] transition-transform"
+        >
+          <StatsCard
+            label={stat.label}
+            value={stat.value}
+            icon={stat.icon}
+            variant={stat.variant}
+          />
+        </Link>
       ))}
     </div>
   );
@@ -218,6 +228,13 @@ function QuickActions() {
       color: "bg-purple-500",
       visible: hasPermission("canViewReports"),
     },
+    {
+      label: "New Pickup",
+      icon: <Truck className="w-5 h-5" />,
+      href: "/pickups/new",
+      color: "bg-cyan-500",
+      visible: hasPermission("canViewPickups"),
+    },
   ].filter((action) => action.visible);
 
   return (
@@ -246,55 +263,76 @@ function QuickActions() {
 }
 
 // =====================================================
-// Low Stock Alert Component
+// Pending Pickups Component
 // =====================================================
 
-function LowStockAlert() {
-  const { hasPermission } = useAuth();
+function PendingPickups() {
+  const { currentBranch, hasPermission } = useAuth();
 
-  const { data: lowStockItems = [] } = useQuery({
-    queryKey: ["low-stock-items"],
-    queryFn: () => inventoryApi.getLowStock(),
-    enabled: hasPermission("canViewInventory"),
+  const { data } = useQuery({
+    queryKey: ["pending-pickups", currentBranch?.id],
+    queryFn: () =>
+      pickupsApi.list({
+        status: "REQUESTED",
+        ordering: "-is_urgent,-created_at",
+      }),
+    enabled: !!currentBranch && hasPermission("canViewPickups"),
   });
 
-  if (!hasPermission("canViewInventory") || lowStockItems.length === 0) {
+  const pendingPickups = data?.results || [];
+
+  if (!hasPermission("canViewPickups") || pendingPickups.length === 0) {
     return null;
   }
 
   return (
-    <Card className="border-l-4 border-l-amber-500">
+    <Card className="border-l-4 border-l-indigo-500">
       <div className="flex items-start gap-4">
-        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-5 h-5 text-amber-600" />
+        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+          <Truck className="w-5 h-5 text-indigo-600" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-neutral-900">Low Stock Alert</h3>
+          <h3 className="font-semibold text-neutral-900">Pending Pickups</h3>
           <p className="text-sm text-neutral-600 mt-1">
-            {lowStockItems.length} item{lowStockItems.length !== 1 ? "s" : ""}{" "}
-            running low on stock
+            {pendingPickups.length} pickup
+            {pendingPickups.length !== 1 ? "s" : ""} awaiting assignment
           </p>
           <div className="mt-3 space-y-2">
-            {lowStockItems.slice(0, 3).map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between text-sm"
+            {pendingPickups.slice(0, 4).map((pickup: PickupRequest) => (
+              <Link
+                key={pickup.id}
+                href={`/pickups/${pickup.id}`}
+                className="flex items-center justify-between text-sm p-2 -mx-2 rounded-lg hover:bg-indigo-50 transition-colors"
               >
-                <span className="text-neutral-700">{item.name}</span>
-                <span className="font-medium text-red-600">
-                  {item.quantity} left
+                <div className="flex items-center gap-2 min-w-0">
+                  {pickup.is_urgent && (
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                  )}
+                  <span className="text-neutral-700 truncate">
+                    {pickup.customer_name}
+                  </span>
+                </div>
+                <span
+                  className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-2"
+                  style={{
+                    backgroundColor:
+                      PICKUP_STATUS_CONFIG[pickup.status].bgColor,
+                    color: PICKUP_STATUS_CONFIG[pickup.status].textColor,
+                  }}
+                >
+                  {PICKUP_STATUS_CONFIG[pickup.status].label}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
-          <Link href="/inventory?filter=low_stock">
+          <Link href="/pickups">
             <Button
               variant="ghost"
               size="sm"
               className="mt-3"
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              View All
+              View All Pickups
             </Button>
           </Link>
         </div>
@@ -319,10 +357,13 @@ function JobStatusSummary() {
   const jobs = data?.results || [];
 
   // Group by status
-  const statusCounts = jobs.reduce((acc, job) => {
-    acc[job.status] = (acc[job.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const statusCounts = jobs.reduce(
+    (acc, job) => {
+      acc[job.status] = (acc[job.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const statusItems = [
     { status: "RECEIVED", label: "Received", color: "bg-blue-500" },
@@ -411,7 +452,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <QuickActions />
               <JobStatusSummary />
-              <LowStockAlert />
+              <PendingPickups />
             </div>
           </div>
         </div>

@@ -32,6 +32,7 @@ import type {
   PendingJobsReportData,
   TechnicianProductivityData,
   InventoryConsumptionData,
+  PickupRequest,
 } from "@/types";
 
 // =====================================================
@@ -259,7 +260,7 @@ export const jobsApi = {
     parts?: Array<{
       name: string;
       price: number;
-      warranty_days?: number;
+      warranty_months?: number;
       quantity?: number;
     }>,
   ): Promise<JobCard> => {
@@ -491,7 +492,11 @@ export const inventoryApi = {
 export const billingApi = {
   listInvoices: async (params?: {
     branch?: string;
+    search?: string;
     status?: string;
+    customer_name?: string;
+    invoice_date_after?: string;
+    invoice_date_before?: string;
     from_date?: string;
     to_date?: string;
     page?: number;
@@ -623,13 +628,14 @@ export const notificationsApi = {
   listTemplates: async (): Promise<
     Array<{
       id: string;
-      event_type: string;
+      notification_type: string;
       channel: string;
-      template: string;
+      template_text: string;
       is_active: boolean;
     }>
   > => {
-    return apiGet("/notifications/templates/");
+    const res = await apiGet("/notifications/templates/");
+    return Array.isArray(res) ? res : res?.results || [];
   },
 
   createDefaultTemplates: async (branchId: string): Promise<void> => {
@@ -640,7 +646,7 @@ export const notificationsApi = {
 
   updateTemplate: async (
     id: string,
-    data: { is_active: boolean; template?: string },
+    data: { is_active: boolean; template_text?: string },
   ): Promise<void> => {
     return apiPatch(`/notifications/templates/${id}/`, data);
   },
@@ -872,5 +878,83 @@ export const auditApi = {
 
   listExports: async () => {
     return apiGet("/audit/exports/");
+  },
+};
+
+// =====================================================
+// Pickup & Drop API
+// =====================================================
+
+export const pickupsApi = {
+  list: async (
+    params?: Record<string, unknown>,
+  ): Promise<PaginatedResponse<PickupRequest>> => {
+    return apiGet("/jobs/pickups/", params);
+  },
+
+  get: async (id: string): Promise<PickupRequest> => {
+    return apiGet(`/jobs/pickups/${id}/`);
+  },
+
+  create: async (data: {
+    branch: string;
+    customer_id: string;
+    device_type: string;
+    brand?: string;
+    model_name?: string;
+    customer_complaint: string;
+    pickup_address: string;
+    pickup_date: string;
+    pickup_time_slot?: string;
+    contact_number: string;
+    notes?: string;
+    is_urgent?: boolean;
+  }): Promise<PickupRequest> => {
+    return apiPost("/jobs/pickups/", data);
+  },
+
+  getStats: async (): Promise<{
+    total: number;
+    requested: number;
+    assigned: number;
+    en_route: number;
+    picked_up: number;
+    delivered_to_center: number;
+    completed: number;
+    cancelled: number;
+    pending: number;
+  }> => {
+    return apiGet("/jobs/pickups/stats/");
+  },
+
+  assignTechnician: async (
+    id: string,
+    technicianId: string,
+  ): Promise<PickupRequest> => {
+    return apiPost(`/jobs/pickups/${id}/assign_technician/`, {
+      technician_id: technicianId,
+    });
+  },
+
+  updateStatus: async (
+    id: string,
+    newStatus: string,
+    notes?: string,
+  ): Promise<PickupRequest> => {
+    return apiPost(`/jobs/pickups/${id}/update_status/`, {
+      new_status: newStatus,
+      notes: notes || "",
+    });
+  },
+
+  convertToJob: async (
+    id: string,
+  ): Promise<{
+    message: string;
+    job_id: string;
+    job_number: string;
+    pickup_number: string;
+  }> => {
+    return apiPost(`/jobs/pickups/${id}/convert_to_job/`, {});
   },
 };

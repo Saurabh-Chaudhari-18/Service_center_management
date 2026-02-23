@@ -261,6 +261,15 @@ class Invoice(TimeStampedModel):
                 'total_amount': str(self.total_amount),
             }
         )
+        
+        # Send Notification (Email/SMS) that invoice is generated
+        try:
+            from notifications.services import NotificationService
+            NotificationService.on_invoice_created(self)
+        except Exception as e:
+            # We don't want a notification failure to roll back the finalize transaction
+            import logging
+            logging.getLogger(__name__).error(f"Failed to send invoice notification: {str(e)}")
 
     def record_payment(self, amount, payment_method, user, reference='', notes=''):
         """

@@ -330,7 +330,7 @@ function DiagnosisModal({
     Array<{
       name: string;
       price: string;
-      warranty_days: string;
+      warranty_months: string;
       quantity: string;
     }>
   >([]);
@@ -357,7 +357,7 @@ function DiagnosisModal({
               ? initialData.diagnosis_parts.map((p) => ({
                   name: p.name,
                   price: String(p.price),
-                  warranty_days: String(p.warranty_days),
+                  warranty_months: String(p.warranty_months),
                   quantity: String(p.quantity),
                 }))
               : [],
@@ -384,7 +384,7 @@ function DiagnosisModal({
   const handleAddPart = () => {
     setParts([
       ...parts,
-      { name: "", price: "", warranty_days: "0", quantity: "1" },
+      { name: "", price: "", warranty_months: "0", quantity: "1" },
     ]);
   };
 
@@ -412,7 +412,7 @@ function DiagnosisModal({
         parts.map((p) => ({
           name: p.name,
           price: parseFloat(p.price) || 0,
-          warranty_days: parseInt(p.warranty_days) || 0,
+          warranty_months: parseInt(p.warranty_months) || 0,
           quantity: parseInt(p.quantity) || 1,
         })),
       ),
@@ -534,9 +534,9 @@ function DiagnosisModal({
                   <Input
                     type="number"
                     placeholder="0"
-                    value={part.warranty_days}
+                    value={part.warranty_months}
                     onChange={(e) =>
-                      handlePartChange(index, "warranty_days", e.target.value)
+                      handlePartChange(index, "warranty_months", e.target.value)
                     }
                     className="h-9"
                   />
@@ -914,8 +914,8 @@ export default function JobDetailPage() {
                             {part.quantity}
                           </div>
                           <div className="w-24 text-neutral-600">
-                            {part.warranty_days
-                              ? `${part.warranty_days} Days`
+                            {part.warranty_months
+                              ? `${part.warranty_months} Months`
                               : "-"}
                           </div>
                           <div className="w-24 text-right font-mono font-medium">

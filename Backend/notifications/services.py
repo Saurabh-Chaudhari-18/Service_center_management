@@ -4,6 +4,9 @@ Notification services for sending SMS, WhatsApp, and internal alerts.
 
 import logging
 from django.conf import settings
+from twilio.rest import Client
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
 from notifications.models import (
     NotificationLog, NotificationTemplate, NotificationType,
     NotificationChannel, InternalAlert
@@ -21,6 +24,14 @@ class NotificationService:
     @staticmethod
     def on_job_created(job):
         """Send notification when a job is created."""
+        # Generate job card PDF to attach to email
+        job_pdf = None
+        try:
+            from jobs.services import JobCardService
+            job_pdf = JobCardService.generate_job_card_pdf(job)
+        except Exception as e:
+            logger.warning(f"Could not generate job card PDF: {e}")
+
         NotificationService._send_customer_notification(
             job=job,
             notification_type=NotificationType.JOB_CREATED,
@@ -29,7 +40,9 @@ class NotificationService:
                 'job_number': job.job_number,
                 'branch_name': job.branch.name,
                 'device': f"{job.brand} {job.model}",
-            }
+            },
+            job_pdf=job_pdf,
+            job_pdf_filename=f"{job.job_number.replace('/', '-')}.pdf",
         )
 
     @staticmethod
@@ -110,6 +123,21 @@ class NotificationService:
         )
 
     @staticmethod
+    def on_invoice_created(invoice):
+        """Send notification when a new invoice is finalized (PDF generated)."""
+        NotificationService._send_customer_notification(
+            job=invoice.job,
+            notification_type=NotificationType.CUSTOM,  # No explicit enum yet, reusing CUSTOM or create a new message
+            invoice=invoice,
+            context={
+                'customer_name': invoice.customer_name,
+                'job_number': invoice.job.job_number,
+                'invoice_number': invoice.invoice_number,
+                'branch_name': invoice.branch.name,
+            }
+        )
+
+    @staticmethod
     def on_technician_assigned(job, technician):
         """Send internal notification to technician."""
         InternalAlert.objects.create(
@@ -159,7 +187,7 @@ class NotificationService:
         )
 
     @staticmethod
-    def _send_customer_notification(job, notification_type, context, invoice=None):
+    def _send_customer_notification(job, notification_type, context, invoice=None, job_pdf=None, job_pdf_filename=None):
         """
         Internal method to send notification to customer.
         Tries WhatsApp first (if enabled), then SMS.
@@ -172,6 +200,8 @@ class NotificationService:
             channels_to_try.append(NotificationChannel.WHATSAPP)
         if branch.sms_enabled and customer.sms_enabled:
             channels_to_try.append(NotificationChannel.SMS)
+        if customer.email:
+            channels_to_try.append(NotificationChannel.EMAIL)
         
         for channel in channels_to_try:
             try:
@@ -213,9 +243,37 @@ class NotificationService:
                     NotificationService._send_sms(
                         customer.mobile, message, log
                     )
+                elif channel == NotificationChannel.EMAIL:
+                    default_subject = f"Job Card {job.job_number} — Device Received" if notification_type == NotificationType.JOB_CREATED else f"Update on Job {job.job_number}"
+                    
+                    # Prepare the rich HTML version
+                    html_context = {
+                        'branch': branch,
+                        'message': message,
+                        'job_number': context.get('job_number'),
+                        'device': context.get('device'),
+                        'invoice_number': context.get('invoice_number'),
+                        'amount': context.get('amount')
+                    }
+                    html_message = render_to_string('emails/job_notification.html', html_context)
+
+                    NotificationService._send_email(
+                        customer.email,
+                        template.subject if template and template.subject else default_subject,
+                        message,
+                        log,
+                        html_message=html_message,
+                        invoice=invoice,
+                        job_pdf=job_pdf,
+                        job_pdf_filename=job_pdf_filename,
+                    )
                 
-                # Only send via first available channel
-                break
+                # Only break if we successfully sent a mobile notification (SMS/WA). 
+                # We still want the loop to continue to send the EMAIL (which is the last channel in the list).
+                if channel in [NotificationChannel.WHATSAPP, NotificationChannel.SMS]:
+                    # Remove SMS from channels_to_try so we don't send both WA and SMS
+                    if NotificationChannel.SMS in channels_to_try and channel == NotificationChannel.WHATSAPP:
+                        channels_to_try.remove(NotificationChannel.SMS)
                 
             except Exception as e:
                 logger.error(f"Failed to send {channel} notification: {str(e)}")
@@ -249,6 +307,10 @@ class NotificationService:
                 "Dear {customer_name}, your device has been delivered. "
                 "Job: {job_number}. Thank you for choosing {branch_name}!"
             ),
+            NotificationType.CUSTOM: (
+                "Dear {customer_name}, your invoice {invoice_number} for Job {job_number} is generated. "
+                "Thank you for choosing {branch_name}!"
+            ),
             NotificationType.PAYMENT_RECEIVED: (
                 "Dear {customer_name}, payment of Rs.{amount} received. "
                 "Invoice: {invoice_number}. Thank you!"
@@ -266,31 +328,31 @@ class NotificationService:
 
     @staticmethod
     def _send_sms(mobile, message, log):
-        """
-        Send SMS via configured provider.
-        Placeholder implementation - integrate with actual SMS provider.
-        """
-        api_key = getattr(settings, 'SMS_API_KEY', '')
+        """Send SMS via Twilio."""
+        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
+        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
+        from_number = getattr(settings, 'TWILIO_SMS_FROM', '')
         
-        if not api_key:
-            logger.warning("SMS API key not configured. Message not sent.")
-            log.mark_failed("SMS API key not configured")
+        if not all([account_sid, auth_token, from_number]):
+            logger.warning("Twilio SMS credentials not configured. Message logged but not sent.")
+            log.mark_failed("Twilio SMS credentials not configured")
             return
         
         try:
-            # Placeholder for actual SMS provider integration
-            # Example providers: MSG91, Twilio, TextLocal
+            client = Client(account_sid, auth_token)
             
-            # Simulate sending
-            logger.info(f"Sending SMS to {mobile}: {message[:50]}...")
+            # Ensure mobile number has +91 prefix if it doesn't have a country code
+            formatted_mobile = mobile if mobile.startswith('+') else f"+91{mobile}"
             
-            # In production, replace with actual API call:
-            # response = requests.post(
-            #     'https://api.smsprovider.com/send',
-            #     data={'mobile': mobile, 'message': message, 'apikey': api_key}
-            # )
+            logger.info(f"Sending SMS to {formatted_mobile} via Twilio...")
             
-            log.mark_sent({'provider': 'mock', 'status': 'sent'})
+            response = client.messages.create(
+                body=message,
+                from_=from_number,
+                to=formatted_mobile
+            )
+            
+            log.mark_sent({'provider': 'twilio', 'status': response.status, 'sid': response.sid})
             
         except Exception as e:
             logger.error(f"SMS sending failed: {str(e)}")
@@ -298,27 +360,80 @@ class NotificationService:
 
     @staticmethod
     def _send_whatsapp(mobile, message, log):
-        """
-        Send WhatsApp message via configured provider.
-        Placeholder implementation - integrate with actual WhatsApp provider.
-        """
-        api_key = getattr(settings, 'WHATSAPP_API_KEY', '')
+        """Send WhatsApp message via Twilio."""
+        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
+        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
+        from_number = getattr(settings, 'TWILIO_WHATSAPP_FROM', '')
         
-        if not api_key:
-            logger.warning("WhatsApp API key not configured. Message not sent.")
-            log.mark_failed("WhatsApp API key not configured")
+        if not all([account_sid, auth_token, from_number]):
+            logger.warning("Twilio WhatsApp credentials not configured. Message logged but not sent.")
+            log.mark_failed("Twilio WhatsApp credentials not configured")
             return
         
         try:
-            # Placeholder for actual WhatsApp provider integration
-            # Example providers: Twilio, WATI, Gupshup
+            client = Client(account_sid, auth_token)
             
-            logger.info(f"Sending WhatsApp to {mobile}: {message[:50]}...")
+            # Ensure mobile number is formatted for Twilio WhatsApp (e.g., whatsapp:+919876543210)
+            clean_mobile = str(mobile).strip()
+            formatted_mobile = clean_mobile if clean_mobile.startswith('+') else f"+91{clean_mobile}"
+            whatsapp_to = f"whatsapp:{formatted_mobile}"
             
-            # In production, replace with actual API call
+            clean_from = str(from_number).strip()
+            whatsapp_from = clean_from if clean_from.startswith('whatsapp:') else f"whatsapp:{clean_from}"
             
-            log.mark_sent({'provider': 'mock', 'status': 'sent'})
+            logger.info(f"Sending WhatsApp to {whatsapp_to} via Twilio from {whatsapp_from}...")
+            
+            response = client.messages.create(
+                body=str(message),
+                from_=whatsapp_from,
+                to=whatsapp_to
+            )
+            
+            log.mark_sent({'provider': 'twilio', 'status': response.status, 'sid': response.sid})
             
         except Exception as e:
             logger.error(f"WhatsApp sending failed: {str(e)}")
             log.mark_failed(str(e))
+
+    @staticmethod
+    def _send_email(email_address, subject, message, log, html_message=None, invoice=None, job_pdf=None, job_pdf_filename=None):
+        """Send Email via Django SMTP with optional HTML formatting and attachments."""
+        if not settings.EMAIL_HOST_USER:
+            logger.warning("Email credentials not configured. Message logged but not sent.")
+            if log:
+                log.mark_failed("Email credentials not configured")
+            return
+            
+        try:
+            from django.core.mail import EmailMultiAlternatives
+            
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[email_address]
+            )
+            
+            if html_message:
+                email.attach_alternative(html_message, "text/html")
+            
+            # Attach Invoice PDF if present
+            if invoice:
+                from billing.services import InvoiceService
+                pdf_content = InvoiceService.generate_invoice_pdf(invoice)
+                email.attach(f"{invoice.invoice_number}.pdf", pdf_content, 'application/pdf')
+            
+            # Attach Job Card PDF if present
+            if job_pdf:
+                filename = job_pdf_filename or "job_card.pdf"
+                email.attach(filename, job_pdf, 'application/pdf')
+                
+            logger.info(f"Sending Email to {email_address}...")
+            email.send(fail_silently=False)
+            if log:
+                log.mark_sent({'provider': 'django_smtp', 'status': 'sent'})
+            
+        except Exception as e:
+            logger.error(f"Email sending failed: {str(e)}")
+            if log:
+                log.mark_failed(str(e))

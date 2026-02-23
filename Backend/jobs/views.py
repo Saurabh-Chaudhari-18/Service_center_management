@@ -13,7 +13,8 @@ from django.utils import timezone
 
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
-    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType, DiagnosisPart
+    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType, DiagnosisPart,
+    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS
 )
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
@@ -23,7 +24,9 @@ from jobs.serializers import (
     JobDeliverySerializer, DevicePasswordAccessSerializer,
     JobAccessorySerializer, JobPhotoSerializer, JobNoteSerializer,
     PartRequestSerializer, AccessoryTypeSerializer, DeviceTypeSerializer,
-    JobStatusHistorySerializer
+    JobStatusHistorySerializer,
+    PickupRequestSerializer, PickupRequestCreateSerializer,
+    PickupRequestListSerializer, PickupRequestStatusUpdateSerializer
 )
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
@@ -208,7 +211,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                         job=job,
                         name=part['name'],
                         price=part['price'],
-                        warranty_days=part.get('warranty_days', 0),
+                        warranty_months=part.get('warranty_months', 0),
                         quantity=part.get('quantity', 1)
                     )
             
@@ -653,3 +656,175 @@ class JobEnumsView(viewsets.ViewSet):
         """Get all job statuses."""
         statuses = [{'value': js.value, 'label': js.label} for js in JobStatus]
         return Response(statuses)
+
+    @action(detail=False, methods=['get'])
+    def pickup_statuses(self, request):
+        """Get all pickup request statuses."""
+        statuses = [{'value': ps.value, 'label': ps.label} for ps in PickupRequestStatus]
+        return Response(statuses)
+
+
+class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for Pickup & Drop requests.
+    Manages the lifecycle of pickup requests from customer calls.
+    """
+    serializer_class = PickupRequestSerializer
+    permission_classes = [IsAuthenticated, IsBranchMember]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'is_urgent', 'assigned_technician', 'pickup_date']
+    search_fields = [
+        'pickup_number', 'customer__first_name', 'customer__last_name',
+        'customer__mobile', 'brand', 'model_name', 'customer_complaint'
+    ]
+    ordering_fields = ['created_at', 'pickup_date', 'is_urgent']
+    ordering = ['-is_urgent', '-created_at']
+
+    queryset = PickupRequest.objects.select_related(
+        'branch', 'customer', 'assigned_technician', 'created_by', 'job'
+    ).all()
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return PickupRequestCreateSerializer
+        if self.action == 'list':
+            return PickupRequestListSerializer
+        return PickupRequestSerializer
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get pickup request statistics."""
+        qs = self.get_queryset()
+        return Response({
+            'total': qs.count(),
+            'requested': qs.filter(status=PickupRequestStatus.REQUESTED).count(),
+            'assigned': qs.filter(status=PickupRequestStatus.ASSIGNED).count(),
+            'en_route': qs.filter(status=PickupRequestStatus.EN_ROUTE).count(),
+            'picked_up': qs.filter(status=PickupRequestStatus.PICKED_UP).count(),
+            'delivered_to_center': qs.filter(status=PickupRequestStatus.DELIVERED_TO_CENTER).count(),
+            'completed': qs.filter(status=PickupRequestStatus.COMPLETED).count(),
+            'cancelled': qs.filter(status=PickupRequestStatus.CANCELLED).count(),
+            'pending': qs.exclude(
+                status__in=[PickupRequestStatus.COMPLETED, PickupRequestStatus.CANCELLED]
+            ).count(),
+        })
+
+    @action(detail=True, methods=['post'])
+    def assign_technician(self, request, pk=None):
+        """Assign a technician for pickup."""
+        pickup = self.get_object()
+        technician_id = request.data.get('technician_id')
+
+        if not technician_id:
+            return Response(
+                {'error': 'technician_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            technician = User.objects.get(
+                pk=technician_id, role=Role.TECHNICIAN, is_active=True
+            )
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Technician not found or inactive.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        pickup.assigned_technician = technician
+        if pickup.status == PickupRequestStatus.REQUESTED:
+            pickup.status = PickupRequestStatus.ASSIGNED
+        pickup.save()
+
+        serializer = self.get_serializer(pickup)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        """Update pickup request status."""
+        pickup = self.get_object()
+        serializer = PickupRequestStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_status = serializer.validated_data['new_status']
+        notes = serializer.validated_data.get('notes', '')
+
+        if not pickup.can_transition_to(new_status):
+            allowed = ALLOWED_PICKUP_TRANSITIONS.get(pickup.status, [])
+            allowed_labels = [s.label for s in allowed]
+            return Response(
+                {
+                    'error': f'Cannot transition from {pickup.get_status_display()} '
+                             f'to {PickupRequestStatus(new_status).label}. '
+                             f'Allowed: {", ".join(allowed_labels)}'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pickup.status = new_status
+        if notes:
+            pickup.notes = (pickup.notes + '\n' + notes).strip() if pickup.notes else notes
+        pickup.save()
+
+        return Response(PickupRequestSerializer(pickup).data)
+
+    @action(detail=True, methods=['post'])
+    def convert_to_job(self, request, pk=None):
+        """
+        Convert a completed pickup request into a Job Card.
+        Only allowed when status is DELIVERED_TO_CENTER or COMPLETED.
+        """
+        pickup = self.get_object()
+
+        if pickup.status not in [
+            PickupRequestStatus.DELIVERED_TO_CENTER,
+            PickupRequestStatus.COMPLETED
+        ]:
+            return Response(
+                {'error': 'Pickup must be at center before creating a job card.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if pickup.job:
+            return Response(
+                {'error': 'A job card already exists for this pickup.',
+                 'job_id': str(pickup.job.id),
+                 'job_number': pickup.job.job_number},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            job = JobCard.objects.create(
+                branch=pickup.branch,
+                customer=pickup.customer,
+                device_type=pickup.device_type,
+                brand=pickup.brand or 'Unknown',
+                model=pickup.model_name or 'Unknown',
+                customer_complaint=pickup.customer_complaint,
+                physical_condition='Received via pickup',
+                is_urgent=pickup.is_urgent,
+                received_by=request.user,
+            )
+            pickup.job = job
+            if pickup.status == PickupRequestStatus.DELIVERED_TO_CENTER:
+                pickup.status = PickupRequestStatus.COMPLETED
+            pickup.save()
+
+            # Create initial status history
+            JobStatusHistory.objects.create(
+                job=job,
+                from_status=JobStatus.RECEIVED,
+                to_status=JobStatus.RECEIVED,
+                changed_by=request.user,
+                notes=f'Created from pickup request {pickup.pickup_number}'
+            )
+
+        return Response({
+            'message': 'Job card created from pickup request.',
+            'job_id': str(job.id),
+            'job_number': job.job_number,
+            'pickup_number': pickup.pickup_number,
+        }, status=status.HTTP_201_CREATED)

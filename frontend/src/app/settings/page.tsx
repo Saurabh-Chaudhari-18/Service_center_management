@@ -195,7 +195,7 @@ function NotificationsSection() {
           >
             <div>
               <p className="font-medium text-neutral-900">
-                {template.event_type.replace(/_/g, " ")}
+                {template.notification_type.replace(/_/g, " ")}
               </p>
               <p className="text-sm text-neutral-500">via {template.channel}</p>
             </div>

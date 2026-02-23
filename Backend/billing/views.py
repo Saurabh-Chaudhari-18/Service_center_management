@@ -43,7 +43,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     serializer_class = InvoiceSerializer
     permission_classes = [IsAuthenticated, IsBranchMember, CanManageBilling]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'is_finalized', 'is_interstate']
+    filterset_fields = ['status', 'is_finalized', 'is_interstate', 'invoice_date']
     search_fields = ['invoice_number', 'customer_name', 'customer_mobile', 'job__job_number']
     ordering_fields = ['invoice_date', 'created_at', 'total_amount']
     ordering = ['-invoice_date', '-created_at']
@@ -64,6 +64,19 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         branch_id = self.request.query_params.get('branch')
         if branch_id:
             queryset = queryset.filter(branch_id=branch_id)
+
+        # Date range filters
+        date_from = self.request.query_params.get('invoice_date_after')
+        date_to = self.request.query_params.get('invoice_date_before')
+        if date_from:
+            queryset = queryset.filter(invoice_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(invoice_date__lte=date_to)
+
+        # Customer name filter
+        customer_name = self.request.query_params.get('customer_name')
+        if customer_name:
+            queryset = queryset.filter(customer_name__icontains=customer_name)
         
         return queryset
 
