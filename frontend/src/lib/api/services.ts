@@ -405,6 +405,7 @@ export const inventoryApi = {
     branch?: string;
     search?: string;
     low_stock?: boolean;
+    category?: string;
     page?: number;
   }): Promise<PaginatedResponse<InventoryItem>> => {
     return apiGet<PaginatedResponse<InventoryItem>>(
@@ -482,6 +483,33 @@ export const inventoryApi = {
     out_of_stock_count: number;
   }> => {
     return apiGet("/inventory/items/stats/");
+  },
+
+  getCategoryStats: async (
+    branchId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      description: string;
+      item_count: number;
+      total_quantity: number;
+    }>
+  > => {
+    return apiGet("/inventory/items/category_stats/", { branch: branchId });
+  },
+
+  listCategories: async (
+    branchId: string,
+  ): Promise<Array<{ id: string; name: string; description: string }>> => {
+    const res = await apiGet("/inventory/categories/", { branch: branchId });
+    return Array.isArray(res)
+      ? res
+      : (
+          res as {
+            results: Array<{ id: string; name: string; description: string }>;
+          }
+        )?.results || [];
   },
 };
 

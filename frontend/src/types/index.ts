@@ -357,6 +357,8 @@ export interface CreateJobCardData {
 export interface InventoryItem extends BaseEntity {
   branch: string;
   branch_name?: string;
+  category?: string;
+  category_name?: string;
   name: string;
   sku: string;
   description: string;

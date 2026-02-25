@@ -65,14 +65,17 @@ class InventoryItemSerializer(serializers.ModelSerializer):
 class InventoryItemListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for inventory listings."""
     category_name = serializers.CharField(source='category.name', read_only=True)
-    is_low_stock = serializers.BooleanField(read_only=True)
+    is_low_stock = serializers.SerializerMethodField()
     
     class Meta:
         model = InventoryItem
         fields = [
-            'id', 'name', 'sku', 'category_name', 'selling_price',
-            'quantity', 'is_low_stock', 'unit'
+            'id', 'name', 'sku', 'category', 'category_name', 'cost_price', 'selling_price',
+            'quantity', 'low_stock_threshold', 'is_low_stock', 'unit'
         ]
+
+    def get_is_low_stock(self, obj):
+        return obj.is_low_stock
 
 
 class InventoryAdjustmentSerializer(serializers.ModelSerializer):

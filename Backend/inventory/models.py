@@ -322,7 +322,7 @@ class InventoryAdjustment(TimeStampedModel):
         return f"{self.item.name}: {self.adjustment_type} {self.quantity}"
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        if not self._state.adding:
             raise ValueError("InventoryAdjustment records are immutable")
         super().save(*args, **kwargs)
 

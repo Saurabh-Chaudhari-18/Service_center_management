@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import models
+from django.db.models.functions import Coalesce
 
 from inventory.models import (
     InventoryItem, InventoryCategory, InventoryAdjustment,
@@ -58,7 +59,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     serializer_class = InventoryItemSerializer
     permission_classes = [IsAuthenticated, IsBranchMember, CanManageInventory]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['category', 'is_active', 'is_low_stock']
+    filterset_fields = ['category', 'is_active']
     search_fields = ['name', 'sku', 'description', 'vendor_name']
     ordering_fields = ['name', 'quantity', 'selling_price', 'created_at']
     ordering = ['name']
@@ -79,6 +80,11 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         branch_id = self.request.query_params.get('branch')
         if branch_id:
             queryset = queryset.filter(branch_id=branch_id)
+            
+        # Filter by low stock if specified
+        low_stock = self.request.query_params.get('low_stock')
+        if low_stock and low_stock.lower() in ['true', '1', 'yes']:
+            queryset = queryset.filter(quantity__lte=models.F('low_stock_threshold'))
         
         return queryset
 
@@ -251,6 +257,41 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         }
         
         return Response(stats)
+
+    @action(detail=False, methods=['get'])
+    def category_stats(self, request):
+        """Get item counts grouped by category for the current branch."""
+        branch_id = request.query_params.get('branch')
+        if not branch_id:
+            return Response([])
+
+        categories = InventoryCategory.objects.filter(
+            branch_id=branch_id
+        ).annotate(
+            item_count=models.Count(
+                'items',
+                filter=models.Q(items__is_active=True)
+            ),
+            total_quantity=Coalesce(
+                models.Sum(
+                    'items__quantity',
+                    filter=models.Q(items__is_active=True)
+                ),
+                0,
+            ),
+        ).order_by('name')
+
+        data = [
+            {
+                'id': str(cat.id),
+                'name': cat.name,
+                'description': cat.description,
+                'item_count': cat.item_count,
+                'total_quantity': cat.total_quantity,
+            }
+            for cat in categories
+        ]
+        return Response(data)
 
 
 class InventoryAdjustmentViewSet(viewsets.ReadOnlyModelViewSet):
