@@ -93,7 +93,9 @@ class JobCard(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='job_cards'
+        related_name='job_cards',
+        null=True,
+        blank=True
     )
     job_number = models.CharField(
         max_length=50,
@@ -389,10 +391,36 @@ class JobCard(TimeStampedModel):
         )['total']
         return total or 0
 
+    def get_universal_job_number(self):
+        """Generate a universal job number when no branch is assigned."""
+        from django.db.models import Max
+        
+        prefix = "UNIV-JC-"
+        year = str(timezone.now().year)[-2:]
+        prefix_with_year = f"{prefix}{year}-"
+        
+        last_job = JobCard.objects.filter(
+            branch__isnull=True,
+            job_number__startswith=prefix_with_year
+        ).aggregate(Max('job_number'))['job_number__max']
+        
+        if last_job:
+            try:
+                sequence = int(last_job.split('-')[-1]) + 1
+            except ValueError:
+                sequence = 1
+        else:
+            sequence = 1
+            
+        return f"{prefix_with_year}{sequence:04d}"
+
     def save(self, *args, **kwargs):
         # Generate job number if not set
         if not self.job_number:
-            self.job_number = self.branch.get_next_jobcard_number()
+            if self.branch:
+                self.job_number = self.branch.get_next_jobcard_number()
+            else:
+                self.job_number = self.get_universal_job_number()
         super().save(*args, **kwargs)
 
 

@@ -146,9 +146,25 @@ export interface AuthTokens {
   refresh: string;
 }
 
+export interface UserPermissions {
+  canViewDashboard: boolean;
+  canViewJobCards: boolean;
+  canCreateJobCards: boolean;
+  canEditJobCards: boolean;
+  canViewInventory: boolean;
+  canManageInventory: boolean;
+  canViewBilling: boolean;
+  canCreateInvoices: boolean;
+  canViewReports: boolean;
+  canManageBranches: boolean;
+  canManageUsers: boolean;
+  canViewPickups: boolean;
+}
+
 export interface AuthUser extends User {
   accessible_branches: Branch[];
   current_branch?: Branch;
+  permissions?: UserPermissions;
 }
 
 // =====================================================
@@ -554,23 +570,7 @@ export interface APIError {
 // Role Permissions Map
 // =====================================================
 
-export const ROLE_PERMISSIONS: Record<
-  UserRole,
-  {
-    canViewDashboard: boolean;
-    canViewJobCards: boolean;
-    canCreateJobCards: boolean;
-    canEditJobCards: boolean;
-    canViewInventory: boolean;
-    canManageInventory: boolean;
-    canViewBilling: boolean;
-    canCreateInvoices: boolean;
-    canViewReports: boolean;
-    canManageBranches: boolean;
-    canManageUsers: boolean;
-    canViewPickups: boolean;
-  }
-> = {
+export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
   OWNER: {
     canViewDashboard: true,
     canViewJobCards: true,
@@ -614,7 +614,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewPickups: true,
   },
   TECHNICIAN: {
-    canViewDashboard: false,
+    canViewDashboard: true,
     canViewJobCards: true,
     canCreateJobCards: false,
     canEditJobCards: true,
@@ -628,7 +628,7 @@ export const ROLE_PERMISSIONS: Record<
     canViewPickups: true,
   },
   ACCOUNTANT: {
-    canViewDashboard: false,
+    canViewDashboard: true,
     canViewJobCards: false,
     canCreateJobCards: false,
     canEditJobCards: false,

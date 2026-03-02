@@ -837,10 +837,15 @@ export default function InvoiceDetailsPage() {
         <Header
           title={`Invoice ${invoice.invoice_number}`}
           subtitle={format(new Date(invoice.invoice_date), "MMMM dd, yyyy")}
-          showBack
-          backUrl="/billing"
           actions={
             <div className="flex gap-2 items-center">
+              <Button
+                variant="ghost"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push("/billing")}
+              >
+                Back
+              </Button>
               <InvoiceStatusBadge status={invoice.status} />
               {!invoice.is_finalized && (
                 <>

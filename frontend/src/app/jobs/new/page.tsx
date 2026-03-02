@@ -19,7 +19,7 @@ import {
   Alert,
   Modal,
 } from "@/components/ui";
-import { jobsApi, customersApi } from "@/lib/api";
+import { jobsApi, customersApi, branchesApi } from "@/lib/api";
 import {
   ArrowLeft,
   Search,
@@ -1024,7 +1024,8 @@ function JobCardPreviewModal({
 
 export default function CreateJobCardPage() {
   const router = useRouter();
-  const { currentBranch } = useAuth();
+  const { currentBranch, hasPermission } = useAuth();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
@@ -1040,6 +1041,19 @@ export default function CreateJobCardPage() {
   const [serviceCharge, setServiceCharge] = useState("");
   // New State for Accessory Manual Details
   const [accessoryManualDetails, setAccessoryManualDetails] = useState("");
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => branchesApi.list(),
+    enabled: hasPermission("canManageBranches"),
+  });
+
+  // Default the selector to current branch
+  useEffect(() => {
+    if (currentBranch?.id && !selectedBranchId) {
+      setSelectedBranchId(currentBranch.id);
+    }
+  }, [currentBranch, selectedBranchId]);
 
   // Auto-populate accessory details when checklist changes
   useEffect(() => {
@@ -1137,7 +1151,7 @@ export default function CreateJobCardPage() {
     mutationFn: (data: CreateJobFormData) =>
       jobsApi.create({
         ...data,
-        branch: currentBranch!.id,
+        branch: selectedBranchId === "universal" ? null : selectedBranchId,
         device_type: data.device_type as DeviceType,
         accessories: Object.entries(accessories)
           .filter(([_, v]) => v.present)
@@ -1244,6 +1258,37 @@ export default function CreateJobCardPage() {
           )}
 
           <form onSubmit={handleSubmit((d) => mutate(d))} className="space-y-6">
+            {/* Branch Selection (Owners Only) */}
+            {hasPermission("canManageBranches") && (
+              <Card>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-primary-500" />
+                  Branch Assignment
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Select
+                    label="Assign to Branch"
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    options={[
+                      {
+                        value: "universal",
+                        label: "🌍 Universal / All Branches",
+                      },
+                      ...(Array.isArray(branches)
+                        ? branches
+                        : Object.hasOwn(branches, "results")
+                          ? (branches as any).results
+                          : []
+                      ).map((b: any) => ({ value: b.id, label: b.name })),
+                    ]}
+                  />
+                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
+                    Universal jobs are visible across all branches.
+                  </p>
+                </div>
+              </Card>
+            )}
             {/* Customer Section */}
             <Card>
               <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">

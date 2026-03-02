@@ -48,22 +48,18 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering_fields = ['invoice_date', 'created_at', 'total_amount']
     ordering = ['-invoice_date', '-created_at']
     branch_field = 'branch'
+    queryset = Invoice.objects.all()
 
     def get_queryset(self):
+        queryset = super().get_queryset()
+        
         user = self.request.user
         if not user.is_authenticated:
-            return Invoice.objects.none()
+            return queryset
         
-        queryset = Invoice.objects.select_related(
+        queryset = queryset.select_related(
             'branch', 'job', 'created_by', 'finalized_by'
-        ).prefetch_related('line_items', 'payments').filter(
-            branch__in=user.get_accessible_branches()
-        )
-        
-        # Filter by branch if specified
-        branch_id = self.request.query_params.get('branch')
-        if branch_id:
-            queryset = queryset.filter(branch_id=branch_id)
+        ).prefetch_related('line_items', 'payments')
 
         # Date range filters
         date_from = self.request.query_params.get('invoice_date_after')
@@ -311,9 +307,26 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
         if not user.is_authenticated:
             return Payment.objects.none()
         
-        return Payment.objects.filter(
-            invoice__branch__in=user.get_accessible_branches()
-        ).select_related('invoice', 'received_by')
+        queryset = Payment.objects.select_related('invoice', 'received_by')
+        
+        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
+        
+        if branch_id:
+            from core.models import Branch
+            try:
+                requested_branch = Branch.objects.get(pk=branch_id)
+                if user.has_branch_access(requested_branch):
+                    queryset = queryset.filter(invoice__branch_id=branch_id)
+                else:
+                    return Payment.objects.none()
+            except Branch.DoesNotExist:
+                return Payment.objects.none()
+        else:
+            queryset = queryset.filter(
+                invoice__branch__in=user.get_accessible_branches()
+            )
+            
+        return queryset
 
 
 class CreditNoteViewSet(viewsets.ModelViewSet):

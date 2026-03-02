@@ -55,15 +55,28 @@ class InvoiceService:
         
         # Header with organization details
         branch = invoice.branch
-        org = branch.organization
-        
-        header_data = [
-            [Paragraph(f"<b>{org.legal_name}</b>", styles['Heading2'])],
-            [f"{branch.address_line1}"],
-            [f"{branch.city}, {branch.state} - {branch.pincode}"],
-            [f"GSTIN: {branch.gstin}"],
-            [f"Phone: {branch.phone}"],
-        ]
+        if branch:
+            org = branch.organization
+            header_data = [
+                [Paragraph(f"<b>{org.legal_name}</b>", styles['Heading2'])],
+                [f"{branch.address_line1}"],
+                [f"{branch.city}, {branch.state} - {branch.pincode}"],
+                [f"GSTIN: {branch.gstin}"],
+                [f"Phone: {branch.phone}"],
+            ]
+        else:
+            # Universal invoice — use org info from the creator's branch
+            from core.models import Branch as BranchModel
+            fallback_branch = BranchModel.objects.first()
+            org = fallback_branch.organization if fallback_branch else None
+            org_name = org.legal_name if org else "Service Center"
+            header_data = [
+                [Paragraph(f"<b>{org_name}</b>", styles['Heading2'])],
+                [f"{fallback_branch.address_line1}" if fallback_branch else ""],
+                [f"{fallback_branch.city}, {fallback_branch.state} - {fallback_branch.pincode}" if fallback_branch else ""],
+                [f"GSTIN: {fallback_branch.gstin}" if fallback_branch and fallback_branch.gstin else ""],
+                [f"Phone: {fallback_branch.phone}" if fallback_branch else ""],
+            ]
         
         header_table = Table(header_data, colWidths=[doc.width])
         header_table.setStyle(TableStyle([
@@ -78,9 +91,10 @@ class InvoiceService:
         elements.append(Spacer(1, 5*mm))
         
         # Invoice details
+        job_number = invoice.job.job_number if invoice.job else 'N/A'
         invoice_details = [
             ["Invoice Number:", invoice.invoice_number, "Invoice Date:", str(invoice.invoice_date)],
-            ["Job Number:", invoice.job.job_number, "Due Date:", str(invoice.due_date or 'N/A')],
+            ["Job Number:", job_number, "Due Date:", str(invoice.due_date or 'N/A')],
         ]
         
         details_table = Table(invoice_details, colWidths=[doc.width/4]*4)
@@ -203,7 +217,7 @@ class InvoiceService:
             f"",
             f"Invoice Number: {invoice.invoice_number}",
             f"Invoice Date: {invoice.invoice_date}",
-            f"Job Number: {invoice.job.job_number}",
+            f"Job Number: {invoice.job.job_number if invoice.job else 'N/A'}",
             f"",
             f"Bill To:",
             f"  {invoice.customer_name}",

@@ -18,8 +18,8 @@ import {
   Alert,
   LoadingState,
 } from "@/components/ui";
-import { jobsApi, customersApi } from "@/lib/api";
-import { ArrowLeft, Check, Save } from "lucide-react";
+import { jobsApi, customersApi, branchesApi } from "@/lib/api";
+import { ArrowLeft, Check, Save, Printer } from "lucide-react";
 import Link from "next/link";
 import type { Customer, AccessoryType, JobCard } from "@/types";
 
@@ -126,6 +126,14 @@ export default function EditJobPage() {
   const [deviceTypes, setDeviceTypes] = useState<
     { value: string; label: string }[]
   >([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+
+  // Fetch Branches
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => branchesApi.list(),
+    enabled: hasPermission("canManageBranches"),
+  });
 
   // Fetch Job
   const {
@@ -183,6 +191,17 @@ export default function EditJobPage() {
         };
       });
       setAccessories(accMap);
+
+      // Set initial branch
+      if (job.branch) {
+        setSelectedBranchId(
+          typeof job.branch === "string"
+            ? job.branch
+            : (job.branch as any).id || "",
+        );
+      } else {
+        setSelectedBranchId("universal");
+      }
     }
   }, [job, reset]);
 
@@ -204,6 +223,7 @@ export default function EditJobPage() {
 
       return jobsApi.update(jobId, {
         ...data,
+        branch: selectedBranchId === "universal" ? null : selectedBranchId,
         accessories: accessoriesList, // Send full replacement list
       } as any);
     },
@@ -288,6 +308,38 @@ export default function EditJobPage() {
                 re-assignment if critical. Current edit focuses on job details.
               </p>
             </Card>
+
+            {/* Branch Selection (Owners Only) */}
+            {hasPermission("canManageBranches") && (
+              <Card>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-primary-500" />
+                  Branch Assignment
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Select
+                    label="Assign to Branch"
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    options={[
+                      {
+                        value: "universal",
+                        label: "🌍 Universal / All Branches",
+                      },
+                      ...(Array.isArray(branches)
+                        ? branches
+                        : Object.hasOwn(branches, "results")
+                          ? (branches as any).results
+                          : []
+                      ).map((b: any) => ({ value: b.id, label: b.name })),
+                    ]}
+                  />
+                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
+                    Universal jobs are visible across all branches.
+                  </p>
+                </div>
+              </Card>
+            )}
 
             {/* Device Info */}
             <Card>

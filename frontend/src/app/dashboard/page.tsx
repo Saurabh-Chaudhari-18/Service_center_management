@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -13,22 +13,70 @@ import {
   EmptyState,
   Button,
 } from "@/components/ui";
-import { jobsApi, billingApi, pickupsApi } from "@/lib/api";
+import {
+  jobsApi,
+  billingApi,
+  pickupsApi,
+  reportsApi,
+  inventoryApi,
+} from "@/lib/api";
 import {
   FileText,
   DollarSign,
   Clock,
   TrendingUp,
+  TrendingDown,
   AlertTriangle,
   Plus,
   ArrowRight,
   Users,
   Truck,
+  Package,
+  Calendar,
+  IndianRupee,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
-import type { JobCard, PickupRequest } from "@/types";
-import { PICKUP_STATUS_CONFIG } from "@/types";
+import { format, subDays, startOfMonth, startOfYear } from "date-fns";
+import type { JobCard, PickupRequest, InventoryItem } from "@/types";
+import { PICKUP_STATUS_CONFIG, JOB_STATUS_CONFIG } from "@/types";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+
+// =====================================================
+// Date Period Helper
+// =====================================================
+
+type DatePeriod = "this_month" | "last_30" | "this_year";
+
+function getDateRange(period: DatePeriod) {
+  const today = new Date();
+  switch (period) {
+    case "this_month":
+      return { from: startOfMonth(today), to: today };
+    case "last_30":
+      return { from: subDays(today, 30), to: today };
+    case "this_year":
+      return { from: startOfYear(today), to: today };
+  }
+}
+
+const PERIOD_OPTIONS: { value: DatePeriod; label: string }[] = [
+  { value: "this_month", label: "This Month" },
+  { value: "last_30", label: "Last 30 Days" },
+  { value: "this_year", label: "This Year" },
+];
 
 // =====================================================
 // Dashboard Stats Component
@@ -37,22 +85,18 @@ import { PICKUP_STATUS_CONFIG } from "@/types";
 function DashboardStats() {
   const { currentBranch } = useAuth();
 
-  // Fetch pending jobs count
-  // Fetch pending jobs
   const { data: pendingJobsData } = useQuery({
     queryKey: ["pending-jobs", currentBranch?.id],
     queryFn: () => jobsApi.getPending(),
     enabled: !!currentBranch,
   });
 
-  // Fetch invoice stats
   const { data: invoiceStats } = useQuery({
     queryKey: ["invoice-stats", currentBranch?.id],
     queryFn: () => billingApi.getStats(),
     enabled: !!currentBranch,
   });
 
-  // Fetch pickup stats
   const { data: pickupStats } = useQuery({
     queryKey: ["pickup-stats", currentBranch?.id],
     queryFn: () => pickupsApi.getStats(),
@@ -111,6 +155,317 @@ function DashboardStats() {
 }
 
 // =====================================================
+// Revenue Trend Chart Component
+// =====================================================
+
+function RevenueTrendChart() {
+  const { currentBranch } = useAuth();
+  const [period, setPeriod] = useState<DatePeriod>("this_month");
+  const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+
+  const dateRange = useMemo(() => getDateRange(period), [period]);
+
+  const { data: revenueData, isLoading } = useQuery({
+    queryKey: [
+      "revenue-report",
+      currentBranch?.id,
+      format(dateRange.from, "yyyy-MM-dd"),
+      format(dateRange.to, "yyyy-MM-dd"),
+    ],
+    queryFn: () =>
+      reportsApi.getRevenue({
+        from_date: format(dateRange.from, "yyyy-MM-dd"),
+        to_date: format(dateRange.to, "yyyy-MM-dd"),
+        branch: currentBranch?.id,
+      }),
+    enabled: !!currentBranch,
+  });
+
+  const chartData = useMemo(() => {
+    if (!revenueData?.daily_breakdown) return [];
+    return revenueData.daily_breakdown.map((d) => ({
+      date: format(new Date(d.date), period === "this_year" ? "MMM" : "dd MMM"),
+      revenue: d.revenue,
+      invoices: d.invoices,
+    }));
+  }, [revenueData, period]);
+
+  const currentLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label;
+
+  return (
+    <Card className="h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900">
+            Revenue Trend
+          </h3>
+          <p className="text-sm text-neutral-500">Daily revenue overview</p>
+        </div>
+        {/* Period Selector */}
+        <div className="relative">
+          <button
+            onClick={() => setShowPeriodMenu(!showPeriodMenu)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+          >
+            {currentLabel}
+            <ChevronDown className="w-4 h-4" />
+          </button>
+          {showPeriodMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowPeriodMenu(false)}
+              />
+              <div className="absolute right-0 mt-1 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 py-1">
+                {PERIOD_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setPeriod(opt.value);
+                      setShowPeriodMenu(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 transition-colors ${
+                      period === opt.value
+                        ? "text-primary-700 font-medium bg-primary-50"
+                        : "text-neutral-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="h-64 flex items-center justify-center">
+          <LoadingState />
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="h-64 flex items-center justify-center">
+          <EmptyState
+            icon={<TrendingUp className="w-8 h-8 text-neutral-400" />}
+            title="No revenue data"
+            description="Revenue data will appear as invoices are paid"
+          />
+        </div>
+      ) : (
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12, fill: "#64748b" }}
+                axisLine={{ stroke: "#e2e8f0" }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: "#64748b" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(val) =>
+                  val >= 1000 ? `₹${(val / 1000).toFixed(0)}K` : `₹${val}`
+                }
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                  padding: "12px",
+                }}
+                formatter={(value: number) => [
+                  `₹${value.toLocaleString("en-IN")}`,
+                  "Revenue",
+                ]}
+                labelStyle={{ fontWeight: 600, color: "#1e293b" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="revenue"
+                stroke="#6366f1"
+                strokeWidth={2.5}
+                dot={{ fill: "#6366f1", r: 4, strokeWidth: 2, stroke: "#fff" }}
+                activeDot={{
+                  r: 6,
+                  fill: "#6366f1",
+                  stroke: "#fff",
+                  strokeWidth: 3,
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// =====================================================
+// Revenue Summary Card
+// =====================================================
+
+function RevenueSummary() {
+  const { currentBranch } = useAuth();
+
+  const { data: stats } = useQuery({
+    queryKey: ["invoice-stats", currentBranch?.id],
+    queryFn: () => billingApi.getStats(),
+    enabled: !!currentBranch,
+  });
+
+  const incoming = stats?.total_paid || 0;
+  const outstanding = stats?.total_pending || 0;
+  const totalInvoiced = stats?.total_invoiced || 0;
+
+  return (
+    <Card className="h-full flex flex-col">
+      <h3 className="text-lg font-semibold text-neutral-900 mb-6">
+        Financial Summary
+      </h3>
+      <div className="flex-1 flex flex-col justify-center space-y-6">
+        {/* Incoming */}
+        <div className="text-center p-4 rounded-xl bg-green-50 border border-green-100">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-700">
+              Collected
+            </span>
+          </div>
+          <span className="text-2xl font-bold text-green-700">
+            ₹{incoming.toLocaleString("en-IN")}
+          </span>
+        </div>
+
+        {/* Outgoing / Pending */}
+        <div className="text-center p-4 rounded-xl bg-amber-50 border border-amber-100">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-amber-600" />
+            <span className="text-sm font-medium text-amber-700">
+              Outstanding
+            </span>
+          </div>
+          <span className="text-2xl font-bold text-amber-700">
+            ₹{outstanding.toLocaleString("en-IN")}
+          </span>
+        </div>
+
+        {/* Net */}
+        <div className="text-center p-4 rounded-xl bg-primary-50 border border-primary-100">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <IndianRupee className="w-4 h-4 text-primary-600" />
+            <span className="text-sm font-medium text-primary-700">
+              Total Invoiced
+            </span>
+          </div>
+          <span className="text-2xl font-bold text-primary-700">
+            ₹{totalInvoiced.toLocaleString("en-IN")}
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// =====================================================
+// Job Status Donut Chart
+// =====================================================
+
+function JobStatusChart() {
+  const { currentBranch } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["pending-jobs-report", currentBranch?.id],
+    queryFn: () => reportsApi.getPendingJobs({ branch: currentBranch?.id }),
+    enabled: !!currentBranch,
+  });
+
+  const chartData = useMemo(() => {
+    if (!data?.by_status) return [];
+    return data.by_status
+      .filter((s) => s.count > 0)
+      .map((s) => {
+        const config =
+          JOB_STATUS_CONFIG[s.status as keyof typeof JOB_STATUS_CONFIG];
+        return {
+          name: config?.label || s.status,
+          value: s.count,
+          color: config?.color || "#94a3b8",
+        };
+      });
+  }, [data]);
+
+  return (
+    <Card>
+      <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+        Jobs by Status
+      </h3>
+      <p className="text-sm text-neutral-500 mb-4">
+        {data?.total_pending || 0} active jobs
+      </p>
+
+      {isLoading ? (
+        <div className="h-48 flex items-center justify-center">
+          <LoadingState />
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="h-48 flex items-center justify-center">
+          <EmptyState
+            icon={<FileText className="w-8 h-8 text-neutral-400" />}
+            title="No active jobs"
+            description="Job statistics will appear here"
+          />
+        </div>
+      ) : (
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={75}
+                paddingAngle={3}
+                dataKey="value"
+                stroke="none"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                  padding: "8px 12px",
+                  fontSize: "13px",
+                }}
+                formatter={(value: number, name: string) => [value, name]}
+              />
+              <Legend
+                layout="vertical"
+                verticalAlign="middle"
+                align="right"
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: "12px", lineHeight: "20px" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// =====================================================
 // Recent Jobs Component
 // =====================================================
 
@@ -154,7 +509,7 @@ function RecentJobs() {
           description="Create your first job card to get started"
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {recentJobs.map((job: JobCard) => (
             <Link
               key={job.id}
@@ -247,14 +602,16 @@ function QuickActions() {
           <Link
             key={action.label}
             href={action.href}
-            className="flex items-center gap-3 p-4 rounded-xl border border-neutral-100 hover:border-primary-200 hover:bg-neutral-50 transition-all"
+            className="flex items-center gap-3 p-3 rounded-xl border border-neutral-100 hover:border-primary-200 hover:bg-neutral-50 transition-all"
           >
             <div
-              className={`w-10 h-10 rounded-lg ${action.color} text-white flex items-center justify-center`}
+              className={`w-9 h-9 rounded-lg ${action.color} text-white flex items-center justify-center`}
             >
               {action.icon}
             </div>
-            <span className="font-medium text-neutral-700">{action.label}</span>
+            <span className="font-medium text-sm text-neutral-700">
+              {action.label}
+            </span>
           </Link>
         ))}
       </div>
@@ -342,71 +699,137 @@ function PendingPickups() {
 }
 
 // =====================================================
-// Job Status Summary Component
+// Low Stock Alerts Component
 // =====================================================
 
-function JobStatusSummary() {
-  const { currentBranch } = useAuth();
+function LowStockAlerts() {
+  const { currentBranch, hasPermission } = useAuth();
 
-  const { data } = useQuery({
-    queryKey: ["pending-jobs", currentBranch?.id],
-    queryFn: () => jobsApi.getPending(),
-    enabled: !!currentBranch,
+  const { data: lowStockItems } = useQuery({
+    queryKey: ["low-stock", currentBranch?.id],
+    queryFn: () => inventoryApi.getLowStock(),
+    enabled: !!currentBranch && hasPermission("canViewInventory"),
   });
 
-  const jobs = data?.results || [];
-
-  // Group by status
-  const statusCounts = jobs.reduce(
-    (acc, job) => {
-      acc[job.status] = (acc[job.status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-  const statusItems = [
-    { status: "RECEIVED", label: "Received", color: "bg-blue-500" },
-    { status: "DIAGNOSIS", label: "Diagnosis", color: "bg-amber-500" },
-    {
-      status: "WAITING_FOR_PARTS",
-      label: "Waiting Parts",
-      color: "bg-orange-500",
-    },
-    {
-      status: "REPAIR_IN_PROGRESS",
-      label: "In Progress",
-      color: "bg-cyan-500",
-    },
-    { status: "READY_FOR_DELIVERY", label: "Ready", color: "bg-green-500" },
-  ];
+  if (!hasPermission("canViewInventory") || !lowStockItems?.length) return null;
 
   return (
-    <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-        Jobs by Status
-      </h3>
-      <div className="space-y-3">
-        {statusItems.map((item) => {
-          const count = statusCounts[item.status] || 0;
-          const percentage = jobs.length > 0 ? (count / jobs.length) * 100 : 0;
-
-          return (
-            <div key={item.status} className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-600">{item.label}</span>
-                <span className="font-medium text-neutral-900">{count}</span>
+    <Card className="border-l-4 border-l-amber-500">
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <Package className="w-5 h-5 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-neutral-900">Low Stock Alert</h3>
+          <p className="text-sm text-neutral-600 mt-1">
+            {lowStockItems.length} item{lowStockItems.length !== 1 ? "s" : ""}{" "}
+            running low
+          </p>
+          <div className="mt-3 space-y-2">
+            {lowStockItems.slice(0, 4).map((item: InventoryItem) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between text-sm p-2 -mx-2 rounded-lg"
+              >
+                <span className="text-neutral-700 truncate">{item.name}</span>
+                <span
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    item.quantity === 0
+                      ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {item.quantity} left
+                </span>
               </div>
-              <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${item.color} rounded-full transition-all duration-500`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+          <Link href="/inventory">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-3"
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              View Inventory
+            </Button>
+          </Link>
+        </div>
       </div>
+    </Card>
+  );
+}
+
+// =====================================================
+// Technician Assigned Jobs Component
+// =====================================================
+
+function TechnicianJobs() {
+  const { user } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["technician-jobs", user?.id],
+    queryFn: () =>
+      jobsApi.list({ assigned_to: user?.id, ordering: "-created_at" }),
+    enabled: !!user,
+  });
+
+  const jobs = data?.results?.slice(0, 5) || [];
+
+  return (
+    <Card className="h-full">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-neutral-900">
+          My Assigned Jobs
+        </h3>
+        <Link href="/jobs">
+          <Button
+            variant="ghost"
+            size="sm"
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+          >
+            View All
+          </Button>
+        </Link>
+      </div>
+      {isLoading ? (
+        <LoadingState />
+      ) : jobs.length === 0 ? (
+        <EmptyState
+          icon={<FileText className="w-8 h-8 text-neutral-400" />}
+          title="No assigned jobs"
+          description="You have no jobs assigned at the moment."
+        />
+      ) : (
+        <div className="space-y-3">
+          {jobs.map((job: JobCard) => (
+            <Link
+              key={job.id}
+              href={`/jobs/${job.id}`}
+              className="block p-4 rounded-xl border border-neutral-100 hover:border-primary-200 hover:bg-primary-50/50 transition-all"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-medium text-neutral-900">
+                      {job.job_number}
+                    </span>
+                    <JobStatusBadge status={job.status} />
+                  </div>
+                  <p className="mt-1 text-sm text-neutral-600 truncate">
+                    {job.customer?.first_name} {job.customer?.last_name} •{" "}
+                    {job.brand} {job.model}
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-400">
+                    {format(new Date(job.created_at), "MMM dd, yyyy h:mm a")}
+                  </p>
+                </div>
+                <ArrowRight className="w-5 h-5 text-neutral-400" />
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -416,7 +839,7 @@ function JobStatusSummary() {
 // =====================================================
 
 export default function DashboardPage() {
-  const { user, currentBranch } = useAuth();
+  const { user, currentBranch, hasPermission, isRole } = useAuth();
 
   return (
     <ProtectedRoute requiredPermission="canViewDashboard">
@@ -429,11 +852,13 @@ export default function DashboardPage() {
               : "Dashboard Overview"
           }
           actions={
-            <Link href="/jobs/new">
-              <Button leftIcon={<Plus className="w-4 h-4" />}>
-                New Job Card
-              </Button>
-            </Link>
+            hasPermission("canCreateJobCards") ? (
+              <Link href="/jobs/new">
+                <Button leftIcon={<Plus className="w-4 h-4" />}>
+                  New Job Card
+                </Button>
+              </Link>
+            ) : undefined
           }
         />
 
@@ -441,18 +866,36 @@ export default function DashboardPage() {
           {/* Stats Cards */}
           <DashboardStats />
 
+          {/* Revenue Section */}
+          {hasPermission("canViewReports") && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Revenue Chart - 2/3 width */}
+              <div className="lg:col-span-2">
+                <RevenueTrendChart />
+              </div>
+              {/* Financial Summary - 1/3 width */}
+              <div>
+                <RevenueSummary />
+              </div>
+            </div>
+          )}
+
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Jobs - Takes 2 columns */}
-            <div className="lg:col-span-2">
-              <RecentJobs />
-            </div>
+            {/* Recent Jobs - 2/3 width */}
+            {hasPermission("canViewJobCards") && (
+              <div className="lg:col-span-2">
+                <RecentJobs />
+              </div>
+            )}
 
             {/* Right Sidebar */}
             <div className="space-y-6">
+              {hasPermission("canViewJobCards") && <JobStatusChart />}
               <QuickActions />
-              <JobStatusSummary />
-              <PendingPickups />
+              {hasPermission("canViewPickups") && <PendingPickups />}
+              {hasPermission("canViewInventory") && <LowStockAlerts />}
+              {isRole("TECHNICIAN") && <TechnicianJobs />}
             </div>
           </div>
         </div>

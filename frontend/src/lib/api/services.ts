@@ -465,7 +465,10 @@ export const inventoryApi = {
   },
 
   getAdjustments: async (id: string): Promise<StockAdjustment[]> => {
-    return apiGet<StockAdjustment[]>(`/inventory/items/${id}/adjustments/`);
+    const res = await apiGet<StockAdjustment[]>(
+      `/inventory/items/${id}/adjustments/`,
+    );
+    return Array.isArray(res) ? res : (res as any)?.results || [];
   },
 
   getLowStock: async (): Promise<InventoryItem[]> => {
@@ -538,7 +541,8 @@ export const billingApi = {
 
   createInvoice: async (data: {
     branch: string;
-    job_id: string;
+    job_id?: string | null;
+    customer_id?: string | null;
     due_date?: string;
     notes?: string;
     line_items: Array<{

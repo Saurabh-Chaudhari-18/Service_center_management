@@ -34,7 +34,11 @@ class ReportsViewSet(viewsets.ViewSet):
 
     def get_accessible_branches(self):
         """Get branches accessible to current user."""
-        return self.request.user.get_accessible_branches()
+        accessible = self.request.user.get_accessible_branches()
+        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
+        if branch_id:
+            return accessible.filter(pk=branch_id)
+        return accessible
 
     def get_date_range(self):
         """Parse date range from query params."""

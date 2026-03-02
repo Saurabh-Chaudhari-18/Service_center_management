@@ -23,14 +23,18 @@ class InventoryCategory(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.CASCADE,
-        related_name='inventory_categories'
+        related_name='inventory_categories',
+        null=True,
+        blank=True
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     
     class Meta:
         verbose_name_plural = 'Inventory categories'
-        unique_together = ['branch', 'name']
+        constraints = [
+            models.UniqueConstraint(fields=['branch', 'name'], name='unique_branch_category_name')
+        ]
         ordering = ['name']
 
     def __str__(self):
@@ -47,7 +51,9 @@ class InventoryItem(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='inventory_items'
+        related_name='inventory_items',
+        null=True,
+        blank=True
     )
     
     # Item Details

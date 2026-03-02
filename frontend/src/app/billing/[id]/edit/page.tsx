@@ -8,9 +8,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, Input, LoadingState } from "@/components/ui";
-import { billingApi } from "@/lib/api";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
+import { Card, Button, Input, LoadingState, Select } from "@/components/ui";
+import { billingApi, branchesApi } from "@/lib/api";
 import { ArrowLeft, Printer, Plus, Trash2, FileText, Save } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -31,6 +31,7 @@ const invoiceLineItemSchema = z.object({
 });
 
 const updateInvoiceSchema = z.object({
+  branch: z.string().optional(),
   due_date: z.string().optional(),
   notes: z.string().optional(),
   line_items: z.array(invoiceLineItemSchema).min(1, "Add at least one item"),
@@ -415,8 +416,17 @@ function EditInvoiceContent() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
+  const { currentBranch, hasPermission } = useAuth();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
   const queryClient = useQueryClient();
+
+  // Fetch Branches
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => branchesApi.list(),
+    enabled: hasPermission("canManageBranches"),
+  });
 
   // Fetch invoice details
   const { data: invoice, isLoading } = useQuery({
@@ -451,6 +461,17 @@ function EditInvoiceContent() {
         alert("This invoice is already finalized and cannot be edited.");
         router.push(`/billing/${id}`);
         return;
+      }
+
+      // Set initial branch
+      if (invoice.branch) {
+        setSelectedBranchId(
+          typeof invoice.branch === "string"
+            ? invoice.branch
+            : (invoice.branch as any).id || "",
+        );
+      } else {
+        setSelectedBranchId("universal");
       }
 
       reset({
@@ -489,6 +510,7 @@ function EditInvoiceContent() {
     const payload = {
       ...data,
       due_date: data.due_date || null,
+      branch: selectedBranchId === "universal" ? null : selectedBranchId,
     };
     // Cast is safe because schema is flexible but backend expects null for empty string
     mutate(payload as unknown as UpdateInvoiceFormData);
@@ -538,6 +560,38 @@ function EditInvoiceContent() {
           />
 
           <form onSubmit={handleSubmit(handlePreview)} className="space-y-6">
+            {/* Branch Selection (Owners Only) */}
+            {hasPermission("canManageBranches") && (
+              <Card>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-primary-500" />
+                  Branch Assignment
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Select
+                    label="Assign to Branch"
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    options={[
+                      {
+                        value: "universal",
+                        label: "🌍 Universal / All Branches",
+                      },
+                      ...(Array.isArray(branches)
+                        ? branches
+                        : Object.hasOwn(branches, "results")
+                          ? (branches as any).results
+                          : []
+                      ).map((b: any) => ({ value: b.id, label: b.name })),
+                    ]}
+                  />
+                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
+                    Universal invoices are visible across all branches.
+                  </p>
+                </div>
+              </Card>
+            )}
+
             {/* Customer Summary (Read Only) */}
             <Card>
               <div className="flex items-start gap-4">

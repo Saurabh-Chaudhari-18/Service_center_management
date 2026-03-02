@@ -19,7 +19,9 @@ class Customer(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='customers'
+        related_name='customers',
+        null=True,
+        blank=True
     )
     
     # Personal Information
@@ -91,8 +93,9 @@ class Customer(TimeStampedModel):
     
     class Meta:
         ordering = ['first_name', 'last_name']
-        # Allow same mobile in different branches
-        unique_together = ['branch', 'mobile']
+        constraints = [
+            models.UniqueConstraint(fields=['branch', 'mobile'], name='unique_branch_mobile')
+        ]
         indexes = [
             models.Index(fields=['branch', 'mobile']),
             models.Index(fields=['mobile']),

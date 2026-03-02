@@ -41,7 +41,9 @@ class Invoice(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='invoices'
+        related_name='invoices',
+        null=True,
+        blank=True
     )
     invoice_number = models.CharField(
         max_length=50,
@@ -49,11 +51,13 @@ class Invoice(TimeStampedModel):
         help_text="Auto-generated branch-scoped invoice number"
     )
     
-    # Job Reference
+    # Job Reference (optional - can bill without a job)
     job = models.ForeignKey(
         'jobs.JobCard',
-        on_delete=models.PROTECT,
-        related_name='invoices'
+        on_delete=models.SET_NULL,
+        related_name='invoices',
+        null=True,
+        blank=True
     )
     
     # Customer Details (snapshot at invoice time)
@@ -172,10 +176,37 @@ class Invoice(TimeStampedModel):
         """Check if invoice is fully paid."""
         return self.balance_due <= Decimal('0')
 
+    def get_universal_invoice_number(self):
+        """Generate a universal invoice number when no branch is assigned."""
+        from django.db.models import Max
+        from django.utils import timezone
+        
+        prefix = "UNIV-INV-"
+        year = str(timezone.now().year)[-2:]
+        prefix_with_year = f"{prefix}{year}-"
+        
+        last_item = Invoice.objects.filter(
+            branch__isnull=True,
+            invoice_number__startswith=prefix_with_year
+        ).aggregate(Max('invoice_number'))['invoice_number__max']
+        
+        if last_item:
+            try:
+                sequence = int(last_item.split('-')[-1]) + 1
+            except ValueError:
+                sequence = 1
+        else:
+            sequence = 1
+            
+        return f"{prefix_with_year}{sequence:04d}"
+
     def save(self, *args, **kwargs):
         # Generate invoice number if not set
         if not self.invoice_number:
-            self.invoice_number = self.branch.get_next_invoice_number()
+            if self.branch:
+                self.invoice_number = self.branch.get_next_invoice_number()
+            else:
+                self.invoice_number = self.get_universal_invoice_number()
         
         # Prevent modifications to finalized invoices
         if self.pk and self.is_finalized:

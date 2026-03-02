@@ -57,31 +57,25 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'estimated_completion_date', 'is_urgent']
     ordering = ['-is_urgent', '-created_at']
     branch_field = 'branch'
+    queryset = JobCard.objects.all()
 
     def get_queryset(self):
         """Filter jobs based on user's role and branch access."""
+        # BranchScopedMixin handles branch authorization and X-Branch-ID filtering
+        queryset = super().get_queryset()
+        
         user = self.request.user
-        
         if not user.is_authenticated:
-            return JobCard.objects.none()
+            return queryset
         
-        queryset = JobCard.objects.select_related(
+        queryset = queryset.select_related(
             'branch', 'customer', 'assigned_technician', 'received_by'
         ).prefetch_related('accessories', 'photos', 'notes', 'status_history')
-        
-        # Branch filtering
-        accessible_branches = user.get_accessible_branches()
-        queryset = queryset.filter(branch__in=accessible_branches)
         
         # Technicians only see their assigned jobs
         if user.role == Role.TECHNICIAN:
             queryset = queryset.filter(assigned_technician=user)
-        
-        # Apply branch filter from query params
-        branch_id = self.request.query_params.get('branch')
-        if branch_id:
-            queryset = queryset.filter(branch_id=branch_id)
-        
+            
         return queryset
 
     def get_serializer_class(self):

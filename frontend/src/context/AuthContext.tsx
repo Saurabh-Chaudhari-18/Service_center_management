@@ -9,8 +9,8 @@ import React, {
 } from "react";
 import { tokenManager } from "@/lib/api/client";
 import { authApi } from "@/lib/api/services";
-import type { AuthUser, Branch, UserRole, ROLE_PERMISSIONS } from "@/types";
-import { ROLE_PERMISSIONS as permissions } from "@/types";
+import type { AuthUser, Branch, UserRole, UserPermissions } from "@/types";
+import { ROLE_PERMISSIONS as fallbackPermissions } from "@/types";
 
 // =====================================================
 // Auth Context Types
@@ -29,7 +29,7 @@ interface AuthContextValue extends AuthState {
   logout: () => void;
   switchBranch: (branchId: string) => Promise<void>;
   refreshUser: () => Promise<void>;
-  hasPermission: (permission: keyof (typeof permissions)[UserRole]) => boolean;
+  hasPermission: (permission: keyof UserPermissions) => boolean;
   isRole: (...roles: UserRole[]) => boolean;
 }
 
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
     },
-    [state.accessibleBranches]
+    [state.accessibleBranches],
   );
 
   // Refresh user data
@@ -193,12 +193,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check if user has a specific permission
   const hasPermission = useCallback(
-    (permission: keyof (typeof permissions)[UserRole]): boolean => {
+    (permission: keyof UserPermissions): boolean => {
       if (!state.user) return false;
-      const rolePerms = permissions[state.user.role];
+      // Prefer DB-driven permissions from API response
+      if (state.user.permissions) {
+        return state.user.permissions[permission] ?? false;
+      }
+      // Fallback to static map if API didn't return permissions
+      const rolePerms = fallbackPermissions[state.user.role];
       return rolePerms ? rolePerms[permission] : false;
     },
-    [state.user]
+    [state.user],
   );
 
   // Check if user has one of the specified roles
@@ -207,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!state.user) return false;
       return roles.includes(state.user.role);
     },
-    [state.user]
+    [state.user],
   );
 
   const value: AuthContextValue = {
@@ -244,7 +249,7 @@ export function useAuth(): AuthContextValue {
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRoles?: UserRole[];
-  requiredPermission?: keyof (typeof permissions)[UserRole];
+  requiredPermission?: keyof UserPermissions;
   fallback?: React.ReactNode;
 }
 

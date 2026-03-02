@@ -35,10 +35,10 @@ const branchSchema = z.object({
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(6, "Invalid pincode"),
-  gstin: z.string().optional(),
-  state_code: z.string().optional(),
-  invoice_prefix: z.string().optional(),
-  jobcard_prefix: z.string().optional(),
+  gstin: z.string().optional().or(z.literal("")),
+  state_code: z.string().optional().or(z.literal("")),
+  invoice_prefix: z.string().min(1, "Invoice prefix is required"),
+  jobcard_prefix: z.string().min(1, "Job card prefix is required"),
   default_gst_rate: z.coerce.number().min(0).max(100),
   sms_enabled: z.boolean().default(false),
   whatsapp_enabled: z.boolean().default(false),
@@ -82,15 +82,25 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
           sms_enabled: false,
           whatsapp_enabled: false,
           is_active: true,
+          invoice_prefix: "INV",
+          jobcard_prefix: "JC",
+          gstin: "",
+          state_code: "",
         },
   });
 
   const mutation = useMutation({
     mutationFn: (data: BranchFormData) => {
+      // Clean up empty optional fields so they don't fail backend validation
+      const payload = { ...data };
+      if (!payload.gstin) delete payload.gstin;
+      if (!payload.state_code) delete payload.state_code;
+      if (!payload.address_line2) delete payload.address_line2;
+
       if (isEditing && branch) {
-        return branchesApi.update(branch.id, data);
+        return branchesApi.update(branch.id, payload);
       }
-      return branchesApi.create(data);
+      return branchesApi.create(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
@@ -121,6 +131,10 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               sms_enabled: false,
               whatsapp_enabled: false,
               is_active: true,
+              invoice_prefix: "INV",
+              jobcard_prefix: "JC",
+              gstin: "",
+              state_code: "",
             },
       );
     }

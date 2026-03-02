@@ -32,17 +32,17 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering_fields = ['first_name', 'last_name', 'created_at']
     ordering = ['-created_at']
     branch_field = 'branch'
+    queryset = Customer.objects.all()
 
     def get_queryset(self):
         """Filter customers by accessible branches."""
-        queryset = Customer.objects.select_related('branch')
+        queryset = super().get_queryset()
         user = self.request.user
         
         if not user.is_authenticated:
-            return queryset.none()
-        
-        accessible_branches = user.get_accessible_branches()
-        return queryset.filter(branch__in=accessible_branches)
+            return queryset
+            
+        return queryset.select_related('branch')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -54,7 +54,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def search_by_mobile(self, request):
         """
-        Search customer by mobile number.
+        Search customer by mobile number or name.
         This is the primary customer lookup method.
         """
         mobile = request.query_params.get('mobile', '')
@@ -66,17 +66,28 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Normalize mobile number
-        normalized = ''.join(c for c in mobile if c.isdigit() or c == '+')
-        if not normalized.startswith('+') and len(normalized) == 10:
-            normalized = '+91' + normalized
+        from django.db.models import Q
         
-        queryset = self.get_queryset().filter(mobile__contains=normalized[-10:])
+        # Check if query looks like a phone number or a name
+        is_numeric = mobile.replace('+', '').replace(' ', '').isdigit()
+        
+        if is_numeric:
+            # Normalize mobile number
+            normalized = ''.join(c for c in mobile if c.isdigit() or c == '+')
+            if not normalized.startswith('+') and len(normalized) == 10:
+                normalized = '+91' + normalized
+            
+            queryset = self.get_queryset().filter(mobile__contains=normalized[-10:])
+        else:
+            # Search by name (first_name or last_name)
+            queryset = self.get_queryset().filter(
+                Q(first_name__icontains=mobile) | Q(last_name__icontains=mobile)
+            )
         
         if branch_id:
             queryset = queryset.filter(branch_id=branch_id)
         
-        serializer = CustomerSerializer(queryset, many=True)
+        serializer = CustomerSerializer(queryset[:20], many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'])

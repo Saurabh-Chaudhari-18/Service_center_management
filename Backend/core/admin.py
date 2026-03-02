@@ -4,7 +4,36 @@ Core admin configuration.
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from core.models import Organization, Branch, User
+from core.models import Organization, Branch, User, RolePermission
+
+
+@admin.register(RolePermission)
+class RolePermissionAdmin(admin.ModelAdmin):
+    list_display = [
+        'role', 'can_view_dashboard', 'can_view_job_cards', 'can_create_job_cards',
+        'can_edit_job_cards', 'can_view_inventory', 'can_manage_inventory',
+        'can_view_billing', 'can_create_invoices', 'can_view_reports',
+        'can_manage_branches', 'can_manage_users', 'can_view_pickups', 'updated_at',
+    ]
+    list_editable = [
+        'can_view_dashboard', 'can_view_job_cards', 'can_create_job_cards',
+        'can_edit_job_cards', 'can_view_inventory', 'can_manage_inventory',
+        'can_view_billing', 'can_create_invoices', 'can_view_reports',
+        'can_manage_branches', 'can_manage_users', 'can_view_pickups',
+    ]
+    list_display_links = ['role']
+    ordering = ['role']
+
+    fieldsets = (
+        (None, {'fields': ('role',)}),
+        ('Dashboard', {'fields': ('can_view_dashboard',)}),
+        ('Job Cards', {'fields': ('can_view_job_cards', 'can_create_job_cards', 'can_edit_job_cards')}),
+        ('Inventory', {'fields': ('can_view_inventory', 'can_manage_inventory')}),
+        ('Billing', {'fields': ('can_view_billing', 'can_create_invoices')}),
+        ('Reports', {'fields': ('can_view_reports',)}),
+        ('Administration', {'fields': ('can_manage_branches', 'can_manage_users')}),
+        ('Pickups', {'fields': ('can_view_pickups',)}),
+    )
 
 
 @admin.register(Organization)

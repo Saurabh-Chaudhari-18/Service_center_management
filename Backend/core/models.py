@@ -111,19 +111,22 @@ class Branch(TimeStampedModel):
             r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$',
             message="Enter a valid GSTIN"
         )],
-        help_text="GST Identification Number (e.g., 27ABCDE1234F1Z5)"
+        help_text="GST Identification Number (e.g., 27ABCDE1234F1Z5)",
+        blank=True
     )
     state_code = models.CharField(
         max_length=2,
         validators=[RegexValidator(r'^\d{2}$', message="Enter a valid 2-digit state code")],
-        help_text="GST State Code (first 2 digits of GSTIN)"
+        help_text="GST State Code (first 2 digits of GSTIN)",
+        blank=True
     )
     
     # Invoice Configuration
     invoice_prefix = models.CharField(
         max_length=10,
         default='INV',
-        help_text="Prefix for invoice numbers"
+        help_text="Prefix for invoice numbers",
+        blank=True
     )
     invoice_current_number = models.PositiveIntegerField(
         default=0,
@@ -134,7 +137,8 @@ class Branch(TimeStampedModel):
     jobcard_prefix = models.CharField(
         max_length=10,
         default='JC',
-        help_text="Prefix for job card numbers"
+        help_text="Prefix for job card numbers",
+        blank=True
     )
     jobcard_current_number = models.PositiveIntegerField(
         default=0,
@@ -230,6 +234,109 @@ class Role(models.TextChoices):
     RECEPTIONIST = 'RECEPTIONIST', _('Receptionist')  # Create jobs, manage customers
     TECHNICIAN = 'TECHNICIAN', _('Technician')  # View assigned jobs, add diagnosis
     ACCOUNTANT = 'ACCOUNTANT', _('Accountant')  # Billing, payments, reports
+
+
+class RolePermission(models.Model):
+    """
+    Database-driven permission matrix.
+    One row per role with boolean flags for each permission.
+    Change permissions from Django Admin — no code changes needed.
+    """
+    role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+        unique=True,
+        help_text="The role this permission set applies to"
+    )
+
+    # Dashboard
+    can_view_dashboard = models.BooleanField(default=True, help_text="Can access the dashboard")
+
+    # Job Cards
+    can_view_job_cards = models.BooleanField(default=False, help_text="Can view job cards")
+    can_create_job_cards = models.BooleanField(default=False, help_text="Can create new job cards")
+    can_edit_job_cards = models.BooleanField(default=False, help_text="Can edit/update job cards")
+
+    # Inventory
+    can_view_inventory = models.BooleanField(default=False, help_text="Can view inventory items")
+    can_manage_inventory = models.BooleanField(default=False, help_text="Can add/edit/delete inventory")
+
+    # Billing
+    can_view_billing = models.BooleanField(default=False, help_text="Can view invoices and payments")
+    can_create_invoices = models.BooleanField(default=False, help_text="Can create invoices")
+
+    # Reports
+    can_view_reports = models.BooleanField(default=False, help_text="Can view financial reports")
+
+    # Administration
+    can_manage_branches = models.BooleanField(default=False, help_text="Can create/edit branches")
+    can_manage_users = models.BooleanField(default=False, help_text="Can create/edit/deactivate users")
+
+    # Pickups
+    can_view_pickups = models.BooleanField(default=False, help_text="Can view pickup requests")
+
+    # Timestamps
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['role']
+        verbose_name = "Role Permission"
+        verbose_name_plural = "Role Permissions"
+
+    def __str__(self):
+        return f"Permissions for {self.get_role_display()}"
+
+    def to_dict(self):
+        """Return permissions as a dictionary for API responses."""
+        return {
+            'canViewDashboard': self.can_view_dashboard,
+            'canViewJobCards': self.can_view_job_cards,
+            'canCreateJobCards': self.can_create_job_cards,
+            'canEditJobCards': self.can_edit_job_cards,
+            'canViewInventory': self.can_view_inventory,
+            'canManageInventory': self.can_manage_inventory,
+            'canViewBilling': self.can_view_billing,
+            'canCreateInvoices': self.can_create_invoices,
+            'canViewReports': self.can_view_reports,
+            'canManageBranches': self.can_manage_branches,
+            'canManageUsers': self.can_manage_users,
+            'canViewPickups': self.can_view_pickups,
+        }
+
+    @classmethod
+    def get_permissions_for_role(cls, role):
+        """Get permissions dict for a role, with caching."""
+        from django.core.cache import cache
+        cache_key = f"role_perms_{role}"
+        perms = cache.get(cache_key)
+        if perms is None:
+            try:
+                rp = cls.objects.get(role=role)
+                perms = rp.to_dict()
+            except cls.DoesNotExist:
+                # Deny all if no row exists
+                perms = {
+                    'canViewDashboard': False,
+                    'canViewJobCards': False,
+                    'canCreateJobCards': False,
+                    'canEditJobCards': False,
+                    'canViewInventory': False,
+                    'canManageInventory': False,
+                    'canViewBilling': False,
+                    'canCreateInvoices': False,
+                    'canViewReports': False,
+                    'canManageBranches': False,
+                    'canManageUsers': False,
+                    'canViewPickups': False,
+                }
+            cache.set(cache_key, perms, 300)  # Cache for 5 minutes
+        return perms
+
+    def save(self, *args, **kwargs):
+        """Clear cache when permissions are updated."""
+        super().save(*args, **kwargs)
+        from django.core.cache import cache
+        cache.delete(f"role_perms_{self.role}")
 
 
 class UserManager(BaseUserManager):

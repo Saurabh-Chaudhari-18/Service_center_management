@@ -201,10 +201,25 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['first_name', 'last_name']
 
     def get_queryset(self):
-        """Users can only see users in their organization."""
-        return User.objects.filter(
+        """Users can only see users in their organization. Can filter by branch."""
+        queryset = User.objects.filter(
             organization=self.request.user.organization
         ).prefetch_related('branches')
+        
+        branch_id = self.request.query_params.get('branch')
+        if branch_id:
+            from core.models import Branch
+            try:
+                # Find users who have this branch in their many-to-many list
+                # OR users who are owners (they have access to all branches implicitly)
+                branch = Branch.objects.get(pk=branch_id, organization=self.request.user.organization)
+                queryset = queryset.filter(
+                    models.Q(branches=branch) | models.Q(role=Role.OWNER)
+                ).distinct()
+            except Branch.DoesNotExist:
+                return queryset.none()
+                
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':

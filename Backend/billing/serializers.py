@@ -113,7 +113,8 @@ class InvoiceListSerializer(serializers.ModelSerializer):
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating invoices."""
-    job_id = serializers.UUIDField()
+    job_id = serializers.UUIDField(required=False, allow_null=True)
+    customer_id = serializers.UUIDField(required=False, allow_null=True)
     line_items = serializers.ListField(
         child=serializers.DictField(),
         required=False,
@@ -123,13 +124,26 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'branch', 'job_id', 'invoice_date', 'due_date',
+            'branch', 'job_id', 'customer_id', 'invoice_date', 'due_date',
             'discount_amount', 'notes', 'terms_and_conditions',
             'line_items'
         ]
 
+    def validate(self, data):
+        """Ensure at least one of job_id or customer_id is provided."""
+        job_id = data.get('job_id')
+        customer_id = data.get('customer_id')
+        
+        if not job_id and not customer_id:
+            raise serializers.ValidationError(
+                "Either job_id or customer_id must be provided."
+            )
+        return data
+
     def validate_job_id(self, value):
         """Validate job exists and belongs to branch."""
+        if not value:
+            return value
         from jobs.models import JobCard
         
         try:
@@ -139,14 +153,41 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         
         return value
 
+    def validate_customer_id(self, value):
+        """Validate customer exists."""
+        if not value:
+            return value
+        from customers.models import Customer
+        
+        try:
+            customer = Customer.objects.get(pk=value)
+        except Customer.DoesNotExist:
+            raise serializers.ValidationError("Customer not found.")
+        
+        return value
+
     @transaction.atomic
     def create(self, validated_data):
         line_items_data = validated_data.pop('line_items', [])
-        job_id = validated_data.pop('job_id')
+        job_id = validated_data.pop('job_id', None)
+        customer_id = validated_data.pop('customer_id', None)
         
-        from jobs.models import JobCard
-        job = JobCard.objects.select_related('customer').get(pk=job_id)
-        customer = job.customer
+        job = None
+        customer = None
+        
+        # Path 1: Job-based invoice (get customer from job)
+        if job_id:
+            from jobs.models import JobCard
+            job = JobCard.objects.select_related('customer').get(pk=job_id)
+            customer = job.customer
+        
+        # Path 2: Direct customer invoice (no job)
+        if not customer and customer_id:
+            from customers.models import Customer
+            customer = Customer.objects.get(pk=customer_id)
+        
+        if not customer:
+            raise serializers.ValidationError("Could not determine customer.")
         
         # Determine interstate status
         from core.utils import is_interstate_supply
@@ -156,7 +197,8 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         )
         
         # Set customer details snapshot
-        validated_data['job'] = job
+        if job:
+            validated_data['job'] = job
         validated_data['customer_name'] = customer.get_full_name()
         validated_data['customer_mobile'] = customer.mobile
         validated_data['customer_email'] = customer.email
@@ -188,9 +230,8 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 job_part_usage_id=item_data.get('job_part_usage'),
             )
         
-        # Auto-add parts used in job
-        # Check if part_usages exists (handles potential attribute error gracefully)
-        if hasattr(job, 'part_usages'):
+        # Auto-add parts used in job (only if job exists)
+        if job and hasattr(job, 'part_usages'):
             for part_usage in job.part_usages.all():
                 # Check if already added
                 if not invoice.line_items.filter(job_part_usage=part_usage).exists():
@@ -207,14 +248,14 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                         job_part_usage=part_usage,
                     )
 
-            # Calculate totals
-            invoice.calculate_totals()
-            invoice.save()
-            
-            # Refresh to ensure date fields are legitimate date objects
-            invoice.refresh_from_db()
-            
-            return invoice
+        # Calculate totals
+        invoice.calculate_totals()
+        invoice.save()
+        
+        # Refresh to ensure date fields are legitimate date objects
+        invoice.refresh_from_db()
+        
+        return invoice
 
 
 class LineItemUpdateSerializer(serializers.ModelSerializer):
@@ -247,7 +288,7 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'invoice_date', 'due_date', 'discount_amount', 
+            'branch', 'invoice_date', 'due_date', 'discount_amount', 
             'notes', 'terms_and_conditions', 'line_items'
         ]
 

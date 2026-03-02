@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,12 +25,14 @@ import {
   Plus,
   Search,
   Package,
-  AlertTriangle,
   ArrowUpCircle,
   ArrowDownCircle,
   Edit2,
-  History,
+  X,
   LayoutGrid,
+  List,
+  ChevronDown,
+  ChevronUp,
   Cpu,
   HardDrive,
   Monitor,
@@ -43,65 +45,138 @@ import {
   Camera,
   CircuitBoard,
   Box,
+  Clock,
+  Wrench,
+  ArrowUpDown,
+  TrendingUp,
+  TrendingDown,
+  History,
+  Info,
 } from "lucide-react";
-import { format } from "date-fns";
 import type { InventoryItem, StockAdjustment } from "@/types";
 
 // =====================================================
-// Category Icon Mapping
+// Category Icon & Color Maps
 // =====================================================
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  RAM: <Cpu className="w-6 h-6" />,
-  SSD: <HardDrive className="w-6 h-6" />,
-  HDD: <HardDrive className="w-6 h-6" />,
-  Screen: <Monitor className="w-6 h-6" />,
-  Battery: <Battery className="w-6 h-6" />,
-  Keyboard: <Keyboard className="w-6 h-6" />,
-  Charger: <Plug className="w-6 h-6" />,
-  Motherboard: <CircuitBoard className="w-6 h-6" />,
-  Fan: <Fan className="w-6 h-6" />,
-  Trackpad: <Mouse className="w-6 h-6" />,
-  Speaker: <Speaker className="w-6 h-6" />,
-  Camera: <Camera className="w-6 h-6" />,
-  Other: <Box className="w-6 h-6" />,
+  RAM: <Cpu className="w-5 h-5" />,
+  SSD: <HardDrive className="w-5 h-5" />,
+  HDD: <HardDrive className="w-5 h-5" />,
+  Screen: <Monitor className="w-5 h-5" />,
+  Battery: <Battery className="w-5 h-5" />,
+  Keyboard: <Keyboard className="w-5 h-5" />,
+  Charger: <Plug className="w-5 h-5" />,
+  Motherboard: <CircuitBoard className="w-5 h-5" />,
+  Fan: <Fan className="w-5 h-5" />,
+  Trackpad: <Mouse className="w-5 h-5" />,
+  Speaker: <Speaker className="w-5 h-5" />,
+  Camera: <Camera className="w-5 h-5" />,
+  Other: <Box className="w-5 h-5" />,
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  RAM: "from-blue-500 to-blue-600",
-  SSD: "from-purple-500 to-purple-600",
-  HDD: "from-indigo-500 to-indigo-600",
-  Screen: "from-cyan-500 to-cyan-600",
-  Battery: "from-green-500 to-green-600",
-  Keyboard: "from-amber-500 to-amber-600",
-  Charger: "from-orange-500 to-orange-600",
-  Motherboard: "from-red-500 to-red-600",
-  Fan: "from-teal-500 to-teal-600",
-  Trackpad: "from-pink-500 to-pink-600",
-  Speaker: "from-violet-500 to-violet-600",
-  Camera: "from-rose-500 to-rose-600",
-  Other: "from-gray-500 to-gray-600",
+const CATEGORY_COLORS: Record<
+  string,
+  { bg: string; text: string; gradient: string }
+> = {
+  RAM: {
+    bg: "bg-blue-50",
+    text: "text-blue-600",
+    gradient: "from-blue-500 to-blue-600",
+  },
+  SSD: {
+    bg: "bg-purple-50",
+    text: "text-purple-600",
+    gradient: "from-purple-500 to-purple-600",
+  },
+  HDD: {
+    bg: "bg-indigo-50",
+    text: "text-indigo-600",
+    gradient: "from-indigo-500 to-indigo-600",
+  },
+  Screen: {
+    bg: "bg-cyan-50",
+    text: "text-cyan-600",
+    gradient: "from-cyan-500 to-cyan-600",
+  },
+  Battery: {
+    bg: "bg-green-50",
+    text: "text-green-600",
+    gradient: "from-green-500 to-green-600",
+  },
+  Keyboard: {
+    bg: "bg-amber-50",
+    text: "text-amber-600",
+    gradient: "from-amber-500 to-amber-600",
+  },
+  Charger: {
+    bg: "bg-orange-50",
+    text: "text-orange-600",
+    gradient: "from-orange-500 to-orange-600",
+  },
+  Motherboard: {
+    bg: "bg-red-50",
+    text: "text-red-600",
+    gradient: "from-red-500 to-red-600",
+  },
+  Fan: {
+    bg: "bg-teal-50",
+    text: "text-teal-600",
+    gradient: "from-teal-500 to-teal-600",
+  },
+  Trackpad: {
+    bg: "bg-pink-50",
+    text: "text-pink-600",
+    gradient: "from-pink-500 to-pink-600",
+  },
+  Speaker: {
+    bg: "bg-violet-50",
+    text: "text-violet-600",
+    gradient: "from-violet-500 to-violet-600",
+  },
+  Camera: {
+    bg: "bg-rose-50",
+    text: "text-rose-600",
+    gradient: "from-rose-500 to-rose-600",
+  },
+  Other: {
+    bg: "bg-gray-50",
+    text: "text-gray-600",
+    gradient: "from-gray-500 to-gray-600",
+  },
 };
 
 // =====================================================
 // Stock Status Badge
 // =====================================================
 
-function StockStatusBadge({ item }: { item: InventoryItem }) {
+function StockBadge({ item }: { item: InventoryItem }) {
   if (item.quantity === 0) {
-    return <Badge variant="danger">Out of Stock</Badge>;
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700 ring-1 ring-red-200">
+        Out of Stock
+      </span>
+    );
   }
-  if (item.quantity <= (item.low_stock_threshold || 5)) {
-    return <Badge variant="warning">Low Stock</Badge>;
+  if (item.is_low_stock) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+        Low Stock
+      </span>
+    );
   }
-  return <Badge variant="success">In Stock</Badge>;
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+      In Stock
+    </span>
+  );
 }
 
 // =====================================================
-// Category Card
+// Category Chip (compact horizontal design)
 // =====================================================
 
-interface CategoryCardProps {
+interface CategoryChipProps {
   category: {
     id: string;
     name: string;
@@ -112,111 +187,333 @@ interface CategoryCardProps {
   onClick: () => void;
 }
 
-function CategoryCard({ category, isActive, onClick }: CategoryCardProps) {
-  const icon = CATEGORY_ICONS[category.name] || <Package className="w-6 h-6" />;
-  const gradient =
-    CATEGORY_COLORS[category.name] || "from-gray-500 to-gray-600";
+function CategoryChip({ category, isActive, onClick }: CategoryChipProps) {
+  const icon = CATEGORY_ICONS[category.name] || <Package className="w-5 h-5" />;
+  const colors = CATEGORY_COLORS[category.name] || {
+    bg: "bg-gray-50",
+    text: "text-gray-600",
+    gradient: "from-gray-500 to-gray-600",
+  };
 
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group ${
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 whitespace-nowrap text-sm ${
         isActive
-          ? "border-primary-500 bg-primary-50 shadow-lg shadow-primary-100 scale-[1.02]"
-          : "border-neutral-100 bg-white hover:border-neutral-300 hover:shadow-md"
+          ? "border-primary-400 bg-primary-50 text-primary-700 shadow-sm font-semibold"
+          : "border-neutral-150 bg-white text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
       }`}
     >
-      <div
-        className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition-transform`}
-      >
+      <span className={`${isActive ? "text-primary-600" : colors.text}`}>
         {icon}
-      </div>
-      <span className="text-sm font-semibold text-neutral-800">
-        {category.name}
       </span>
-      <div className="flex items-center gap-1">
-        <span className="text-xs text-neutral-400">
-          {category.item_count} items
-        </span>
-        {category.total_quantity > 0 && (
-          <span className="text-xs text-green-600 font-medium">
-            · {category.total_quantity} qty
-          </span>
-        )}
-      </div>
-      {isActive && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary-500 rounded-full ring-2 ring-white" />
-      )}
+      <span>{category.name}</span>
+      <span
+        className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? "bg-primary-100 text-primary-700" : "bg-neutral-100 text-neutral-500"}`}
+      >
+        {category.item_count}
+      </span>
     </button>
   );
 }
 
 // =====================================================
-// Inventory Item Card
+// Slide-In Detail Panel (Zoho-style)
 // =====================================================
 
-interface InventoryItemCardProps {
+interface DetailPanelProps {
   item: InventoryItem;
+  onClose: () => void;
   onEdit: (item: InventoryItem) => void;
   onAdjust: (item: InventoryItem) => void;
 }
 
-function InventoryItemCard({ item, onEdit, onAdjust }: InventoryItemCardProps) {
+function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
+  const [activeTab, setActiveTab] = useState<"overview" | "history" | "usage">(
+    "overview",
+  );
+
+  // Fetch stock adjustments
+  const { data: adjustments } = useQuery({
+    queryKey: ["adjustments", item.id],
+    queryFn: () => inventoryApi.getAdjustments(item.id),
+    enabled: activeTab === "history",
+  });
+
+  const tabs = [
+    { id: "overview" as const, label: "Overview", icon: Info },
+    { id: "history" as const, label: "Stock History", icon: History },
+    { id: "usage" as const, label: "Usage", icon: Wrench },
+  ];
+
   return (
-    <div className="p-5 bg-white border border-neutral-100 rounded-xl hover:shadow-md transition-all">
-      <div className="flex items-start justify-between gap-4">
+    <div className="w-full lg:w-[480px] border-l border-neutral-200 bg-white flex flex-col h-full overflow-hidden">
+      {/* Panel Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 bg-neutral-50/50">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="font-medium text-neutral-900 truncate">
-              {item.name}
-            </h3>
-            <StockStatusBadge item={item} />
-          </div>
-          <p className="text-sm text-neutral-500 mb-2">
+          <h2 className="text-lg font-semibold text-neutral-900 truncate">
+            {item.name}
+          </h2>
+          <p className="text-sm text-neutral-500 mt-0.5">
             SKU: {item.sku || "—"}
           </p>
-
-          <div className="grid grid-cols-3 gap-4 mt-3">
-            <div>
-              <p className="text-xs text-neutral-400">Quantity</p>
-              <p
-                className={`text-lg font-semibold ${
-                  item.quantity === 0
-                    ? "text-red-600"
-                    : item.quantity <= (item.low_stock_threshold || 5)
-                      ? "text-amber-600"
-                      : "text-neutral-900"
-                }`}
-              >
-                {item.quantity} {item.unit}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-neutral-400">Cost Price</p>
-              <p className="text-sm font-medium">
-                ₹{(item.cost_price || 0).toLocaleString("en-IN")}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-neutral-400">Selling Price</p>
-              <p className="text-sm font-medium text-green-600">
-                ₹{(item.selling_price || 0).toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-4">
+          <button
+            onClick={() => onEdit(item)}
+            className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-500 hover:text-neutral-700 transition-colors"
+            title="Edit"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-neutral-100">
-        <Button variant="ghost" size="sm" onClick={() => onEdit(item)}>
-          <Edit2 className="w-4 h-4" />
-          Edit
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onAdjust(item)}>
-          <ArrowUpCircle className="w-4 h-4" />
+      {/* Stock Summary Bar */}
+      <div className="grid grid-cols-3 gap-0 border-b border-neutral-100">
+        <div className="p-3 text-center border-r border-neutral-100">
+          <p className="text-xs text-neutral-400 uppercase tracking-wide">
+            Quantity
+          </p>
+          <p
+            className={`text-xl font-bold mt-1 ${item.quantity === 0 ? "text-red-600" : item.is_low_stock ? "text-amber-600" : "text-neutral-900"}`}
+          >
+            {item.quantity}
+          </p>
+        </div>
+        <div className="p-3 text-center border-r border-neutral-100">
+          <p className="text-xs text-neutral-400 uppercase tracking-wide">
+            Cost
+          </p>
+          <p className="text-lg font-semibold mt-1 text-neutral-700">
+            ₹{(item.cost_price || 0).toLocaleString("en-IN")}
+          </p>
+        </div>
+        <div className="p-3 text-center">
+          <p className="text-xs text-neutral-400 uppercase tracking-wide">
+            Selling
+          </p>
+          <p className="text-lg font-semibold mt-1 text-green-600">
+            ₹{(item.selling_price || 0).toLocaleString("en-IN")}
+          </p>
+        </div>
+      </div>
+
+      {/* Adjust Stock Button */}
+      <div className="px-5 py-3 border-b border-neutral-100">
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => onAdjust(item)}
+          leftIcon={<ArrowUpDown className="w-4 h-4" />}
+        >
           Adjust Stock
         </Button>
       </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-neutral-200">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === tab.id
+                ? "border-primary-500 text-primary-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === "overview" && (
+          <div className="p-5 space-y-5">
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <StockBadge item={item} />
+              {item.category_name && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                >
+                  {CATEGORY_ICONS[item.category_name] && (
+                    <span className="[&>svg]:w-3 [&>svg]:h-3">
+                      {CATEGORY_ICONS[item.category_name]}
+                    </span>
+                  )}
+                  {item.category_name}
+                </span>
+              )}
+            </div>
+
+            {/* Details Grid */}
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                Item Details
+              </h3>
+              <DetailRow label="Unit" value={item.unit} />
+              <DetailRow
+                label="Low Stock Threshold"
+                value={String(item.low_stock_threshold || 5)}
+              />
+              <DetailRow label="GST Rate" value={`${item.gst_rate || 18}%`} />
+              <DetailRow label="HSN Code" value={item.hsn_code || "—"} />
+            </div>
+
+            {/* Pricing */}
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                Pricing
+              </h3>
+              <DetailRow
+                label="Cost Price"
+                value={`₹${(item.cost_price || 0).toLocaleString("en-IN")}`}
+              />
+              <DetailRow
+                label="Selling Price"
+                value={`₹${(item.selling_price || 0).toLocaleString("en-IN")}`}
+                highlight
+              />
+              <DetailRow
+                label="Margin"
+                value={
+                  item.cost_price > 0
+                    ? `${(((item.selling_price - item.cost_price) / item.cost_price) * 100).toFixed(1)}%`
+                    : "—"
+                }
+              />
+            </div>
+
+            {/* Vendor */}
+            {(item.vendor_name || item.vendor_contact) && (
+              <div className="space-y-1">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                  Vendor Info
+                </h3>
+                <DetailRow label="Vendor" value={item.vendor_name || "—"} />
+                <DetailRow label="Contact" value={item.vendor_contact || "—"} />
+              </div>
+            )}
+
+            {/* Stock Value */}
+            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-100">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-neutral-500">
+                  Total Stock Value
+                </span>
+                <span className="text-lg font-bold text-neutral-900">
+                  ₹
+                  {((item.cost_price || 0) * item.quantity).toLocaleString(
+                    "en-IN",
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "history" && (
+          <div className="p-5">
+            {!adjustments || adjustments.length === 0 ? (
+              <div className="text-center py-10">
+                <History className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+                <p className="text-sm text-neutral-500">
+                  No stock adjustments yet
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {adjustments.map((adj: StockAdjustment) => (
+                  <div
+                    key={adj.id}
+                    className="p-3 rounded-lg border border-neutral-100 hover:border-neutral-200 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {adj.adjustment_type === "ADD" ? (
+                          <TrendingUp className="w-4 h-4 text-green-500" />
+                        ) : adj.adjustment_type === "DEDUCT" ? (
+                          <TrendingDown className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <ArrowUpDown className="w-4 h-4 text-blue-500" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {adj.adjustment_type}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-sm font-semibold ${adj.adjustment_type === "ADD" ? "text-green-600" : adj.adjustment_type === "DEDUCT" ? "text-red-600" : "text-blue-600"}`}
+                      >
+                        {adj.adjustment_type === "ADD"
+                          ? "+"
+                          : adj.adjustment_type === "DEDUCT"
+                            ? "-"
+                            : ""}
+                        {adj.quantity ??
+                          Math.abs(
+                            (adj.new_quantity || 0) -
+                              (adj.previous_quantity || 0),
+                          )}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-500 truncate">
+                      {adj.reason}
+                    </p>
+                    <div className="flex items-center justify-between mt-2 text-xs text-neutral-400">
+                      <span>{adj.adjusted_by_name || "System"}</span>
+                      <span>
+                        {adj.created_at
+                          ? new Date(adj.created_at).toLocaleDateString("en-IN")
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "usage" && (
+          <div className="p-5 text-center py-10">
+            <Wrench className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+            <p className="text-sm text-neutral-500">
+              Job usage history coming soon
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-neutral-50">
+      <span className="text-sm text-neutral-500">{label}</span>
+      <span
+        className={`text-sm font-medium ${highlight ? "text-green-600" : "text-neutral-900"}`}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -274,7 +571,7 @@ function ItemModal({
           name: item.name,
           sku: item.sku,
           description: item.description,
-          category: (item as unknown as Record<string, string>).category || "",
+          category: item.category || "",
           cost_price: item.cost_price,
           selling_price: item.selling_price,
           gst_rate: item.gst_rate,
@@ -292,11 +589,18 @@ function ItemModal({
         },
   });
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: (data: ItemFormData) =>
-      isEdit
-        ? inventoryApi.update(item.id, data)
-        : inventoryApi.create({ ...data, branch: branchId }),
+  const {
+    mutate,
+    isPending,
+    error: mutationError,
+  } = useMutation({
+    mutationFn: (data: ItemFormData) => {
+      // Clean up: empty category string → null (Django FK rejects empty strings)
+      const cleaned = { ...data, category: data.category || null };
+      return isEdit
+        ? inventoryApi.update(item.id, cleaned)
+        : inventoryApi.create({ ...cleaned, branch: branchId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["category-stats"] });
@@ -331,58 +635,92 @@ function ItemModal({
         </>
       }
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          label="Item Name"
-          {...register("name")}
-          error={errors.name?.message}
-          required
-        />
-        <Input label="SKU" {...register("sku")} error={errors.sku?.message} />
-        <Select
-          label="Category"
-          options={categoryOptions}
-          {...register("category")}
-        />
-        <Input
-          label="Unit"
-          {...register("unit")}
-          placeholder="e.g., PCS, NOS"
-        />
-        <div className="md:col-span-2">
-          <Textarea label="Description" {...register("description")} rows={2} />
+      {mutationError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <strong>Error:</strong> {(mutationError as Error).message}
         </div>
-        <Input
-          label="Cost Price (₹)"
-          type="number"
-          step="0.01"
-          {...register("cost_price", { valueAsNumber: true })}
-          error={errors.cost_price?.message}
-          required
-        />
-        <Input
-          label="Selling Price (₹)"
-          type="number"
-          step="0.01"
-          {...register("selling_price", { valueAsNumber: true })}
-          error={errors.selling_price?.message}
-          required
-        />
-        <Input
-          label="GST Rate (%)"
-          type="number"
-          {...register("gst_rate", { valueAsNumber: true })}
-          error={errors.gst_rate?.message}
-        />
-        <Input label="HSN Code" {...register("hsn_code")} />
-        <Input
-          label="Low Stock Threshold"
-          type="number"
-          {...register("low_stock_threshold", { valueAsNumber: true })}
-        />
-        <Input label="Vendor Name" {...register("vendor_name")} />
-        <div className="md:col-span-2">
-          <Input label="Vendor Contact" {...register("vendor_contact")} />
+      )}
+      <div className="space-y-6">
+        {/* Basic Info */}
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+            <Package className="w-4 h-4" /> Basic Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Item Name"
+              {...register("name")}
+              error={errors.name?.message}
+              required
+            />
+            <Input label="SKU" {...register("sku")} />
+            <Select
+              label="Category"
+              options={categoryOptions}
+              {...register("category")}
+            />
+            <Input
+              label="Unit"
+              {...register("unit")}
+              placeholder="PCS, NOS, SET"
+            />
+          </div>
+          <div className="mt-3">
+            <Textarea
+              label="Description"
+              {...register("description")}
+              rows={2}
+            />
+          </div>
+        </div>
+
+        {/* Pricing & Tax */}
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" /> Pricing & Tax
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Cost Price (₹)"
+              type="number"
+              step="0.01"
+              {...register("cost_price", { valueAsNumber: true })}
+              error={errors.cost_price?.message}
+              required
+            />
+            <Input
+              label="Selling Price (₹)"
+              type="number"
+              step="0.01"
+              {...register("selling_price", { valueAsNumber: true })}
+              error={errors.selling_price?.message}
+              required
+            />
+            <Input
+              label="GST Rate (%)"
+              type="number"
+              {...register("gst_rate", { valueAsNumber: true })}
+            />
+            <Input label="HSN Code" {...register("hsn_code")} />
+          </div>
+        </div>
+
+        {/* Stock & Vendor */}
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+            <Box className="w-4 h-4" /> Stock & Vendor
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Low Stock Threshold"
+              type="number"
+              {...register("low_stock_threshold", { valueAsNumber: true })}
+            />
+            <Input label="Vendor Name" {...register("vendor_name")} />
+            <div className="md:col-span-2">
+              <Input label="Vendor Contact" {...register("vendor_contact")} />
+            </div>
+          </div>
         </div>
       </div>
     </Modal>
@@ -409,7 +747,6 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
     mutationFn: async () => {
       if (!item) return;
       const qty = parseInt(quantity);
-
       switch (adjustType) {
         case "add":
           return inventoryApi.addStock(item.id, qty, reason);
@@ -423,6 +760,7 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["category-stats"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["adjustments"] });
       setQuantity("");
       setReason("");
       onClose();
@@ -452,28 +790,43 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
       }
     >
       <div className="space-y-4">
-        <div className="p-4 bg-neutral-50 rounded-lg">
+        <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100">
           <p className="font-medium">{item.name}</p>
           <p className="text-sm text-neutral-500">
             Current Stock:{" "}
-            <span className="font-semibold">
+            <span className="font-semibold text-neutral-900">
               {item.quantity} {item.unit}
             </span>
           </p>
         </div>
 
         <div className="flex gap-2">
-          {[
-            { value: "add", label: "Add Stock", icon: ArrowUpCircle },
-            { value: "deduct", label: "Deduct", icon: ArrowDownCircle },
-            { value: "set", label: "Set Quantity", icon: Edit2 },
-          ].map((opt) => (
+          {(
+            [
+              {
+                value: "add",
+                label: "Add Stock",
+                icon: ArrowUpCircle,
+                color: "text-green-600",
+              },
+              {
+                value: "deduct",
+                label: "Deduct",
+                icon: ArrowDownCircle,
+                color: "text-red-600",
+              },
+              {
+                value: "set",
+                label: "Set Qty",
+                icon: Edit2,
+                color: "text-blue-600",
+              },
+            ] as const
+          ).map((opt) => (
             <button
               key={opt.value}
               type="button"
-              onClick={() =>
-                setAdjustType(opt.value as "add" | "deduct" | "set")
-              }
+              onClick={() => setAdjustType(opt.value)}
               className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border transition-all ${
                 adjustType === opt.value
                   ? "bg-primary-50 border-primary-300 text-primary-700"
@@ -491,20 +844,17 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
           type="number"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
-          placeholder="Enter quantity"
           required
         />
-
         <Textarea
           label="Reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g., Purchase order #PO-001, Manual count correction..."
+          placeholder="e.g., Purchase order #PO-001"
           required
           rows={2}
         />
-
-        {error && <Alert variant="error">{error.message}</Alert>}
+        {error && <Alert variant="error">{(error as Error).message}</Alert>}
       </div>
     </Modal>
   );
@@ -514,6 +864,9 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
 // Main Inventory Page
 // =====================================================
 
+type SortKey = "name" | "quantity" | "cost_price" | "selling_price";
+type SortDir = "asc" | "desc";
+
 export default function InventoryPage() {
   const { currentBranch } = useAuth();
   const [search, setSearch] = useState("");
@@ -521,11 +874,16 @@ export default function InventoryPage() {
     "all",
   );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  const [showCategories, setShowCategories] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // Fetch inventory items — pass category filter to the API
+  // Queries
   const { data, isLoading } = useQuery({
     queryKey: [
       "inventory",
@@ -544,216 +902,445 @@ export default function InventoryPage() {
     enabled: !!currentBranch,
   });
 
-  // Fetch stats
   const { data: stats } = useQuery({
     queryKey: ["inventory-stats", currentBranch?.id],
     queryFn: () => inventoryApi.getStats(),
     enabled: !!currentBranch,
   });
 
-  // Fetch category stats
   const { data: categoryStats } = useQuery({
     queryKey: ["category-stats", currentBranch?.id],
     queryFn: () => inventoryApi.getCategoryStats(currentBranch!.id),
     enabled: !!currentBranch,
   });
 
-  // Fetch categories for the Add Item modal dropdown
   const { data: categories } = useQuery({
     queryKey: ["categories", currentBranch?.id],
     queryFn: () => inventoryApi.listCategories(currentBranch!.id),
     enabled: !!currentBranch,
   });
 
+  // Process items
   let items = data?.results || [];
-
-  // Additional client-side filtering
   if (filter === "out_of_stock") {
     items = items.filter((item) => item.quantity === 0);
   }
 
-  // Get the name of the active category
+  // Sort items
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      let aVal: string | number = a[sortKey] ?? "";
+      let bVal: string | number = b[sortKey] ?? "";
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [items, sortKey, sortDir]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortHeader = ({
+    label,
+    sortKeyName,
+  }: {
+    label: string;
+    sortKeyName: SortKey;
+  }) => (
+    <th
+      className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-700 select-none"
+      onClick={() => handleSort(sortKeyName)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        {sortKey === sortKeyName && (
+          <span className="text-primary-500">
+            {sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        )}
+      </span>
+    </th>
+  );
+
   const activeCategoryName = selectedCategory
-    ? categoryStats?.find((c) => c.id === selectedCategory)?.name || "Category"
-    : "All Items";
+    ? categoryStats?.find((c) => c.id === selectedCategory)?.name
+    : null;
 
   return (
     <ProtectedRoute requiredPermission="canViewInventory">
       <AppLayout>
         <Header
           title="Inventory"
-          subtitle={`${stats?.total_items || 0} items in stock`}
+          subtitle={`${stats?.total_items || 0} items · ₹${(stats?.total_value || 0).toLocaleString("en-IN")} total value`}
           actions={
             <Button
               leftIcon={<Plus className="w-4 h-4" />}
               onClick={() => setShowAddModal(true)}
             >
-              Add Item
+              + New
             </Button>
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card padding="md" className="stats-card stats-card-primary">
-              <p className="text-sm text-neutral-500">Total Items</p>
-              <p className="text-2xl font-bold text-neutral-900">
-                {stats?.total_items || 0}
-              </p>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-success">
-              <p className="text-sm text-neutral-500">Total Value</p>
-              <p className="text-2xl font-bold text-neutral-900">
-                ₹{(stats?.total_value || 0).toLocaleString("en-IN")}
-              </p>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-warning">
-              <p className="text-sm text-neutral-500">Low Stock</p>
-              <p className="text-2xl font-bold text-amber-600">
-                {stats?.low_stock_count || 0}
-              </p>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-danger">
-              <p className="text-sm text-neutral-500">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">
-                {stats?.out_of_stock_count || 0}
-              </p>
-            </Card>
-          </div>
+        <div className="flex h-[calc(100vh-64px)]">
+          {/* Main Content */}
+          <div
+            className={`flex-1 flex flex-col overflow-hidden ${selectedItem ? "lg:border-r" : ""}`}
+          >
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Stats Row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wide">
+                    Total Items
+                  </p>
+                  <p className="text-2xl font-bold text-neutral-900 mt-1">
+                    {stats?.total_items || 0}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wide">
+                    Total Value
+                  </p>
+                  <p className="text-2xl font-bold text-neutral-900 mt-1">
+                    ₹{(stats?.total_value || 0).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wide">
+                    Low Stock
+                  </p>
+                  <p className="text-2xl font-bold text-amber-600 mt-1">
+                    {stats?.low_stock_count || 0}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 p-4">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wide">
+                    Out of Stock
+                  </p>
+                  <p className="text-2xl font-bold text-red-600 mt-1">
+                    {stats?.out_of_stock_count || 0}
+                  </p>
+                </div>
+              </div>
 
-          {/* ── Part Categories Grid ──────────────────────────── */}
-          {categoryStats && categoryStats.length > 0 && (
-            <div>
-              <h2 className="text-lg font-semibold text-neutral-800 mb-3">
-                Parts Catalog
-              </h2>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
-                {/* All Items Card */}
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group ${
-                    selectedCategory === null
-                      ? "border-primary-500 bg-primary-50 shadow-lg shadow-primary-100 scale-[1.02]"
-                      : "border-neutral-100 bg-white hover:border-neutral-300 hover:shadow-md"
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-900 flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition-transform">
-                    <LayoutGrid className="w-6 h-6" />
-                  </div>
-                  <span className="text-sm font-semibold text-neutral-800">
-                    All
-                  </span>
-                  <span className="text-xs text-neutral-400">
-                    {stats?.total_items || 0} items
-                  </span>
-                  {selectedCategory === null && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary-500 rounded-full ring-2 ring-white" />
+              {/* Category Chips — Collapsible */}
+              {categoryStats && categoryStats.length > 0 && (
+                <div className="bg-white rounded-xl border border-neutral-100 overflow-hidden">
+                  <button
+                    onClick={() => setShowCategories(!showCategories)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  >
+                    <span>Parts Catalog</span>
+                    {showCategories ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  {showCategories && (
+                    <div className="px-4 pb-4 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setSelectedCategory(null)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-sm ${
+                          selectedCategory === null
+                            ? "border-primary-400 bg-primary-50 text-primary-700 font-semibold"
+                            : "border-neutral-150 bg-white text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span>All</span>
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded-full ${selectedCategory === null ? "bg-primary-100 text-primary-700" : "bg-neutral-100 text-neutral-500"}`}
+                        >
+                          {stats?.total_items || 0}
+                        </span>
+                      </button>
+                      {categoryStats.map((cat) => (
+                        <CategoryChip
+                          key={cat.id}
+                          category={cat}
+                          isActive={selectedCategory === cat.id}
+                          onClick={() =>
+                            setSelectedCategory(
+                              selectedCategory === cat.id ? null : cat.id,
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
                   )}
-                </button>
+                </div>
+              )}
 
-                {/* Category Cards */}
-                {categoryStats.map((cat) => (
-                  <CategoryCard
-                    key={cat.id}
-                    category={cat}
-                    isActive={selectedCategory === cat.id}
-                    onClick={() =>
-                      setSelectedCategory(
-                        selectedCategory === cat.id ? null : cat.id,
+              {/* Search, Filters, View Toggle */}
+              <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                <div className="flex-1 w-full">
+                  <Input
+                    placeholder="Search by name or SKU..."
+                    leftIcon={<Search className="w-4 h-4" />}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "low_stock", label: "Low Stock" },
+                    { value: "out_of_stock", label: "Out of Stock" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFilter(opt.value as typeof filter)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        filter === opt.value
+                          ? "bg-primary-500 text-white shadow-sm"
+                          : "bg-white text-neutral-500 border border-neutral-200 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <div className="flex rounded-lg border border-neutral-200 overflow-hidden ml-1">
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={`p-2 transition-colors ${viewMode === "table" ? "bg-primary-500 text-white" : "bg-white text-neutral-500 hover:bg-neutral-50"}`}
+                      title="Table View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("card")}
+                      className={`p-2 transition-colors ${viewMode === "card" ? "bg-primary-500 text-white" : "bg-white text-neutral-500 hover:bg-neutral-50"}`}
+                      title="Card View"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active filter indicator */}
+              {activeCategoryName && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-neutral-500">
+                    Showing{" "}
+                    <span className="font-semibold text-neutral-800">
+                      {activeCategoryName}
+                    </span>{" "}
+                    · {sortedItems.length} items
+                  </span>
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="text-primary-500 hover:text-primary-600 font-medium"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+
+              {/* Content */}
+              {isLoading ? (
+                <LoadingState />
+              ) : sortedItems.length === 0 ? (
+                <div className="bg-white rounded-xl border border-neutral-100">
+                  <EmptyState
+                    icon={<Package className="w-8 h-8 text-neutral-300" />}
+                    title="No items found"
+                    description={
+                      search || filter !== "all" || selectedCategory
+                        ? "Try adjusting your search, filter, or category"
+                        : "Add your first inventory item"
+                    }
+                    action={
+                      !search &&
+                      filter === "all" && (
+                        <Button
+                          leftIcon={<Plus className="w-4 h-4" />}
+                          onClick={() => setShowAddModal(true)}
+                        >
+                          Add Item
+                        </Button>
                       )
                     }
                   />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Search & Filters */}
-          <Card padding="md">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search by name or SKU..."
-                  leftIcon={<Search className="w-5 h-5" />}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-2">
-                {[
-                  { value: "all", label: "All Items" },
-                  { value: "low_stock", label: "Low Stock" },
-                  { value: "out_of_stock", label: "Out of Stock" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setFilter(opt.value as typeof filter)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      filter === opt.value
-                        ? "bg-primary-500 text-white"
-                        : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          {/* Section Header */}
-          {selectedCategory && (
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-neutral-700">
-                Showing: {activeCategoryName}
-              </h3>
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className="text-sm text-primary-500 hover:text-primary-600 font-medium"
-              >
-                ← Show All
-              </button>
-            </div>
-          )}
-
-          {/* Inventory List */}
-          {isLoading ? (
-            <LoadingState />
-          ) : items.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<Package className="w-8 h-8 text-neutral-400" />}
-                title="No items found"
-                description={
-                  search || filter !== "all" || selectedCategory
-                    ? "Try adjusting your search, filter, or category"
-                    : "Add your first inventory item"
-                }
-                action={
-                  !search &&
-                  filter === "all" && (
-                    <Button
-                      leftIcon={<Plus className="w-4 h-4" />}
-                      onClick={() => setShowAddModal(true)}
+                </div>
+              ) : viewMode === "table" ? (
+                /* ═══ TABLE VIEW ═══ */
+                <div className="bg-white rounded-xl border border-neutral-100 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-neutral-50 border-b border-neutral-100">
+                        <tr>
+                          <SortHeader label="Name" sortKeyName="name" />
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                            SKU
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                            Category
+                          </th>
+                          <SortHeader label="Qty" sortKeyName="quantity" />
+                          <SortHeader label="Cost" sortKeyName="cost_price" />
+                          <SortHeader
+                            label="Selling"
+                            sortKeyName="selling_price"
+                          />
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-50">
+                        {sortedItems.map((item) => (
+                          <tr
+                            key={item.id}
+                            onClick={() =>
+                              setSelectedItem(
+                                selectedItem?.id === item.id ? null : item,
+                              )
+                            }
+                            className={`cursor-pointer transition-colors ${
+                              selectedItem?.id === item.id
+                                ? "bg-primary-50"
+                                : "hover:bg-neutral-50"
+                            }`}
+                          >
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                                {item.name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-neutral-500">
+                              {item.sku || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {item.category_name ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                                >
+                                  {item.category_name}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-neutral-400">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`text-sm font-semibold ${item.quantity === 0 ? "text-red-600" : item.is_low_stock ? "text-amber-600" : "text-neutral-900"}`}
+                              >
+                                {item.quantity}{" "}
+                                <span className="text-neutral-400 font-normal">
+                                  {item.unit}
+                                </span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-neutral-600">
+                              ₹{(item.cost_price || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-green-600">
+                              ₹
+                              {(item.selling_price || 0).toLocaleString(
+                                "en-IN",
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <StockBadge item={item} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                /* ═══ CARD VIEW ═══ */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {sortedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() =>
+                        setSelectedItem(
+                          selectedItem?.id === item.id ? null : item,
+                        )
+                      }
+                      className={`p-4 bg-white rounded-xl border cursor-pointer transition-all ${
+                        selectedItem?.id === item.id
+                          ? "border-primary-300 ring-1 ring-primary-100"
+                          : "border-neutral-100 hover:border-neutral-200 hover:shadow-sm"
+                      }`}
                     >
-                      Add Item
-                    </Button>
-                  )
-                }
-              />
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {items.map((item) => (
-                <InventoryItemCard
-                  key={item.id}
-                  item={item}
-                  onEdit={setEditItem}
-                  onAdjust={setAdjustItem}
-                />
-              ))}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-neutral-900 truncate text-sm">
+                              {item.name}
+                            </h3>
+                            <StockBadge item={item} />
+                          </div>
+                          <p className="text-xs text-neutral-400">
+                            SKU: {item.sku || "—"}
+                          </p>
+                        </div>
+                        {item.category_name && (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                          >
+                            {item.category_name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3">
+                        <div>
+                          <p className="text-xs text-neutral-400">Qty</p>
+                          <p
+                            className={`text-base font-bold ${item.quantity === 0 ? "text-red-600" : "text-neutral-900"}`}
+                          >
+                            {item.quantity}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-neutral-400">Cost</p>
+                          <p className="text-sm font-medium text-neutral-700">
+                            ₹{(item.cost_price || 0).toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-neutral-400">Selling</p>
+                          <p className="text-sm font-medium text-green-600">
+                            ₹{(item.selling_price || 0).toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* ═══ SLIDE-IN DETAIL PANEL ═══ */}
+          {selectedItem && (
+            <DetailPanel
+              item={selectedItem}
+              onClose={() => setSelectedItem(null)}
+              onEdit={(item) => {
+                setEditItem(item);
+                setSelectedItem(null);
+              }}
+              onAdjust={(item) => {
+                setAdjustItem(item);
+              }}
+            />
           )}
         </div>
 
@@ -776,7 +1363,6 @@ export default function InventoryPage() {
             />
           </>
         )}
-
         <AdjustStockModal
           isOpen={!!adjustItem}
           onClose={() => setAdjustItem(null)}

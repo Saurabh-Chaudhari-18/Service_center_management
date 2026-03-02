@@ -664,17 +664,30 @@ export default function StaffManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+
+  const { hasPermission } = useAuth();
+  const canManageBranches = hasPermission("canManageBranches");
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
+  const { data: branchesData } = useQuery({
+    queryKey: ["branches-list"],
+    queryFn: () => branchesApi.list(),
+  });
+
+  const branchesList =
+    branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["users", roleFilter, statusFilter],
+    queryKey: ["users", roleFilter, statusFilter, branchFilter],
     queryFn: () => {
       const params: Record<string, string> = {};
       if (roleFilter) params.role = roleFilter;
       if (statusFilter) params.is_active = statusFilter;
+      if (branchFilter) params.branch = branchFilter;
       return usersApi.list(params as { role?: string; branch?: string });
     },
   });
@@ -766,6 +779,22 @@ export default function StaffManagementPage() {
                   </button>
                 )}
               </div>
+
+              {canManageBranches && (
+                <Select
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className="w-48"
+                  placeholder="All Branches"
+                  options={[
+                    { value: "", label: "All Branches" },
+                    ...branchesList.map((b: any) => ({
+                      value: b.id,
+                      label: b.name,
+                    })),
+                  ]}
+                />
+              )}
 
               <Select
                 value={statusFilter}

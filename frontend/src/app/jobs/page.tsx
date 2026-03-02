@@ -44,7 +44,7 @@ interface JobCardItemProps {
 function JobCardItem({ job }: JobCardItemProps) {
   const daysSinceCreated = Math.floor(
     (new Date().getTime() - new Date(job.created_at).getTime()) /
-      (1000 * 60 * 60 * 24)
+      (1000 * 60 * 60 * 24),
   );
 
   return (
@@ -57,6 +57,11 @@ function JobCardItem({ job }: JobCardItemProps) {
               <span className="font-mono text-sm font-semibold text-neutral-900">
                 {job.job_number}
               </span>
+              {!job.branch_name && (
+                <span className="px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-700 rounded-full flex items-center gap-1">
+                  🌍 Universal
+                </span>
+              )}
               <JobStatusBadge status={job.status} />
               {job.is_urgent && (
                 <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 rounded-full flex items-center gap-1">

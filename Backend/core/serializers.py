@@ -5,7 +5,7 @@ Core serializers for Organization, Branch, and User management.
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
-from core.models import Organization, Branch, User, Role, UserSession
+from core.models import Organization, Branch, User, Role, UserSession, RolePermission
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -151,6 +151,7 @@ class UserSerializer(serializers.ModelSerializer):
         required=False
     )
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    permissions = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -158,7 +159,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'phone', 'organization', 'organization_name', 'role',
             'branches', 'branch_ids', 'is_active', 'last_login',
-            'date_joined', 'created_at', 'updated_at'
+            'date_joined', 'created_at', 'updated_at', 'permissions'
         ]
         read_only_fields = [
             'id', 'organization', 'last_login', 'date_joined',
@@ -176,6 +177,10 @@ class UserSerializer(serializers.ModelSerializer):
                         f"Branch {branch.name} does not belong to your organization."
                     )
         return branches
+
+    def get_permissions(self, obj):
+        """Get DB-driven permissions for the user's role."""
+        return RolePermission.get_permissions_for_role(obj.role)
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

@@ -12,12 +12,13 @@ import {
   Card,
   Button,
   Input,
+  Select,
   Modal,
   LoadingState,
   EmptyState,
   Badge,
 } from "@/components/ui";
-import { customersApi } from "@/lib/api";
+import { customersApi, branchesApi } from "@/lib/api";
 import {
   Plus,
   Search,
@@ -52,8 +53,13 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
           {customer.last_name?.[0]}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-neutral-900 truncate">
+          <h3 className="font-medium text-neutral-900 truncate flex items-center gap-2">
             {customer.first_name} {customer.last_name}
+            {!customer.branch_name && (
+              <span className="px-2 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 rounded-full">
+                🌍 Universal
+              </span>
+            )}
           </h3>
           <div className="mt-1 space-y-1">
             <p className="text-sm text-neutral-500 flex items-center gap-2">
@@ -109,6 +115,7 @@ const customerSchema = z.object({
     .optional()
     .or(z.literal("")),
   notes: z.string().optional(),
+  branch: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -133,11 +140,27 @@ function AddCustomerModal({
     reset,
   } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
+    defaultValues: {
+      branch: branchId,
+    },
+  });
+
+  const { hasPermission } = useAuth();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(branchId);
+
+  // Fetch Branches
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => branchesApi.list(),
+    enabled: hasPermission("canManageBranches"),
   });
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: CustomerFormData) =>
-      customersApi.create({ ...data, branch: branchId }),
+      customersApi.create({
+        ...data,
+        branch: selectedBranchId === "universal" ? null : selectedBranchId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       reset();
@@ -166,6 +189,24 @@ function AddCustomerModal({
       }
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {hasPermission("canManageBranches") && (
+          <div className="md:col-span-2">
+            <Select
+              label="Assign to Branch"
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              options={[
+                { value: "universal", label: "🌍 Universal / All Branches" },
+                ...(Array.isArray(branches)
+                  ? branches
+                  : Object.hasOwn(branches, "results")
+                    ? (branches as any).results
+                    : []
+                ).map((b: any) => ({ value: b.id, label: b.name })),
+              ]}
+            />
+          </div>
+        )}
         <Input
           label="First Name"
           {...register("first_name")}
@@ -305,8 +346,8 @@ function CustomerDetailsModal({
                         job.status === "DELIVERED"
                           ? "success"
                           : job.status === "CANCELLED"
-                          ? "danger"
-                          : "default"
+                            ? "danger"
+                            : "default"
                       }
                       size="sm"
                     >
@@ -339,7 +380,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
+    null,
   );
 
   const { data, isLoading } = useQuery({
