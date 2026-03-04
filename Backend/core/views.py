@@ -36,8 +36,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        """Users can only see their own organization."""
-        if self.request.user.is_superuser:
+        """Users can only see their own organization. Super Admins see all."""
+        if self.request.user.is_superuser or self.request.user.role == Role.SUPER_ADMIN:
             return Organization.objects.all()
         return Organization.objects.filter(pk=self.request.user.organization_id)
 
@@ -201,18 +201,22 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['first_name', 'last_name']
 
     def get_queryset(self):
-        """Users can only see users in their organization. Can filter by branch."""
-        queryset = User.objects.filter(
-            organization=self.request.user.organization
-        ).prefetch_related('branches')
+        """Users can only see users in their organization. Super Admins see all. Can filter by branch."""
+        if self.request.user.role == Role.SUPER_ADMIN:
+            queryset = User.objects.all().prefetch_related('branches')
+        else:
+            queryset = User.objects.filter(
+                organization=self.request.user.organization
+            ).prefetch_related('branches')
         
         branch_id = self.request.query_params.get('branch')
         if branch_id:
             from core.models import Branch
             try:
-                # Find users who have this branch in their many-to-many list
-                # OR users who are owners (they have access to all branches implicitly)
-                branch = Branch.objects.get(pk=branch_id, organization=self.request.user.organization)
+                if self.request.user.role == Role.SUPER_ADMIN:
+                    branch = Branch.objects.get(pk=branch_id)
+                else:
+                    branch = Branch.objects.get(pk=branch_id, organization=self.request.user.organization)
                 queryset = queryset.filter(
                     models.Q(branches=branch) | models.Q(role=Role.OWNER)
                 ).distinct()
@@ -330,6 +334,8 @@ class RoleListView(generics.ListAPIView):
         roles = [
             {'value': role.value, 'label': role.label}
             for role in Role
+            # Only show SUPER_ADMIN option to existing super admins
+            if role != Role.SUPER_ADMIN or request.user.role == Role.SUPER_ADMIN
         ]
         return Response(roles)
 

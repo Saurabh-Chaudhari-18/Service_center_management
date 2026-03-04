@@ -252,7 +252,7 @@ export default function EditJobPage() {
   }
 
   // Permission check - strict Owner only per request
-  if (!isRole("OWNER")) {
+  if (!isRole("OWNER", "SUPER_ADMIN")) {
     return (
       <AppLayout>
         <Alert variant="error">

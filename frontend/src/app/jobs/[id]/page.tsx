@@ -628,7 +628,7 @@ export default function JobDetailPage() {
   // Allow Owner/Manager to edit even if terminal
   const canEdit =
     (hasPermission("canEditJobCards") && !isTerminalStatus) ||
-    isRole("OWNER", "MANAGER");
+    isRole("OWNER", "SUPER_ADMIN", "MANAGER");
 
   return (
     <ProtectedRoute requiredPermission="canViewJobCards">
@@ -638,7 +638,7 @@ export default function JobDetailPage() {
           subtitle={`${job.brand} ${job.model}`}
           actions={
             <div className="flex items-center gap-3">
-              {isRole("OWNER") && (
+              {isRole("OWNER", "SUPER_ADMIN") && (
                 <Link href={`/jobs/${jobId}/edit`}>
                   <Button
                     variant="secondary"
@@ -692,8 +692,8 @@ export default function JobDetailPage() {
                   </Link>
                 )}
                 {(job.status === "RECEIVED" ||
-                  (isTerminalStatus && isRole("OWNER"))) &&
-                  isRole("OWNER", "MANAGER") && (
+                  (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
+                  isRole("OWNER", "SUPER_ADMIN", "MANAGER") && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -705,10 +705,10 @@ export default function JobDetailPage() {
                   )}
 
                 {(job.status === "DIAGNOSIS" ||
-                  (isTerminalStatus && isRole("OWNER"))) &&
+                  (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
                   (isRole("TECHNICIAN") ||
                     hasPermission("canEditJobCards") ||
-                    isRole("OWNER")) && (
+                    isRole("OWNER", "SUPER_ADMIN")) && (
                     <Button
                       size="sm"
                       variant="secondary"

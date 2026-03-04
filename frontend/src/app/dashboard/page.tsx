@@ -567,7 +567,7 @@ function QuickActions() {
       icon: <Users className="w-5 h-5" />,
       href: "/customers/new",
       color: "bg-blue-500",
-      visible: isRole("OWNER", "MANAGER", "RECEPTIONIST"),
+      visible: isRole("SUPER_ADMIN", "OWNER", "MANAGER", "RECEPTIONIST"),
     },
     {
       label: "Create Invoice",

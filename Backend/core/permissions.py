@@ -58,35 +58,35 @@ class IsBranchMember(permissions.BasePermission):
 
 
 class IsOwner(permissions.BasePermission):
-    """Only allow owners to access."""
+    """Only allow owners and super admins to access."""
     message = "Only owners can perform this action."
 
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated and
-            request.user.role == Role.OWNER
+            request.user.role in [Role.SUPER_ADMIN, Role.OWNER]
         )
 
 
 class IsOwnerOrManager(permissions.BasePermission):
-    """Allow owners and managers to access."""
+    """Allow super admins, owners, and managers to access."""
     message = "Only owners and managers can perform this action."
 
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated and
-            request.user.role in [Role.OWNER, Role.MANAGER]
+            request.user.role in [Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER]
         )
 
 
 class IsOwnerManagerOrAccountant(permissions.BasePermission):
-    """Allow owners, managers, and accountants to access."""
+    """Allow super admins, owners, managers, and accountants to access."""
     message = "Only owners, managers, and accountants can perform this action."
 
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated and
-            request.user.role in [Role.OWNER, Role.MANAGER, Role.ACCOUNTANT]
+            request.user.role in [Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.ACCOUNTANT]
         )
 
 
@@ -126,8 +126,8 @@ class CanManageJobs(permissions.BasePermission):
         if request.method in ['PUT', 'PATCH']:
             return _has_perm(request.user, 'canEditJobCards')
         
-        # Delete: Only Owner and Manager
-        return request.user.role in [Role.OWNER, Role.MANAGER]
+        # Delete: Only Super Admin, Owner and Manager
+        return request.user.role in [Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER]
 
 
 class CanManageBilling(permissions.BasePermission):
@@ -166,7 +166,7 @@ class CanAccessDevicePasswords(permissions.BasePermission):
             return False
         
         return request.user.role in [
-            Role.OWNER, Role.MANAGER, Role.TECHNICIAN
+            Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.TECHNICIAN
         ]
 
 
@@ -179,7 +179,7 @@ class IsTechnicianOrAbove(permissions.BasePermission):
             return False
         
         return request.user.role in [
-            Role.OWNER, Role.MANAGER, Role.TECHNICIAN
+            Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.TECHNICIAN
         ]
 
 
@@ -195,7 +195,7 @@ class CanManageCustomers(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Write access
+        # Write access (Super Admin excluded — no customer management)
         return request.user.role in [
             Role.OWNER, Role.MANAGER, Role.RECEPTIONIST
         ]
@@ -225,7 +225,7 @@ class CanOverrideStatus(permissions.BasePermission):
         if not request.user.is_authenticated:
             return False
         
-        return request.user.role in [Role.OWNER, Role.MANAGER]
+        return request.user.role in [Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER]
 
 
 class ReadOnly(permissions.BasePermission):

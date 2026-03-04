@@ -217,12 +217,16 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return data
 
     def validate_role(self, value):
-        """Only owners can create other owners."""
+        """Only owners and super admins can create owner accounts."""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            if value == Role.OWNER and request.user.role != Role.OWNER:
+            if value == Role.OWNER and request.user.role not in [Role.SUPER_ADMIN, Role.OWNER]:
                 raise serializers.ValidationError(
                     "Only owners can create owner accounts."
+                )
+            if value == Role.SUPER_ADMIN and request.user.role != Role.SUPER_ADMIN:
+                raise serializers.ValidationError(
+                    "Only super admins can create super admin accounts."
                 )
         return value
 
@@ -244,10 +248,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
         branch_ids = validated_data.pop('branch_ids', [])
         password = validated_data.pop('password')
         
-        # Set organization from current user
+        # Set organization from current user (or from request data for Super Admins)
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            validated_data['organization'] = request.user.organization
+            if request.user.role == Role.SUPER_ADMIN:
+                # Super Admin can specify organization in request data
+                org_id = request.data.get('organization')
+                if org_id:
+                    validated_data['organization'] = Organization.objects.get(pk=org_id)
+                # If no org specified and creating a SUPER_ADMIN, org stays None
+            else:
+                validated_data['organization'] = request.user.organization
         
         user = User.objects.create_user(
             password=password,

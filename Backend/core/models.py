@@ -229,6 +229,7 @@ class Role(models.TextChoices):
     System roles with predefined permissions.
     Role-based access control (RBAC) is enforced at API level.
     """
+    SUPER_ADMIN = 'SUPER_ADMIN', _('Super Admin')  # Platform-wide access, manages all orgs/owners
     OWNER = 'OWNER', _('Owner')  # Full access to all branches in organization
     MANAGER = 'MANAGER', _('Manager')  # Full access to assigned branches
     RECEPTIONIST = 'RECEPTIONIST', _('Receptionist')  # Create jobs, manage customers
@@ -354,7 +355,7 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('role', Role.OWNER)
+        extra_fields.setdefault('role', Role.SUPER_ADMIN)
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
@@ -384,7 +385,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     organization = models.ForeignKey(
         Organization,
         on_delete=models.PROTECT,
-        related_name='users'
+        related_name='users',
+        null=True,
+        blank=True,
+        help_text="Organization this user belongs to (null for Super Admins)"
     )
     role = models.CharField(
         max_length=20,
@@ -433,9 +437,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     def get_accessible_branches(self):
         """
         Get all branches this user can access.
+        Super Admins can access all branches across all organizations.
         Owners can access all branches in their organization.
         Others can only access assigned branches.
         """
+        if self.role == Role.SUPER_ADMIN:
+            return Branch.objects.filter(is_active=True)
         if self.role == Role.OWNER:
             return Branch.objects.filter(organization=self.organization, is_active=True)
         return self.branches.filter(is_active=True)
@@ -444,11 +451,16 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         """Check if user has access to a specific branch."""
         if not branch:
             return False
+        if self.role == Role.SUPER_ADMIN:
+            return True
         if branch.organization != self.organization:
             return False
         if self.role == Role.OWNER:
             return True
         return self.branches.filter(pk=branch.pk, is_active=True).exists()
+
+    def is_super_admin(self):
+        return self.role == Role.SUPER_ADMIN
 
     def is_owner(self):
         return self.role == Role.OWNER

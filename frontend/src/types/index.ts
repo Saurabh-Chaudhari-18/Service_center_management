@@ -4,6 +4,7 @@
 
 // User Roles (from backend Role model)
 export type UserRole =
+  | "SUPER_ADMIN"
   | "OWNER"
   | "MANAGER"
   | "RECEPTIONIST"
@@ -571,6 +572,20 @@ export interface APIError {
 // =====================================================
 
 export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
+  SUPER_ADMIN: {
+    canViewDashboard: true,
+    canViewJobCards: true,
+    canCreateJobCards: true,
+    canEditJobCards: true,
+    canViewInventory: true,
+    canManageInventory: true,
+    canViewBilling: false,
+    canCreateInvoices: false,
+    canViewReports: true,
+    canManageBranches: true,
+    canManageUsers: true,
+    canViewPickups: true,
+  },
   OWNER: {
     canViewDashboard: true,
     canViewJobCards: true,

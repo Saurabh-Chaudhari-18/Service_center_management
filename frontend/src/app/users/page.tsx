@@ -39,6 +39,11 @@ import type { User, UserRole } from "@/types";
 
 const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> =
   {
+    SUPER_ADMIN: {
+      bg: "bg-red-100",
+      text: "text-red-700",
+      label: "Super Admin",
+    },
     OWNER: { bg: "bg-purple-100", text: "text-purple-700", label: "Owner" },
     MANAGER: { bg: "bg-blue-100", text: "text-blue-700", label: "Manager" },
     TECHNICIAN: {
@@ -383,6 +388,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               { value: "RECEPTIONIST", label: "Receptionist" },
               { value: "ACCOUNTANT", label: "Accountant" },
               { value: "MANAGER", label: "Manager" },
+              { value: "SUPER_ADMIN", label: "Super Admin" },
               { value: "OWNER", label: "Owner" },
             ]}
           />

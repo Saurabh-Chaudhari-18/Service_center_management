@@ -44,6 +44,12 @@ const navigationItems: NavItem[] = [
     permission: "canViewDashboard",
   },
   {
+    name: "Organizations",
+    href: "/organizations",
+    icon: Building2,
+    roles: ["SUPER_ADMIN"],
+  },
+  {
     name: "Job Cards",
     href: "/jobs",
     icon: FileText,
@@ -101,7 +107,7 @@ const navigationItems: NavItem[] = [
     name: "Settings",
     href: "/settings",
     icon: Settings,
-    roles: ["OWNER", "MANAGER"],
+    roles: ["SUPER_ADMIN", "OWNER", "MANAGER"],
   },
 ];
 
