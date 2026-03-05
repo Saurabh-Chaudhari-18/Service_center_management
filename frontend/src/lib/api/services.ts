@@ -70,8 +70,9 @@ export const authApi = {
     newPassword: string,
   ): Promise<void> => {
     return apiPost("/core/users/change_password/", {
-      old_password: oldPassword,
+      current_password: oldPassword,
       new_password: newPassword,
+      new_password_confirm: newPassword,
     });
   },
 };
