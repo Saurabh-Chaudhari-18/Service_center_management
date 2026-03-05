@@ -12,6 +12,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from core.models import Organization, Branch, User, Role
 from core.serializers import (
     OrganizationSerializer, OrganizationCreateSerializer,
+    OrganizationBrandingSerializer,
     BranchSerializer, BranchMinimalSerializer,
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
     ChangePasswordSerializer, SetCurrentBranchSerializer
@@ -56,6 +57,23 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         """Soft delete - deactivate instead of deleting."""
         instance.is_active = False
         instance.save()
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def branding(self, request):
+        """Get branding info for current user's organization.
+        Returns org name, logo, tagline, colors for UI branding.
+        Super Admins without an org get a default 'ServiceHub' response."""
+        org = request.user.organization
+        if not org:
+            return Response({
+                'name': 'ServiceHub',
+                'tagline': 'Management System',
+                'logo': None,
+                'primary_color': '#6366f1',
+                'favicon': None,
+            })
+        serializer = OrganizationBrandingSerializer(org)
+        return Response(serializer.data)
 
 
 class BranchViewSet(viewsets.ModelViewSet):

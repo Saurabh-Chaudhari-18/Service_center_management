@@ -839,13 +839,19 @@ function TechnicianJobs() {
 // =====================================================
 
 export default function DashboardPage() {
-  const { user, currentBranch, hasPermission, isRole } = useAuth();
+  const { user, currentBranch, hasPermission, isRole, organizationBranding } =
+    useAuth();
 
   return (
     <ProtectedRoute requiredPermission="canViewDashboard">
       <AppLayout>
         <Header
-          title={`Welcome back, ${user?.first_name}!`}
+          title={
+            organizationBranding?.name &&
+            organizationBranding.name !== "ServiceHub"
+              ? organizationBranding.name
+              : `Welcome, ${user?.first_name}!`
+          }
           subtitle={
             currentBranch
               ? `${currentBranch.name} Branch`

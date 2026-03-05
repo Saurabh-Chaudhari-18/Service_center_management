@@ -17,6 +17,7 @@ import type {
   User,
   Branch,
   Organization,
+  OrganizationBranding,
   Customer,
   JobCard,
   CreateJobCardData,
@@ -97,6 +98,10 @@ export const organizationsApi = {
     data: Partial<Organization>,
   ): Promise<Organization> => {
     return apiPatch<Organization>(`/core/organizations/${id}/`, data);
+  },
+
+  getBranding: async (): Promise<OrganizationBranding> => {
+    return apiGet<OrganizationBranding>("/core/organizations/branding/");
   },
 };
 

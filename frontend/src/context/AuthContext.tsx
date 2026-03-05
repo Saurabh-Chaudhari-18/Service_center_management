@@ -9,8 +9,15 @@ import React, {
 } from "react";
 import { tokenManager } from "@/lib/api/client";
 import { authApi } from "@/lib/api/services";
-import type { AuthUser, Branch, UserRole, UserPermissions } from "@/types";
+import type {
+  AuthUser,
+  Branch,
+  UserRole,
+  UserPermissions,
+  OrganizationBranding,
+} from "@/types";
 import { ROLE_PERMISSIONS as fallbackPermissions } from "@/types";
+import { organizationsApi } from "@/lib/api/services";
 
 // =====================================================
 // Auth Context Types
@@ -22,6 +29,7 @@ interface AuthState {
   isAuthenticated: boolean;
   currentBranch: Branch | null;
   accessibleBranches: Branch[];
+  organizationBranding: OrganizationBranding | null;
 }
 
 interface AuthContextValue extends AuthState {
@@ -46,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
     currentBranch: null,
     accessibleBranches: [],
+    organizationBranding: null,
   });
 
   // Initialize auth state from stored tokens
@@ -78,6 +87,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           tokenManager.setCurrentBranchId(branches[0].id);
         }
 
+        // Fetch branding data for current user's organization
+        let branding: OrganizationBranding | null = null;
+        try {
+          branding = await organizationsApi.getBranding();
+        } catch {
+          // Fallback branding if endpoint fails
+          branding = {
+            name: "ServiceHub",
+            tagline: "Management System",
+            logo: null,
+            primary_color: "#6366f1",
+            favicon: null,
+          };
+        }
+
         if (isMounted) {
           setState({
             user,
@@ -85,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthenticated: true,
             currentBranch,
             accessibleBranches: branches,
+            organizationBranding: branding,
           });
         }
       } catch (error) {
@@ -127,12 +152,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tokenManager.setCurrentBranchId(branches[0].id);
       }
 
+      // Fetch branding data
+      let branding: OrganizationBranding | null = null;
+      try {
+        branding = await organizationsApi.getBranding();
+      } catch {
+        branding = {
+          name: "ServiceHub",
+          tagline: "Management System",
+          logo: null,
+          primary_color: "#6366f1",
+          favicon: null,
+        };
+      }
+
       setState({
         user,
         isLoading: false,
         isAuthenticated: true,
         currentBranch,
         accessibleBranches: branches,
+        organizationBranding: branding,
       });
     } catch (error) {
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -149,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: false,
       currentBranch: null,
       accessibleBranches: [],
+      organizationBranding: null,
     });
   }, []);
 
@@ -181,15 +222,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = await authApi.getMe();
       const branches = await authApi.getMyBranches();
 
+      let branding: OrganizationBranding | null = null;
+      try {
+        branding = await organizationsApi.getBranding();
+      } catch {
+        branding = state.organizationBranding;
+      }
+
       setState((prev) => ({
         ...prev,
         user,
         accessibleBranches: branches,
+        organizationBranding: branding,
       }));
     } catch (error) {
       console.error("Failed to refresh user:", error);
     }
-  }, [state.isAuthenticated]);
+  }, [state.isAuthenticated, state.organizationBranding]);
 
   // Check if user has a specific permission
   const hasPermission = useCallback(

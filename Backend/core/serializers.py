@@ -18,8 +18,11 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'legal_name', 'email', 'phone', 'website',
             'address_line1', 'address_line2', 'city', 'state', 'pincode',
-            'country', 'pan_number', 'logo', 'is_active',
-            'branches_count', 'users_count', 'created_at', 'updated_at'
+            'country', 'pan_number', 'logo', 'tagline', 'primary_color', 'favicon',
+            'invoice_terms', 'invoice_notes', 'bank_name', 'bank_account_number',
+            'bank_ifsc', 'bank_branch', 'upi_id', 'authorized_signatory',
+            'jobcard_terms', 'jobcard_warranty_text',
+            'is_active', 'branches_count', 'users_count', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -43,8 +46,11 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'legal_name', 'email', 'phone', 'website',
             'address_line1', 'address_line2', 'city', 'state', 'pincode',
-            'country', 'pan_number', 'logo', 'is_active',
-            'owner_email', 'owner_password', 'owner_first_name',
+            'country', 'pan_number', 'logo', 'tagline', 'primary_color', 'favicon',
+            'invoice_terms', 'invoice_notes', 'bank_name', 'bank_account_number',
+            'bank_ifsc', 'bank_branch', 'upi_id', 'authorized_signatory',
+            'jobcard_terms', 'jobcard_warranty_text',
+            'is_active', 'owner_email', 'owner_password', 'owner_first_name',
             'owner_last_name', 'owner_phone',
             'created_at', 'updated_at'
         ]
@@ -76,6 +82,19 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         )
         
         return organization
+
+
+class OrganizationBrandingSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for organization branding data.
+    Used by the frontend sidebar, header, and other UI elements."""
+    
+    class Meta:
+        model = Organization
+        fields = [
+            'id', 'name', 'legal_name', 'tagline', 'logo',
+            'primary_color', 'favicon', 'email', 'phone', 'website'
+        ]
+        read_only_fields = fields
 
 
 class BranchSerializer(serializers.ModelSerializer):

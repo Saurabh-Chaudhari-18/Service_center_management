@@ -56,6 +56,31 @@ class Organization(TimeStampedModel):
     
     # Branding
     logo = models.ImageField(upload_to='organization_logos/', blank=True, null=True)
+    tagline = models.CharField(max_length=255, blank=True, default='Management System',
+                               help_text="Shown below org name in sidebar")
+    primary_color = models.CharField(max_length=7, default='#6366f1',
+                                     help_text="Hex color for UI branding (e.g., #6366f1)")
+    favicon = models.ImageField(upload_to='organization_favicons/', blank=True, null=True)
+    
+    # Invoice Configuration (org-level defaults shown on invoices)
+    invoice_terms = models.TextField(blank=True, default='',
+                                     help_text="Default terms & conditions for invoices")
+    invoice_notes = models.TextField(blank=True, default='',
+                                     help_text="Default footer notes for invoices")
+    bank_name = models.CharField(max_length=255, blank=True, default='')
+    bank_account_number = models.CharField(max_length=50, blank=True, default='')
+    bank_ifsc = models.CharField(max_length=20, blank=True, default='')
+    bank_branch = models.CharField(max_length=255, blank=True, default='')
+    upi_id = models.CharField(max_length=100, blank=True, default='',
+                              help_text="UPI ID for payment QR code on invoices")
+    authorized_signatory = models.CharField(max_length=255, blank=True, default='',
+                                            help_text="Name shown as authorized signatory on invoices")
+    
+    # Job Card Configuration (org-level defaults shown on job card printouts)
+    jobcard_terms = models.TextField(blank=True, default='',
+                                     help_text="Default terms for job card printouts")
+    jobcard_warranty_text = models.TextField(blank=True, default='',
+                                            help_text="Default warranty text for job cards")
     
     # Status
     is_active = models.BooleanField(default=True)

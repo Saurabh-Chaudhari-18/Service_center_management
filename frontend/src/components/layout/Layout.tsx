@@ -154,7 +154,7 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar gradient-sidebar flex flex-col">
-      {/* Logo/Brand */}
+      {/* Logo/Brand — ServiceHub platform branding (always shown) */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl gradient-accent flex items-center justify-center">
@@ -268,13 +268,20 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, actions }: HeaderProps) {
-  const { user, currentBranch } = useAuth();
+  const { user, currentBranch, organizationBranding } = useAuth();
   const [notificationCount, setNotificationCount] = React.useState(0);
 
   return (
     <header className="h-16 bg-white border-b border-neutral-100 px-6 flex items-center justify-between">
       <div>
-        <h1 className="text-xl font-semibold text-neutral-900">{title}</h1>
+        {organizationBranding?.name &&
+        organizationBranding.name !== "ServiceHub" ? (
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+            {title}
+          </h1>
+        ) : (
+          <h1 className="text-xl font-semibold text-neutral-900">{title}</h1>
+        )}
         {subtitle && <p className="text-sm text-neutral-500">{subtitle}</p>}
       </div>
 

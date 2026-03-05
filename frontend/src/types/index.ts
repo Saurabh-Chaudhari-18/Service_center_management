@@ -95,7 +95,35 @@ export interface Organization extends BaseEntity {
   country: string;
   pan_number: string;
   logo: string | null;
+  tagline: string;
+  primary_color: string;
+  favicon: string | null;
+  // Invoice configuration
+  invoice_terms: string;
+  invoice_notes: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_ifsc: string;
+  bank_branch: string;
+  upi_id: string;
+  authorized_signatory: string;
+  // Job card configuration
+  jobcard_terms: string;
+  jobcard_warranty_text: string;
   is_active: boolean;
+}
+
+export interface OrganizationBranding {
+  id?: string;
+  name: string;
+  legal_name?: string;
+  tagline: string;
+  logo: string | null;
+  primary_color: string;
+  favicon: string | null;
+  email?: string;
+  phone?: string;
+  website?: string;
 }
 
 export interface Branch extends BaseEntity {
