@@ -294,7 +294,7 @@ function InvoiceRow({
               <Eye className="w-4 h-4" />
             </Button>
           </Link>
-          {invoice.is_finalized && (
+          {invoice.status !== "CANCELLED" && (
             <Button
               variant="ghost"
               size="sm"
@@ -587,12 +587,13 @@ function InvoiceDetailPanel({
             View Full Details
           </Button>
         </Link>
-        {inv.is_finalized && (
+        {inv.status !== "CANCELLED" && (
           <Button
             variant="secondary"
             leftIcon={<Download className="w-4 h-4" />}
             onClick={async () => {
               try {
+                await billingApi.logDownload(inv.id);
                 await billingApi.downloadPdf(inv.id, inv.invoice_number);
               } catch (e) {
                 console.error(e);

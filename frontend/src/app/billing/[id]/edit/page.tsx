@@ -10,8 +10,16 @@ import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { Card, Button, Input, LoadingState, Select } from "@/components/ui";
-import { billingApi, branchesApi } from "@/lib/api";
-import { ArrowLeft, Printer, Plus, Trash2, FileText, Save } from "lucide-react";
+import { billingApi, branchesApi, inventoryApi } from "@/lib/api";
+import {
+  ArrowLeft,
+  Printer,
+  Plus,
+  Trash2,
+  FileText,
+  Save,
+  Package,
+} from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import type { Invoice } from "@/types";
@@ -28,6 +36,7 @@ const invoiceLineItemSchema = z.object({
   quantity: z.number().min(1, "Minimum quantity is 1"),
   unit_price: z.number().min(0, "Price cannot be negative"),
   gst_rate: z.number().min(0, "GST rate cannot be negative"),
+  inventory_item: z.string().uuid().optional(),
 });
 
 const updateInvoiceSchema = z.object({
@@ -417,28 +426,26 @@ function EditInvoiceContent() {
   const params = useParams();
   const id = params?.id as string;
   const { currentBranch, hasPermission } = useAuth();
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
-  const [showPreview, setShowPreview] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch Branches
-  const { data: branches = [] } = useQuery({
-    queryKey: ["branches"],
-    queryFn: () => branchesApi.list(),
-    enabled: hasPermission("canManageBranches"),
-  });
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
 
-  // Fetch invoice details
-  const { data: invoice, isLoading } = useQuery({
-    queryKey: ["invoice", id],
-    queryFn: () => billingApi.getInvoice(id),
-    enabled: !!id,
-  });
+  // Inventory state
+  interface RowInventoryState {
+    categoryId: string;
+    itemId: string;
+  }
+
+  const [rowInventory, setRowInventory] = useState<
+    Record<number, RowInventoryState>
+  >({});
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
     reset,
@@ -454,21 +461,100 @@ function EditInvoiceContent() {
     name: "line_items",
   });
 
+  // Default the selector to current branch
+  useEffect(() => {
+    if (currentBranch && !selectedBranchId) {
+      setSelectedBranchId(currentBranch.id);
+    }
+  }, [currentBranch, selectedBranchId]);
+
+  // Fetch inventory data
+  const { data: categoriesData } = useQuery({
+    queryKey: ["inventory-categories", selectedBranchId || currentBranch?.id],
+    queryFn: () =>
+      inventoryApi.listCategories(selectedBranchId || currentBranch?.id || ""),
+    enabled: !!(selectedBranchId || currentBranch?.id),
+  });
+  const { data: itemsData } = useQuery({
+    queryKey: ["inventory-items", selectedBranchId || currentBranch?.id],
+    queryFn: () =>
+      inventoryApi.list({
+        branch: selectedBranchId || currentBranch?.id || "",
+      }),
+    enabled: !!(selectedBranchId || currentBranch?.id),
+  });
+
+  const categories = categoriesData || [];
+  const allItems = itemsData?.results || [];
+
+  const getItemsForCategory = (categoryId: string) => {
+    if (!categoryId) return allItems;
+    return allItems.filter((i) => i.category === categoryId);
+  };
+
+  // Handle category change for a row
+  const handleCategoryChange = (index: number, categoryId: string) => {
+    setRowInventory((prev) => ({
+      ...prev,
+      [index]: { categoryId, itemId: "" },
+    }));
+  };
+
+  // Handle item selection for a row
+  const handleItemSelect = (index: number, itemId: string) => {
+    const item = allItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    setRowInventory((prev) => ({
+      ...prev,
+      [index]: { ...prev[index], itemId },
+    }));
+
+    const categoryObj = categories.find((c: any) => c.id === item.category);
+    const categoryName = categoryObj?.name || "";
+    const richDescription = categoryName
+      ? `${categoryName} - ${item.name}`
+      : item.name;
+
+    setValue(`line_items.${index}.description`, richDescription, {
+      shouldValidate: true,
+    });
+    setValue(`line_items.${index}.unit_price`, Number(item.selling_price), {
+      shouldValidate: true,
+    });
+    setValue(`line_items.${index}.gst_rate`, Number(item.gst_rate) || 18, {
+      shouldValidate: true,
+    });
+    setValue(`line_items.${index}.inventory_item`, item.id, {
+      shouldValidate: true,
+    });
+    setValue(`line_items.${index}.item_type`, "PART", { shouldValidate: true });
+  };
+
+  // Fetch Branches
+  const { data: branchesData } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => branchesApi.list(),
+    enabled: hasPermission("canManageBranches"),
+  });
+  const branches = branchesData?.results || [];
+
+  // Fetch invoice details
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: () => billingApi.getInvoice(id),
+    enabled: !!id,
+  });
+
   // Pre-fill form when invoice loads
   useEffect(() => {
     if (invoice) {
-      if (invoice.is_finalized) {
-        alert("This invoice is already finalized and cannot be edited.");
-        router.push(`/billing/${id}`);
-        return;
-      }
-
       // Set initial branch
       if (invoice.branch) {
         setSelectedBranchId(
           typeof invoice.branch === "string"
             ? invoice.branch
-            : (invoice.branch as any).id || "",
+            : (invoice.branch as { id: string })?.id || "",
         );
       } else {
         setSelectedBranchId("universal");
@@ -479,15 +565,25 @@ function EditInvoiceContent() {
           ? new Date(invoice.due_date).toISOString().split("T")[0]
           : "",
         notes: invoice.notes,
-        line_items: (invoice.line_items || []).map((item) => ({
-          id: item.id,
-          item_type: item.item_type,
-          description: item.description,
-          hsn_sac_code: item.hsn_sac_code || "",
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          gst_rate: Number(item.gst_rate),
-        })),
+        line_items: (invoice.line_items || []).map((item, idx) => {
+          // Initialize row inventory state if it's an inventory item
+          if (item.inventory_item) {
+            setRowInventory((prev) => ({
+              ...prev,
+              [idx]: { categoryId: "", itemId: item.inventory_item },
+            }));
+          }
+          return {
+            id: item.id,
+            item_type: item.item_type,
+            description: item.description,
+            hsn_sac_code: item.hsn_sac_code || "",
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            gst_rate: Number(item.gst_rate),
+            inventory_item: item.inventory_item || undefined,
+          };
+        }),
       });
     }
   }, [invoice, reset, router, id]);
@@ -580,9 +676,13 @@ function EditInvoiceContent() {
                       ...(Array.isArray(branches)
                         ? branches
                         : Object.hasOwn(branches, "results")
-                          ? (branches as any).results
+                          ? (
+                              branches as {
+                                results: Array<{ id: string; name: string }>;
+                              }
+                            ).results
                           : []
-                      ).map((b: any) => ({ value: b.id, label: b.name })),
+                      ).map((b) => ({ value: b.id, label: b.name })),
                     ]}
                   />
                   <p className="text-sm text-neutral-500 mt-1 col-span-full">
@@ -619,7 +719,9 @@ function EditInvoiceContent() {
               </h3>
               <div className="space-y-4">
                 {/* Header Row */}
-                <div className="grid grid-cols-[1fr_5rem_7rem_5rem_2rem] gap-4 text-sm font-medium text-neutral-500 px-2">
+                <div className="grid grid-cols-[9rem_9rem_1fr_4.5rem_6rem_4.5rem_2rem] gap-3 text-xs font-semibold text-neutral-400 uppercase tracking-wider px-1">
+                  <div>Category</div>
+                  <div>Item</div>
                   <div>Description</div>
                   <div className="text-center">Qty</div>
                   <div className="text-right">Price</div>
@@ -627,71 +729,133 @@ function EditInvoiceContent() {
                   <div></div>
                 </div>
 
-                {fields.map((field, index) => (
-                  <div
-                    key={field.id}
-                    className="grid grid-cols-[1fr_5rem_7rem_5rem_2rem] gap-4 items-start"
-                  >
-                    <div className="space-y-1">
-                      <Input
-                        {...register(
-                          `line_items.${index}.description` as const,
-                        )}
-                        placeholder="Item description"
-                        error={errors.line_items?.[index]?.description?.message}
-                      />
-                      <div className="flex gap-2">
+                {fields.map((field, index) => {
+                  const rowState = rowInventory[index] || {
+                    categoryId: "",
+                    itemId: "",
+                  };
+                  const filteredItems = getItemsForCategory(
+                    rowState.categoryId,
+                  );
+
+                  return (
+                    <div
+                      key={field.id}
+                      className="grid grid-cols-[9rem_9rem_1fr_4.5rem_6rem_4.5rem_2rem] gap-3 items-start p-3 rounded-lg border border-neutral-100 bg-neutral-50/40 hover:border-neutral-200 transition-colors"
+                    >
+                      {/* Category Dropdown */}
+                      <div>
                         <select
-                          {...register(
-                            `line_items.${index}.item_type` as const,
-                          )}
-                          className="text-xs bg-neutral-50 border-none rounded py-1 px-2 text-neutral-600 focus:ring-1"
+                          value={rowState.categoryId}
+                          onChange={(e) =>
+                            handleCategoryChange(index, e.target.value)
+                          }
+                          className="w-full text-sm bg-white border border-neutral-200 rounded-lg py-2 px-2.5 text-neutral-700 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors appearance-none cursor-pointer"
                         >
-                          <option value="SERVICE">Service</option>
-                          <option value="PART">Part</option>
-                          <option value="LABOUR">Labour</option>
+                          <option value="">All Categories</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
+
+                      {/* Item Dropdown */}
+                      <div>
+                        <select
+                          value={rowState.itemId}
+                          onChange={(e) =>
+                            handleItemSelect(index, e.target.value)
+                          }
+                          className="w-full text-sm bg-white border border-neutral-200 rounded-lg py-2 px-2.5 text-neutral-700 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors appearance-none cursor-pointer"
+                        >
+                          <option value="">— Select Item —</option>
+                          {filteredItems.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}{" "}
+                              {item.quantity > 0
+                                ? `(${item.quantity})`
+                                : "(Out)"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Description + Type */}
+                      <div className="space-y-1">
+                        <Input
+                          {...register(
+                            `line_items.${index}.description` as const,
+                          )}
+                          placeholder="Item description"
+                          error={
+                            errors.line_items?.[index]?.description?.message
+                          }
+                        />
+                        <div className="flex gap-2 items-center">
+                          <select
+                            {...register(
+                              `line_items.${index}.item_type` as const,
+                            )}
+                            className="text-xs bg-white border border-neutral-150 rounded py-1 px-2 text-neutral-600 focus:ring-1"
+                          >
+                            <option value="SERVICE">Service</option>
+                            <option value="PART">Part</option>
+                            <option value="LABOUR">Labour</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                          {rowState.itemId && (
+                            <span className="text-xs text-green-600 flex items-center gap-1">
+                              <Package className="w-3 h-3" />
+                              Linked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <Input
+                        type="number"
+                        {...register(`line_items.${index}.quantity` as const, {
+                          valueAsNumber: true,
+                        })}
+                        className="text-center"
+                        min={1}
+                      />
+
+                      <Input
+                        type="number"
+                        {...register(
+                          `line_items.${index}.unit_price` as const,
+                          {
+                            valueAsNumber: true,
+                          },
+                        )}
+                        className="text-right"
+                        min={0}
+                        step="0.01"
+                      />
+
+                      <Input
+                        type="number"
+                        {...register(`line_items.${index}.gst_rate` as const, {
+                          valueAsNumber: true,
+                        })}
+                        className="text-right"
+                        min={0}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="mt-2 text-red-500 hover:text-red-700 disabled:opacity-50"
+                        disabled={fields.length === 1}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-
-                    <Input
-                      type="number"
-                      {...register(`line_items.${index}.quantity` as const, {
-                        valueAsNumber: true,
-                      })}
-                      className="text-center"
-                      min={1}
-                    />
-
-                    <Input
-                      type="number"
-                      {...register(`line_items.${index}.unit_price` as const, {
-                        valueAsNumber: true,
-                      })}
-                      className="text-right"
-                      min={0}
-                      step="0.01"
-                    />
-
-                    <Input
-                      type="number"
-                      {...register(`line_items.${index}.gst_rate` as const, {
-                        valueAsNumber: true,
-                      })}
-                      className="text-right"
-                      min={0}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      className="mt-2 text-red-500 hover:text-red-700 disabled:opacity-50"
-                      disabled={fields.length === 1}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <Button
                   type="button"
@@ -705,6 +869,7 @@ function EditInvoiceContent() {
                       quantity: 1,
                       unit_price: 0,
                       gst_rate: 18,
+                      inventory_item: undefined,
                     })
                   }
                 >

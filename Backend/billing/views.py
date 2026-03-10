@@ -14,14 +14,14 @@ from decimal import Decimal
 
 from billing.models import (
     Invoice, InvoiceLineItem, Payment, CreditNote,
-    InvoiceStatus, PaymentMethod
+    InvoiceStatus, PaymentMethod, InvoiceEditHistory, InvoiceEditType
 )
 from billing.serializers import (
     InvoiceSerializer, InvoiceListSerializer, InvoiceCreateSerializer,
     InvoiceLineItemSerializer, AddLineItemSerializer,
     PaymentSerializer, RecordPaymentSerializer,
     CreditNoteSerializer, InvoiceStatsSerializer,
-    InvoiceUpdateSerializer
+    InvoiceUpdateSerializer, InvoiceEditHistorySerializer
 )
 from core.permissions import (
     IsBranchMember, CanManageBilling, BranchScopedMixin,
@@ -108,14 +108,8 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def add_line_item(self, request, pk=None):
-        """Add a line item to a draft invoice."""
+        """Add a line item to an invoice."""
         invoice = self.get_object()
-        
-        if invoice.is_finalized:
-            return Response(
-                {'error': 'Cannot modify a finalized invoice.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         
         serializer = AddLineItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -125,6 +119,19 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             **serializer.validated_data
         )
         
+        # Log edit history
+        InvoiceEditHistory.objects.create(
+            invoice=invoice,
+            edited_by=request.user,
+            edit_type=InvoiceEditType.LINE_ITEM_ADDED,
+            summary=f'Added: {line_item.description} (\u20b9{line_item.amount})',
+            new_values={
+                'description': line_item.description,
+                'amount': str(line_item.amount),
+                'quantity': line_item.quantity,
+            }
+        )
+        
         return Response(
             InvoiceLineItemSerializer(line_item).data,
             status=status.HTTP_201_CREATED
@@ -132,20 +139,34 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path='line-items/(?P<item_id>[^/.]+)')
     def remove_line_item(self, request, pk=None, item_id=None):
-        """Remove a line item from a draft invoice."""
+        """Remove a line item from an invoice."""
         invoice = self.get_object()
-        
-        if invoice.is_finalized:
-            return Response(
-                {'error': 'Cannot modify a finalized invoice.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         
         try:
             line_item = invoice.line_items.get(pk=item_id)
+            desc = line_item.description
+            amount = str(line_item.amount)
+            # Restore stock if direct sale
+            if line_item.inventory_item and not line_item.job_part_usage:
+                line_item.inventory_item.add_stock(
+                    quantity=line_item.quantity,
+                    reason=f"Line item removed from Invoice {invoice.invoice_number}",
+                    user=request.user
+                )
+
             line_item.delete()
             invoice.calculate_totals()
             invoice.save()
+            
+            # Log edit history
+            InvoiceEditHistory.objects.create(
+                invoice=invoice,
+                edited_by=request.user,
+                edit_type=InvoiceEditType.LINE_ITEM_REMOVED,
+                summary=f'Removed: {desc} (\u20b9{amount})',
+                old_values={'description': desc, 'amount': amount}
+            )
+            
             return Response({'message': 'Line item removed.'})
         except InvoiceLineItem.DoesNotExist:
             return Response(
@@ -157,12 +178,6 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def record_payment(self, request, pk=None):
         """Record a payment against this invoice."""
         invoice = self.get_object()
-        
-        if not invoice.is_finalized:
-            return Response(
-                {'error': 'Finalize invoice before recording payments.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         
         serializer = RecordPaymentSerializer(
             data=request.data,
@@ -197,6 +212,14 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
+    def edit_history(self, request, pk=None):
+        """Get the edit history for this invoice."""
+        invoice = self.get_object()
+        history = invoice.edit_history.select_related('edited_by').all()
+        serializer = InvoiceEditHistorySerializer(history, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
         """Generate and download invoice PDF."""
         invoice = self.get_object()
@@ -208,6 +231,20 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{invoice.invoice_number}.pdf"'
         return response
+
+    @action(detail=True, methods=['post'])
+    def log_download(self, request, pk=None):
+        """Log that the invoice was downloaded/printed."""
+        invoice = self.get_object()
+        InvoiceEditHistory.objects.create(
+            invoice=invoice,
+            edited_by=request.user,
+            edit_type=InvoiceEditType.DOWNLOADED,
+            summary='Invoice PDF downloaded/printed',
+            old_values=None,
+            new_values=None,
+        )
+        return Response({'message': 'Download logged successfully.'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsOwnerOrManager])
     def cancel(self, request, pk=None):
@@ -227,6 +264,15 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Restore stock for all direct sale line items
+        for item in invoice.line_items.all():
+            if item.inventory_item and not item.job_part_usage:
+                item.inventory_item.add_stock(
+                    quantity=item.quantity,
+                    reason=f"Invoice {invoice.invoice_number} cancelled",
+                    user=request.user
+                )
+
         invoice.status = InvoiceStatus.CANCELLED
         invoice.notes = f"{invoice.notes}\n\nCANCELLED: {reason}"
         invoice.save()
@@ -249,7 +295,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get invoice statistics for accessible branches."""
-        queryset = self.get_queryset().filter(is_finalized=True)
+        queryset = self.get_queryset().exclude(status=InvoiceStatus.CANCELLED)
         
         # Date range filter
         from_date = request.query_params.get('from_date')
@@ -279,7 +325,6 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def pending(self, request):
         """Get all pending invoices."""
         queryset = self.get_queryset().filter(
-            is_finalized=True,
             status__in=[InvoiceStatus.PENDING, InvoiceStatus.PARTIAL]
         )
         

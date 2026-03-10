@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
@@ -31,7 +31,6 @@ import {
   AlertCircle,
   Phone,
   Printer,
-  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer, DeviceType, AccessoryType } from "@/types";
@@ -157,7 +156,7 @@ function CustomerSearch({
                   onClick={() => {
                     onSelect(customer);
                     setShowResults(false);
-                  }}
+                  }}  
                 >
                   <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-sm font-medium">
                     {customer.first_name[0]}
@@ -509,9 +508,16 @@ function JobCardPreviewModal({
   predictedJobNumber,
   accessoryManualDetails,
 }: JobCardPreviewModalProps) {
-  const handlePrint = () => {
-    window.print();
-  };
+  // Auto-print when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to ensure the print portal content is rendered
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Helper to get accessory display list with details
   const getAccessoryDisplayList = () => {
@@ -775,12 +781,12 @@ function JobCardPreviewModal({
             <Button
               variant="secondary"
               leftIcon={<Printer className="w-4 h-4" />}
-              onClick={handlePrint}
+              onClick={() => window.print()}
             >
-              Print Form
+              Reprint
             </Button>
             <Button onClick={onConfirm} isLoading={isSubmitting}>
-              Confirm & Create Job Card
+              Create Job Card
             </Button>
           </div>
         </div>
@@ -1153,6 +1159,7 @@ export default function CreateJobCardPage() {
         ...data,
         branch: selectedBranchId === "universal" ? null : selectedBranchId,
         device_type: data.device_type as DeviceType,
+        estimated_cost: serviceCharge ? parseFloat(serviceCharge) : undefined,
         accessories: Object.entries(accessories)
           .filter(([_, v]) => v.present)
           .map(([type, v]) => {
@@ -1193,12 +1200,6 @@ export default function CreateJobCardPage() {
     onSuccess: (job) => {
       router.push(`/jobs/${job.id}`);
     },
-  });
-
-  // Handle preview - validate form first, then show preview
-  const handleShowPreview = handleSubmit((data) => {
-    setPreviewFormData(data);
-    setShowPreview(true);
   });
 
   // Handle confirm from preview - actually submit the job
@@ -1514,7 +1515,6 @@ export default function CreateJobCardPage() {
             </Card>
 
             {/* Submit */}
-            {/* Submit */}
             <div className="flex justify-end gap-3 mt-6">
               <Link href="/jobs">
                 <Button variant="secondary" type="button">
@@ -1523,7 +1523,6 @@ export default function CreateJobCardPage() {
               </Link>
               <Button
                 type="button"
-                variant="secondary"
                 leftIcon={<Printer className="w-4 h-4" />}
                 onClick={async () => {
                   const isValid = await trigger();
@@ -1533,14 +1532,9 @@ export default function CreateJobCardPage() {
                     setShowPreview(true);
                   }
                 }}
-              >
-                Preview & Print
-              </Button>
-              <Button
-                onClick={handleSubmit((data) => mutate(data))}
                 isLoading={isPending}
               >
-                Create Job Card
+                Print & Create
               </Button>
             </div>
           </form>

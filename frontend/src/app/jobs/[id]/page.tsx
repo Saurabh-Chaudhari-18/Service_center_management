@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, startTransition } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
@@ -40,6 +41,7 @@ import {
   Trash2,
   Settings,
   Receipt,
+  Printer,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -578,6 +580,98 @@ function DiagnosisModal({
 // Job Detail Page
 // =====================================================
 
+// =====================================================
+// Print Portal Component
+// =====================================================
+
+const PrintPortal = ({ children }: { children: React.ReactNode }) => {
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div id="print-portal-root">{children}</div>,
+    document.body,
+  );
+};
+
+// Simple Brand Logo Component
+function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
+  switch (brand) {
+    case "HP":
+      return (
+        <svg viewBox="0 0 100 100" className="w-8 h-8">
+          <circle cx="50" cy="50" r="45" fill="#0096D6" />
+          <text
+            x="50"
+            y="65"
+            fontSize="40"
+            fontWeight="bold"
+            fill="white"
+            textAnchor="middle"
+            style={{ fontStyle: "italic", fontFamily: "serif" }}
+          >
+            hp
+          </text>
+        </svg>
+      );
+    case "DELL":
+      return (
+        <svg viewBox="0 0 100 100" className="w-8 h-8">
+          <circle
+            cx="50"
+            cy="50"
+            r="48"
+            fill="none"
+            stroke="#007DB8"
+            strokeWidth="4"
+          />
+          <text
+            x="50"
+            y="60"
+            fontSize="24"
+            fontWeight="bold"
+            fill="#007DB8"
+            textAnchor="middle"
+            fontFamily="sans-serif"
+          >
+            DELL
+          </text>
+        </svg>
+      );
+    case "ASUS":
+      return (
+        <svg viewBox="0 0 100 30" className="w-12 h-6">
+          <text
+            x="50"
+            y="22"
+            fontSize="24"
+            fontWeight="bold"
+            fill="#00539B"
+            textAnchor="middle"
+            style={{ letterSpacing: "2px" }}
+          >
+            ASUS
+          </text>
+        </svg>
+      );
+    case "LENOVO":
+      return (
+        <svg viewBox="0 0 100 40" className="w-16 h-8">
+          <rect width="100" height="40" fill="#E2231A" />
+          <text
+            x="50"
+            y="28"
+            fontSize="20"
+            fontWeight="bold"
+            fill="white"
+            textAnchor="middle"
+            fontFamily="sans-serif"
+          >
+            Lenovo
+          </text>
+        </svg>
+      );
+  }
+}
+
 export default function JobDetailPage() {
   const params = useParams();
   const jobId = params.id as string;
@@ -587,6 +681,14 @@ export default function JobDetailPage() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [showPrintView, setShowPrintView] = useState(false);
+
+  // Hide print portal after printing is done
+  useEffect(() => {
+    const handleAfterPrint = () => setShowPrintView(false);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
 
   const {
     data: job,
@@ -638,6 +740,16 @@ export default function JobDetailPage() {
           subtitle={`${job.brand} ${job.model}`}
           actions={
             <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                leftIcon={<Printer className="w-4 h-4" />}
+                onClick={() => {
+                  setShowPrintView(true);
+                  setTimeout(() => window.print(), 500);
+                }}
+              >
+                Print Job Card
+              </Button>
               {isRole("OWNER", "SUPER_ADMIN") && (
                 <Link href={`/jobs/${jobId}/edit`}>
                   <Button
@@ -1091,6 +1203,260 @@ export default function JobDetailPage() {
           jobId={jobId}
           initialData={job}
         />
+
+        {/* PRINT-ONLY: Job Card Printable Template */}
+        {showPrintView && (
+          <PrintPortal>
+            <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
+              <div className="space-y-3">
+                {/* Shop Header */}
+                <div className="print-section border-2 border-black p-2 mb-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex gap-4 items-center">
+                      <BrandLogo brand="HP" />
+                      <BrandLogo brand="DELL" />
+                      <BrandLogo brand="ASUS" />
+                      <BrandLogo brand="LENOVO" />
+                    </div>
+                    <div className="text-right">
+                      <h1 className="text-2xl font-bold uppercase tracking-wider">
+                        SHIVANGI INFOTECH
+                      </h1>
+                      <p className="text-[10pt] font-semibold">
+                        HP | DELL | ASUS Authorised Partner
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-center mt-2 pt-2 border-t-2 border-black">
+                    <p className="text-[10pt] font-medium">
+                      Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa
+                      Showroom, Pune-411038
+                    </p>
+                    <p className="text-[10pt] font-bold mt-1">
+                      Mobile: 9890888295, 9850292673
+                    </p>
+                  </div>
+                  <div className="text-center mt-2 pt-2 border-t-2 border-black">
+                    <p className="font-bold text-lg uppercase tracking-wide">
+                      JOB CARD: {job.job_number}
+                    </p>
+                    <p className="text-[11pt] font-medium">
+                      Date: {format(new Date(job.created_at), "dd MMM yyyy")}
+                    </p>
+                    <p className="text-[10pt] font-medium text-neutral-600">
+                      Status: {job.status?.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Customer & Device */}
+                <div className="print-grid print-section grid grid-cols-2 gap-4 mb-2">
+                  <div className="border border-black p-2">
+                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                      CUSTOMER DETAILS
+                    </p>
+                    <div className="space-y-1">
+                      <p>
+                        <b>Name:</b> {job.customer?.first_name}{" "}
+                        {job.customer?.last_name}
+                      </p>
+                      <p>
+                        <b>Mobile:</b> {job.customer?.mobile}
+                      </p>
+                      {job.customer?.email && (
+                        <p>
+                          <b>Email:</b> {job.customer.email}
+                        </p>
+                      )}
+                      {job.customer?.city && (
+                        <p>
+                          <b>Address:</b> {job.customer.city}
+                          {job.customer?.state ? `, ${job.customer.state}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="border border-black p-2">
+                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                      DEVICE DETAILS
+                    </p>
+                    <div className="space-y-1">
+                      <p>
+                        <b>Type:</b> {job.device_type}
+                      </p>
+                      <p>
+                        <b>Brand/Model:</b> {job.brand} {job.model}
+                      </p>
+                      {job.serial_number && (
+                        <p>
+                          <b>Serial:</b> {job.serial_number}
+                        </p>
+                      )}
+                      {job.is_urgent && (
+                        <p className="text-red-600 font-bold text-[11pt] mt-1">
+                          ⚠ URGENT REPAIR
+                        </p>
+                      )}
+                      <p>
+                        <b>Warranty:</b> {job.is_warranty_repair ? "YES" : "NO"}
+                      </p>
+                      {job.is_warranty_repair && job.warranty_details && (
+                        <p>
+                          <b>Warranty Details:</b> {job.warranty_details}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accessories */}
+                <div className="print-section border border-black p-2 mb-2">
+                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                    ACCESSORIES
+                  </p>
+                  <div className="space-y-2">
+                    {job.accessories && job.accessories.length > 0 ? (
+                      <p>
+                        <b>Accessories:</b>{" "}
+                        {job.accessories
+                          .filter((a) => a.is_present)
+                          .map((a) =>
+                            a.accessory_type.toLowerCase().replace("_", " "),
+                          )
+                          .join(", ")}
+                      </p>
+                    ) : (
+                      <p className="text-neutral-400">
+                        No accessories submitted
+                      </p>
+                    )}
+                    <p>
+                      <b>Physical Condition:</b>{" "}
+                      {job.physical_condition || "Not documented"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Issue Details */}
+                <div className="print-section border border-black p-2 mb-2">
+                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                    ISSUE DETAILS
+                  </p>
+                  <div className="space-y-2">
+                    <p>
+                      <b>Customer Complaint:</b> {job.customer_complaint}
+                    </p>
+                    {job.diagnosis_notes && (
+                      <p>
+                        <b>Diagnosis Notes:</b> {job.diagnosis_notes}
+                      </p>
+                    )}
+                    {job.additional_comments && (
+                      <p>
+                        <b>Additional Comments:</b> {job.additional_comments}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Terms & Conditions */}
+                <div className="print-section border border-black p-2 terms-text mb-2">
+                  <p className="font-bold text-[10pt] mb-1 uppercase underline">
+                    TERMS & CONDITIONS
+                  </p>
+                  <div className="space-y-2 text-[9pt] leading-[1.4] text-justify">
+                    <p>
+                      <b>1. Condition:</b> In case of hard disk failure,
+                      formatting may be required which may lead to data loss.
+                      Customers are advised to backup important data. Only
+                      recommended OS with drivers will be installed.
+                      Physical/water/burn damage not covered under warranty. For
+                      warranty claims, provide purchase invoice. Defective parts
+                      not returned. Product may become non-functional during
+                      repair - we will not be responsible.
+                    </p>
+                    <p>
+                      <b>2. Note:</b> Customer must confirm repair within 48
+                      hours of estimate, else repair will proceed automatically.
+                      Defective parts not returned. Complaints must be reported
+                      within 24 hours of delivery. Collect product within 45
+                      days or it will be scrapped. After 45 days, ₹500/month
+                      handling charge applies.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {/* Authorization & Charges */}
+                <div className="print-grid print-section grid grid-cols-2 gap-4">
+                  <div className="border border-black p-2 h-full flex flex-col justify-between">
+                    <div>
+                      <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                        CUSTOMER AUTHORIZATION
+                      </p>
+                      <p className="text-[10pt] mb-4 italic">
+                        I hereby authorize Shivangi Infotech to provide
+                        necessary repair & service. I have taken backup of all
+                        important data.
+                      </p>
+                    </div>
+                    <div className="mt-8 pt-2 border-t border-dashed border-black">
+                      <p className="font-bold mb-2">
+                        {job.customer?.first_name} {job.customer?.last_name}
+                      </p>
+                      <p className="font-bold">
+                        Customer Signature: _________________
+                      </p>
+                    </div>
+                  </div>
+                  <div className="border border-black p-2">
+                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                      APPROX REPAIR CHARGES
+                    </p>
+                    <div className="space-y-3 text-[11pt]">
+                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                        <span>Service Charges:</span>
+                        <span className="w-24 border-b border-black text-right px-1">
+                          {job.estimated_cost
+                            ? `₹ ${Number(job.estimated_cost).toFixed(0)}`
+                            : "₹"}
+                        </span>
+                      </p>
+                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                        <span>Parts/Spares:</span>
+                        <span className="w-24 border-b border-black text-right px-1">
+                          {job.total_parts_cost
+                            ? `₹ ${Number(job.total_parts_cost).toFixed(0)}`
+                            : "₹"}
+                        </span>
+                      </p>
+                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                        <span>Discount:</span>
+                        <span className="w-24 border-b border-black">₹</span>
+                      </p>
+                      <p className="flex justify-between font-bold text-lg pt-1">
+                        <span>FINAL COST:</span>
+                        <span className="w-24 border-b-2 border-black">₹</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="footer-text text-center mt-2 pt-2 border-t-2 border-black text-[9pt]">
+                  <p>
+                    All estimates without taxes. GST are Extra as applicable.
+                    Diagnosis: Laptop ₹750, Mobile/Tablet ₹500, Desktop ₹350-550
+                  </p>
+                  <p className="font-bold text-[10pt] mt-1">
+                    NON-WARRANTY PRODUCTS HAVE NO WARRANTY ON REPAIRING
+                  </p>
+                </div>
+              </div>
+            </div>
+          </PrintPortal>
+        )}
       </AppLayout>
     </ProtectedRoute>
   );

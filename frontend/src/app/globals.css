@@ -270,9 +270,12 @@ pre {
     top: 0;
     left: 0;
     width: 100%;
+    height: 100vh;
     margin: 0;
     padding: 0;
     background: white;
+    /* Attempt to force everything into one page viewport */
+    overflow: hidden;
   }
 
   /* Reset basic styles for print */
@@ -296,5 +299,11 @@ pre {
   @page {
     size: A4;
     margin: 5mm;
+  }
+
+  .print\:break-inside-avoid,
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }

@@ -207,7 +207,7 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
             'serial_number', 'device_password', 'bios_password',
             'customer_complaint', 'physical_condition', 'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
-            'accessories', 'additional_comments'
+            'accessories', 'additional_comments', 'estimated_cost'
         ]
         read_only_fields = ['id', 'job_number']
 

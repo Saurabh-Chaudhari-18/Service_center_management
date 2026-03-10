@@ -566,28 +566,49 @@ function ItemModal({
     reset,
   } = useForm<ItemFormData>({
     resolver: zodResolver(itemSchema),
-    defaultValues: item
-      ? {
+    defaultValues: {
+      gst_rate: 18,
+      low_stock_threshold: 5,
+      unit: "PCS",
+      category: defaultCategoryId || "",
+    },
+  });
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (item) {
+        reset({
           name: item.name,
-          sku: item.sku,
-          description: item.description,
+          sku: item.sku || "",
+          description: item.description || "",
           category: item.category || "",
           cost_price: item.cost_price,
           selling_price: item.selling_price,
           gst_rate: item.gst_rate,
-          hsn_code: item.hsn_code,
+          hsn_code: item.hsn_code || "",
           low_stock_threshold: item.low_stock_threshold,
           unit: item.unit,
-          vendor_name: item.vendor_name,
-          vendor_contact: item.vendor_contact,
-        }
-      : {
+          vendor_name: item.vendor_name || "",
+          vendor_contact: item.vendor_contact || "",
+        });
+      } else {
+        reset({
+          name: "",
+          sku: "",
+          description: "",
+          category: defaultCategoryId || "",
+          cost_price: 0 as any, // allow empty for new
+          selling_price: 0 as any,
           gst_rate: 18,
+          hsn_code: "",
           low_stock_threshold: 5,
           unit: "PCS",
-          category: defaultCategoryId || "",
-        },
-  });
+          vendor_name: "",
+          vendor_contact: "",
+        });
+      }
+    }
+  }, [isOpen, item, reset, defaultCategoryId]);
 
   const {
     mutate,
@@ -985,7 +1006,7 @@ export default function InventoryPage() {
               leftIcon={<Plus className="w-4 h-4" />}
               onClick={() => setShowAddModal(true)}
             >
-              + New
+              New
             </Button>
           }
         />

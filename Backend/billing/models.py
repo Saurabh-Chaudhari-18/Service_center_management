@@ -208,23 +208,10 @@ class Invoice(TimeStampedModel):
             else:
                 self.invoice_number = self.get_universal_invoice_number()
         
-        # Prevent modifications to finalized invoices
-        if self.pk and self.is_finalized:
-            # Only allow payment-related updates
-            allowed_fields = {'paid_amount', 'status', 'updated_at'}
-            if hasattr(self, '_dirty_fields'):
-                if not set(self._dirty_fields).issubset(allowed_fields):
-                    from core.exceptions import BusinessRuleViolation
-                    raise BusinessRuleViolation(
-                        "Finalized invoices cannot be modified."
-                    )
-        
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
         """Recalculate all totals from line items."""
-        if self.is_finalized:
-            return
         
         two_places = Decimal('0.01')
         
@@ -256,10 +243,8 @@ class Invoice(TimeStampedModel):
             self.status = InvoiceStatus.PAID
         elif self.paid_amount > Decimal('0'):
             self.status = InvoiceStatus.PARTIAL
-        elif self.is_finalized:
-            self.status = InvoiceStatus.PENDING
         else:
-            self.status = InvoiceStatus.DRAFT
+            self.status = InvoiceStatus.PENDING
 
     def finalize(self, user):
         """
@@ -575,3 +560,58 @@ class CreditNote(TimeStampedModel):
 
     def __str__(self):
         return f"{self.credit_note_number} - ₹{self.total_amount}"
+
+
+class InvoiceEditType(models.TextChoices):
+    """Types of invoice edits."""
+    CREATED = 'CREATED', 'Invoice Created'
+    LINE_ITEM_ADDED = 'LINE_ITEM_ADDED', 'Line Item Added'
+    LINE_ITEM_REMOVED = 'LINE_ITEM_REMOVED', 'Line Item Removed'
+    LINE_ITEM_UPDATED = 'LINE_ITEM_UPDATED', 'Line Item Updated'
+    AMOUNTS_UPDATED = 'AMOUNTS_UPDATED', 'Amounts Updated'
+    DETAILS_UPDATED = 'DETAILS_UPDATED', 'Details Updated'
+    STATUS_CHANGED = 'STATUS_CHANGED', 'Status Changed'
+    DOWNLOADED = 'DOWNLOADED', 'Invoice Downloaded'
+    CANCELLED = 'CANCELLED', 'Invoice Cancelled'
+
+
+class InvoiceEditHistory(TimeStampedModel):
+    """
+    Tracks every edit made to an invoice.
+    Displayed as a timeline similar to payment history.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    invoice = models.ForeignKey(
+        Invoice,
+        on_delete=models.CASCADE,
+        related_name='edit_history'
+    )
+    edited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='invoice_edits'
+    )
+    edit_type = models.CharField(
+        max_length=30,
+        choices=InvoiceEditType.choices
+    )
+    summary = models.CharField(
+        max_length=500,
+        help_text="Human-readable description of the change"
+    )
+    old_values = models.JSONField(
+        null=True, blank=True,
+        help_text="Snapshot of values before the change"
+    )
+    new_values = models.JSONField(
+        null=True, blank=True,
+        help_text="Snapshot of values after the change"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'Invoice edit histories'
+
+    def __str__(self):
+        return f"{self.invoice.invoice_number} - {self.get_edit_type_display()}"

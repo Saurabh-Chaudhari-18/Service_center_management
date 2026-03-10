@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Lock,
   Edit,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Invoice } from "@/types";
@@ -253,7 +254,7 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
           }
         `}
       </style>
-      <div className="bg-white text-black p-8 max-w-4xl mx-auto print:p-8 print:text-base print:box-border print:block">
+      <div className="bg-white text-black p-8 max-w-4xl mx-auto print:p-8 print:text-base print:box-border print:flex print:flex-col print:h-[100vh]">
         {/* ============================================= */}
         {/* COMPANY HEADER */}
         {/* ============================================= */}
@@ -352,48 +353,51 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
         </div>
 
         {/* ============================================= */}
-        {/* LINE ITEMS (Fixed Height for Print) */}
+        {/* LINE ITEMS */}
         {/* ============================================= */}
-        <div className="border-2 border-black mb-4 print:mb-2 print:h-[400px] print:flex print:flex-col">
+        <div className="border-2 border-black mb-4 print:mb-2 print:flex-1 print:flex print:flex-col">
           <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1 print:shrink-0">
             <h3 className="text-sm font-bold uppercase tracking-wide print:text-sm">
               Item Details
             </h3>
           </div>
-          <div className="print:flex-1">
-            <table className="w-full border-collapse text-sm print:text-sm print:h-full">
-              <thead>
-                <tr className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-700 font-semibold text-left border-b border-black print:text-xs">
-                  <th className="px-3 py-2 border-r border-neutral-300 w-8 print:px-1 print:py-1">
+          <div className="print:flex-1 print:flex print:flex-col">
+            <table className="w-full border-collapse text-sm print:text-sm print:h-full print:flex print:flex-col">
+              <thead className="print:table-header-group">
+                <tr className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-700 font-semibold text-left border-b border-black print:text-xs print:flex print:w-full">
+                  <th className="px-3 py-2 border-r border-neutral-300 w-8 print:px-1 print:py-1 print:w-8">
                     #
                   </th>
-                  <th className="px-3 py-2 border-r border-neutral-300 print:px-1 print:py-1">
+                  <th className="px-3 py-2 border-r border-neutral-300 print:px-1 print:py-1 print:flex-1">
                     Item & Description
                   </th>
-                  <th className="px-3 py-2 border-r border-neutral-300 w-20 print:px-1 print:py-1">
+                  <th className="px-3 py-2 border-r border-neutral-300 w-20 print:px-1 print:py-1 print:w-16">
                     HSN/SAC
                   </th>
-                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-12 print:px-1 print:py-1">
+                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-12 print:px-1 print:py-1 print:w-12">
                     Qty
                   </th>
-                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-24 print:px-1 print:py-1">
+                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-24 print:px-1 print:py-1 print:w-20">
                     Rate
                   </th>
-                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-16 print:px-1 print:py-1">
+                  <th className="px-3 py-2 text-right border-r border-neutral-300 w-16 print:px-1 print:py-1 print:w-16">
                     Tax %
                   </th>
-                  <th className="px-3 py-2 text-right w-24 print:px-1 print:py-1">
+                  <th className="px-3 py-2 text-right w-24 print:px-1 print:py-1 print:w-24">
                     Amount
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="print:flex-1 print:flex print:flex-col">
                 {(invoice.line_items || []).map((item, idx) => (
-                  <tr key={idx} className="border-b border-neutral-200">
-                    <td className="px-3 py-2 text-neutral-400 border-r border-neutral-200 print:px-1 print:py-1">
+                  <tr
+                    key={idx}
+                    className="border-b border-neutral-200 print:break-inside-avoid print:flex print:w-full"
+                  >
+                    <td className="px-3 py-2 text-neutral-400 border-r border-neutral-200 print:px-1 print:py-1 print:w-8">
                       {idx + 1}
                     </td>
-                    <td className="px-3 py-2 border-r border-neutral-200 print:px-1 print:py-1">
+                    <td className="px-3 py-2 border-r border-neutral-200 print:px-1 print:py-1 print:flex-1">
                       <p className="font-medium text-neutral-900">
                         {item.description}
                       </p>
@@ -401,19 +405,19 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
                         {item.item_type}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-neutral-500 border-r border-neutral-200 print:px-1 print:py-1">
+                    <td className="px-3 py-2 text-neutral-500 border-r border-neutral-200 print:px-1 print:py-1 print:w-16">
                       {item.hsn_sac_code || "-"}
                     </td>
-                    <td className="px-3 py-2 text-right border-r border-neutral-200 print:px-1 print:py-1">
+                    <td className="px-3 py-2 text-right border-r border-neutral-200 print:px-1 print:py-1 print:w-12">
                       {item.quantity}
                     </td>
-                    <td className="px-3 py-2 text-right border-r border-neutral-200 print:px-1 print:py-1">
+                    <td className="px-3 py-2 text-right border-r border-neutral-200 print:px-1 print:py-1 print:w-20">
                       ₹{Number(item.unit_price).toFixed(2)}
                     </td>
-                    <td className="px-3 py-2 text-right text-neutral-500 border-r border-neutral-200 print:px-1 print:py-1">
+                    <td className="px-3 py-2 text-right text-neutral-500 border-r border-neutral-200 print:px-1 print:py-1 print:w-16">
                       {Number(item.gst_rate).toFixed(0)}%
                     </td>
-                    <td className="px-3 py-2 text-right font-medium print:px-1 print:py-1">
+                    <td className="px-3 py-2 text-right font-medium print:px-1 print:py-1 print:w-24">
                       ₹
                       {(
                         Number(item.amount) +
@@ -423,15 +427,15 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
                   </tr>
                 ))}
 
-                {/* Spacer Row to push vertical borders down */}
-                <tr className="hidden print:table-row print:h-full">
-                  <td className="border-r border-neutral-200"></td>
-                  <td className="border-r border-neutral-200"></td>
-                  <td className="border-r border-neutral-200"></td>
-                  <td className="border-r border-neutral-200"></td>
-                  <td className="border-r border-neutral-200"></td>
-                  <td className="border-r border-neutral-200"></td>
-                  <td></td>
+                {/* Spacer Row to push vertical borders down to fill the flex container */}
+                <tr className="hidden print:flex print:flex-1 print:w-full">
+                  <td className="border-r border-neutral-200 print:w-8"></td>
+                  <td className="border-r border-neutral-200 print:flex-1"></td>
+                  <td className="border-r border-neutral-200 print:w-16"></td>
+                  <td className="border-r border-neutral-200 print:w-12"></td>
+                  <td className="border-r border-neutral-200 print:w-20"></td>
+                  <td className="border-r border-neutral-200 print:w-16"></td>
+                  <td className="print:w-24"></td>
                 </tr>
               </tbody>
             </table>
@@ -442,7 +446,7 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
           {/* ============================================= */}
           {/* AMOUNT SUMMARY + PAYMENT SUMMARY */}
           {/* ============================================= */}
-          <div className="grid grid-cols-2 gap-4 mb-4 print:gap-2 print:mb-2">
+          <div className="grid grid-cols-2 gap-4 mb-4 print:gap-2 print:mb-2 print:break-inside-avoid">
             {/* Payment Summary */}
             <div className="border-2 border-black">
               <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1">
@@ -500,79 +504,82 @@ function InvoiceView({ invoice }: { invoice: Invoice }) {
           </div>
 
           {/* ============================================= */}
-          {/* TERMS & CONDITIONS + BANK DETAILS */}
+          {/* BOTTOM SECTION (Terms, Bank, Signatures) */}
           {/* ============================================= */}
-          <div className="grid grid-cols-2 gap-4 mb-4 print:gap-2 print:mb-2">
-            {/* Terms & Conditions */}
-            <div className="border-2 border-black">
-              <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1">
-                <h3 className="text-sm font-bold uppercase tracking-wide print:text-sm">
-                  Terms & Conditions
-                </h3>
+          <div className="print:break-inside-avoid">
+            <div className="grid grid-cols-2 gap-4 mb-4 print:gap-2 print:mb-2">
+              {/* Terms & Conditions */}
+              <div className="border-2 border-black">
+                <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1">
+                  <h3 className="text-sm font-bold uppercase tracking-wide print:text-sm">
+                    Terms & Conditions
+                  </h3>
+                </div>
+                <div className="p-3 text-xs space-y-1 print:p-2 print:text-xs print:space-y-0">
+                  <p>
+                    <span className="font-bold">1. </span>Warranty void if seal
+                    is broken or tampered with.
+                  </p>
+                  <p>
+                    <span className="font-bold">2. </span>Goods once sold will
+                    not be taken back.
+                  </p>
+                  <p>
+                    <span className="font-bold">3. </span>Subject to Pune
+                    jurisdiction only.
+                  </p>
+                  <p>
+                    <span className="font-bold">4. </span>Interest @ 24% p.a.
+                    will be charged if bill is not paid on due date.
+                  </p>
+                </div>
               </div>
-              <div className="p-3 text-xs space-y-1 print:p-2 print:text-xs print:space-y-0">
-                <p>
-                  <span className="font-bold">1. </span>Warranty void if seal is
-                  broken or tampered with.
-                </p>
-                <p>
-                  <span className="font-bold">2. </span>Goods once sold will not
-                  be taken back.
-                </p>
-                <p>
-                  <span className="font-bold">3. </span>Subject to Pune
-                  jurisdiction only.
-                </p>
-                <p>
-                  <span className="font-bold">4. </span>Interest @ 24% p.a. will
-                  be charged if bill is not paid on due date.
-                </p>
+
+              {/* Bank Details */}
+              <div className="border-2 border-black">
+                <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1">
+                  <h3 className="text-sm font-bold uppercase tracking-wide print:text-sm">
+                    Bank Details
+                  </h3>
+                </div>
+                <div className="p-3 text-xs space-y-1 print:p-2 print:text-xs print:space-y-0">
+                  <p>
+                    <span className="font-semibold">Bank:</span> HDFC Bank
+                  </p>
+                  <p>
+                    <span className="font-semibold">A/c Name:</span> Shivangi
+                    Infotech
+                  </p>
+                  <p>
+                    <span className="font-semibold">A/c No:</span>{" "}
+                    50200012345678
+                  </p>
+                  <p>
+                    <span className="font-semibold">IFSC:</span> HDFC0000123
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Bank Details */}
-            <div className="border-2 border-black">
-              <div className="bg-white px-3 py-1.5 border-b-2 border-black print:px-2 print:py-1">
-                <h3 className="text-sm font-bold uppercase tracking-wide print:text-sm">
-                  Bank Details
-                </h3>
-              </div>
-              <div className="p-3 text-xs space-y-1 print:p-2 print:text-xs print:space-y-0">
-                <p>
-                  <span className="font-semibold">Bank:</span> HDFC Bank
+            {/* ============================================= */}
+            {/* SIGNATURES */}
+            {/* ============================================= */}
+            <div className="border-2 border-black flex justify-between h-24 print:h-20">
+              <div className="p-4 print:p-2 flex flex-col justify-end w-1/2">
+                <p className="font-bold text-sm print:text-sm">
+                  {invoice.customer_name}
                 </p>
-                <p>
-                  <span className="font-semibold">A/c Name:</span> Shivangi
-                  Infotech
-                </p>
-                <p>
-                  <span className="font-semibold">A/c No:</span> 50200012345678
-                </p>
-                <p>
-                  <span className="font-semibold">IFSC:</span> HDFC0000123
+                <div className="h-2" />
+                <p className="text-xs print:text-xs text-neutral-500">
+                  Customer Signature
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* ============================================= */}
-          {/* SIGNATURES */}
-          {/* ============================================= */}
-          <div className="border-2 border-black flex justify-between h-24 print:h-20">
-            <div className="p-4 print:p-2 flex flex-col justify-end w-1/2">
-              <p className="font-bold text-sm print:text-sm">
-                {invoice.customer_name}
-              </p>
-              <div className="h-2" />
-              <p className="text-xs print:text-xs text-neutral-500">
-                Customer Signature
-              </p>
-            </div>
-            <div className="p-4 print:p-2 flex flex-col justify-between text-right w-1/2 border-l-2 border-dashed border-neutral-300 print:border-neutral-300">
-              <p className="font-bold text-sm print:text-sm">
-                For SHIVANGI INFOTECH
-              </p>
-              <p className="text-xs print:text-xs">Authorized Signatory</p>
+              <div className="p-4 print:p-2 flex flex-col justify-between text-right w-1/2 border-l-2 border-dashed border-neutral-300 print:border-neutral-300">
+                <p className="font-bold text-sm print:text-sm">
+                  For SHIVANGI INFOTECH
+                </p>
+                <p className="text-xs print:text-xs">Authorized Signatory</p>
+              </div>
             </div>
           </div>
         </div>
@@ -748,6 +755,64 @@ function PaymentHistory({
 }
 
 // =====================================================
+// Edit History Component
+// =====================================================
+
+function EditHistory({ invoiceId }: { invoiceId: string }) {
+  const { data: history, isLoading } = useQuery({
+    queryKey: ["invoice-edit-history", invoiceId],
+    queryFn: () => billingApi.getEditHistory(invoiceId),
+    enabled: !!invoiceId,
+  });
+
+  if (isLoading) return <LoadingState />;
+  if (!history || history.length === 0) return null;
+
+  return (
+    <Card className="mt-6 print:hidden">
+      <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+        <History className="w-5 h-5 text-primary-500" />
+        Edit History
+      </h3>
+      <div className="space-y-4">
+        {history.map((edit: any, idx: number) => (
+          <div key={edit.id} className="relative">
+            {idx < history.length - 1 && (
+              <div className="absolute left-[11px] top-6 bottom-[-24px] w-0.5 bg-neutral-200" />
+            )}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 mt-1">
+                <div className="w-6 h-6 rounded-full bg-neutral-100 border border-neutral-300 flex items-center justify-center z-10 relative">
+                  <div className="w-2 h-2 rounded-full bg-neutral-400" />
+                </div>
+              </div>
+              <div className="pb-2">
+                <div className="text-sm text-neutral-900 font-medium space-y-1">
+                  {edit.summary.split("\n").map((line: string, i: number) => (
+                    <p key={i}>{line}</p>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1">
+                  <span className="font-semibold text-primary-600">
+                    {edit.edit_type_display}
+                  </span>
+                  <span>•</span>
+                  <span>{edit.edited_by_name}</span>
+                  <span>•</span>
+                  <span>
+                    {format(new Date(edit.created_at), "dd MMM yyyy, hh:mm a")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// =====================================================
 // Main Page Component
 // =====================================================
 
@@ -769,25 +834,23 @@ export default function InvoiceDetailsPage() {
     enabled: !!id,
   });
 
-  const { mutate: finalizeInvoice, isPending: isFinalizing } = useMutation({
-    mutationFn: async () => {
-      await billingApi.finalizeInvoice(id);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    },
-    onError: (error) => {
-      console.error("Failed to finalize invoice", error);
-      alert("Failed to finalize invoice");
-    },
-  });
-
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    try {
+      await billingApi.logDownload(id);
+      queryClient.invalidateQueries({ queryKey: ["invoice-edit-history", id] });
+    } catch (error) {
+      console.error("Failed to log download:", error);
+    }
     window.print();
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    try {
+      await billingApi.logDownload(id);
+      queryClient.invalidateQueries({ queryKey: ["invoice-edit-history", id] });
+    } catch (error) {
+      console.error("Failed to log download:", error);
+    }
     // We use window.print() because it renders the exact UI which is much better than the backend generated PDF.
     // Users can choose "Save as PDF" in the print dialog.
     alert(
@@ -838,7 +901,7 @@ export default function InvoiceDetailsPage() {
           title={`Invoice ${invoice.invoice_number}`}
           subtitle={format(new Date(invoice.invoice_date), "MMMM dd, yyyy")}
           actions={
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center justify-end">
               <Button
                 variant="ghost"
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
@@ -847,32 +910,15 @@ export default function InvoiceDetailsPage() {
                 Back
               </Button>
               <InvoiceStatusBadge status={invoice.status} />
-              {!invoice.is_finalized && (
-                <>
-                  <Button
-                    variant="secondary"
-                    leftIcon={<Edit className="w-4 h-4" />}
-                    onClick={() => router.push(`/billing/${id}/edit`)}
-                  >
-                    Edit Invoice
-                  </Button>
-                  <Button
-                    leftIcon={<Lock className="w-4 h-4" />}
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Are you sure you want to finalize this invoice? Once finalized, it cannot be edited.",
-                        )
-                      ) {
-                        finalizeInvoice();
-                      }
-                    }}
-                    isLoading={isFinalizing}
-                  >
-                    Finalize Invoice
-                  </Button>
-                </>
-              )}
+
+              <Button
+                variant="secondary"
+                leftIcon={<Edit className="w-4 h-4" />}
+                onClick={() => router.push(`/billing/${id}/edit`)}
+              >
+                Edit Invoice
+              </Button>
+
               <Button
                 variant="secondary"
                 leftIcon={<Printer className="w-4 h-4" />}
@@ -887,14 +933,15 @@ export default function InvoiceDetailsPage() {
               >
                 Download PDF
               </Button>
-              {invoice.is_finalized && Number(invoice.balance_due) > 0 && (
-                <Button
-                  leftIcon={<CreditCard className="w-4 h-4" />}
-                  onClick={() => setIsPaymentModalOpen(true)}
-                >
-                  Record Payment
-                </Button>
-              )}
+              {Number(invoice.balance_due) > 0 &&
+                invoice.status !== "CANCELLED" && (
+                  <Button
+                    leftIcon={<CreditCard className="w-4 h-4" />}
+                    onClick={() => setIsPaymentModalOpen(true)}
+                  >
+                    Record Payment
+                  </Button>
+                )}
             </div>
           }
         />
@@ -904,13 +951,12 @@ export default function InvoiceDetailsPage() {
             <InvoiceView invoice={invoice} />
           </Card>
 
-          {/* Payment History — visible to owner/manager only, hidden from print */}
-          {invoice.is_finalized && (
-            <PaymentHistory
-              invoiceId={invoice.id}
-              totalAmount={Number(invoice.total_amount)}
-            />
-          )}
+          <EditHistory invoiceId={invoice.id} />
+
+          <PaymentHistory
+            invoiceId={invoice.id}
+            totalAmount={Number(invoice.total_amount)}
+          />
         </div>
 
         {/* Print Portal */}

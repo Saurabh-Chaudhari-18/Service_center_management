@@ -52,6 +52,7 @@ const invoiceLineItemSchema = z.object({
   quantity: z.number().min(1, "Minimum quantity is 1"),
   unit_price: z.number().min(0, "Price cannot be negative"),
   gst_rate: z.number().min(0, "GST rate cannot be negative"),
+  inventory_item: z.string().uuid().optional(),
 });
 
 const createInvoiceSchema = z
@@ -944,6 +945,9 @@ function CreateInvoiceContent() {
     setValue(`line_items.${index}.hsn_sac_code`, item.hsn_code || "", {
       shouldValidate: true,
     });
+    setValue(`line_items.${index}.inventory_item`, item.id, {
+      shouldValidate: true,
+    });
     setValue(`line_items.${index}.item_type`, "PART", { shouldValidate: true });
   };
 
@@ -1265,6 +1269,7 @@ function CreateInvoiceContent() {
                       quantity: 1,
                       unit_price: 0,
                       gst_rate: 18,
+                      inventory_item: undefined,
                     })
                   }
                 >

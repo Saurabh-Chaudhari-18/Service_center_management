@@ -2,18 +2,9 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import {
-  Card,
-  Button,
-  Input,
-  Select,
-  Badge,
-  Modal,
-  LoadingState,
-} from "@/components/ui"; // Assuming Modal exists, if not I'll need to check or build a simple one
+import { Button, Input, Badge, Modal, LoadingState } from "@/components/ui"; // Assuming Modal exists, if not I'll need to check or build a simple one
 import { branchesApi } from "@/lib/api";
 import { Branch } from "@/types";
 import { Plus, Edit2, MapPin, Phone, Mail, Hash } from "lucide-react";
@@ -108,7 +99,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
       onClose();
       reset();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       alert(error.message || "Failed to save branch");
     },
   });
@@ -274,7 +265,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} type="button">
+          <Button variant="secondary" onClick={onClose} type="button">
             Cancel
           </Button>
           <Button type="submit" isLoading={mutation.isPending}>
@@ -303,7 +294,7 @@ function BranchRow({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-semibold text-neutral-900">{branch.name}</h3>
-            <Badge variant={branch.is_active ? "success" : "neutral"}>
+            <Badge variant={branch.is_active ? "success" : "default"}>
               {branch.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
@@ -397,7 +388,7 @@ export default function BranchesPage() {
 
               {(!data?.results || data.results.length === 0) && (
                 <div className="col-span-full text-center py-12 text-neutral-500 bg-neutral-50 rounded-lg border border-dashed border-neutral-300">
-                  No branches found. Click "Add Branch" to create one.
+                  No branches found. Click &quot;Add Branch&quot; to create one.
                 </div>
               )}
             </div>

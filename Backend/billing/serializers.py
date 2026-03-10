@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.db import transaction
 from billing.models import (
     Invoice, InvoiceLineItem, Payment, CreditNote,
-    InvoiceStatus, PaymentMethod
+    InvoiceStatus, PaymentMethod, InvoiceEditHistory, InvoiceEditType
 )
 from decimal import Decimal
 
@@ -216,7 +216,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         
         # Create line items
         for item_data in line_items_data:
-            InvoiceLineItem.objects.create(
+            line_item = InvoiceLineItem.objects.create(
                 invoice=invoice,
                 item_type=item_data.get('item_type', 'SERVICE'),
                 description=item_data.get('description', ''),
@@ -229,6 +229,19 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 inventory_item_id=item_data.get('inventory_item'),
                 job_part_usage_id=item_data.get('job_part_usage'),
             )
+            
+            # Direct sales deduction
+            if line_item.inventory_item and not line_item.job_part_usage:
+                try:
+                    line_item.inventory_item.deduct_stock(
+                        quantity=line_item.quantity,
+                        reason=f"Direct sale on Invoice {invoice.invoice_number}",
+                        user=self.context['request'].user
+                    )
+                except Exception as e:
+                    # Reraise as validation error so the transaction rolls back
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError(f"Insufficient stock for {line_item.inventory_item.name}. {str(e)}")
         
         # Auto-add parts used in job (only if job exists)
         if job and hasattr(job, 'part_usages'):
@@ -250,7 +263,22 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
         # Calculate totals
         invoice.calculate_totals()
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
         invoice.save()
+        
+        # Log creation in edit history
+        InvoiceEditHistory.objects.create(
+            invoice=invoice,
+            edited_by=self.context['request'].user,
+            edit_type=InvoiceEditType.CREATED,
+            summary=f'Invoice {invoice.invoice_number} created with {len(line_items_data)} line item(s). Total: \u20b9{invoice.total_amount}',
+            new_values={
+                'total_amount': str(invoice.total_amount),
+                'subtotal': str(invoice.subtotal),
+                'line_items_count': invoice.line_items.count(),
+            }
+        )
         
         # Refresh to ensure date fields are legitimate date objects
         invoice.refresh_from_db()
@@ -301,19 +329,34 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         
+        request = self.context.get('request')
+        changes = []
+        
+        if validated_data:
+            field_names = ', '.join(validated_data.keys())
+            changes.append(f'Fields updated: {field_names}')
+
         # Update line items if provided
         if line_items_data is not None:
-            # Get existing item IDs
-            existing_ids = set(instance.line_items.values_list('id', flat=True))
+            # Get existing items for comparison
+            existing_items = {item.id: item for item in instance.line_items.all()}
             provided_ids = set()
+            
+            added_details = []
+            updated_details = []
+            removed_details = []
             
             for item_data in line_items_data:
                 item_id = item_data.get('id')
                 
-                if item_id and item_id in existing_ids:
+                if item_id and item_id in existing_items:
                     # Update existing item
                     provided_ids.add(item_id)
-                    item = InvoiceLineItem.objects.get(id=item_id, invoice=instance)
+                    item = existing_items[item_id]
+                    
+                    # Track pricing/quantity changes
+                    old_price = item.unit_price
+                    old_qty = item.quantity
                     
                     # Update fields
                     for field in ['item_type', 'description', 'hsn_sac_code', 
@@ -329,26 +372,88 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
                         item.job_part_usage = item_data['job_part_usage']
                         
                     item.save()
+                    
+                    if old_qty != item.quantity and item.inventory_item and not item.job_part_usage:
+                        qty_diff = item.quantity - old_qty
+                        try:
+                            if qty_diff > 0:
+                                item.inventory_item.deduct_stock(
+                                    quantity=qty_diff,
+                                    reason=f"Increased quantity on Invoice {instance.invoice_number}",
+                                    user=request.user if request else None
+                                )
+                            elif qty_diff < 0:
+                                item.inventory_item.add_stock(
+                                    quantity=abs(qty_diff),
+                                    reason=f"Decreased quantity on Invoice {instance.invoice_number}",
+                                    user=request.user if request else None
+                                )
+                        except Exception as e:
+                            from rest_framework.exceptions import ValidationError
+                            raise ValidationError(f"Insufficient stock for {item.inventory_item.name}. {str(e)}")
+                    
+                    if old_price != item.unit_price or old_qty != item.quantity:
+                        updated_details.append(f"Changed {item.description} (₹{old_price} x {old_qty} → ₹{item.unit_price} x {item.quantity})")
                 else:
                     # Create new item
-                    # Remove 'id' if present (it might be a temp id)
                     if 'id' in item_data:
                         del item_data['id']
                         
-                    InvoiceLineItem.objects.create(
+                    new_item = InvoiceLineItem.objects.create(
                         invoice=instance,
                         **item_data
                     )
+                    
+                    # Direct sales deduction for new item added during edit
+                    if new_item.inventory_item and not new_item.job_part_usage:
+                        try:
+                            new_item.inventory_item.deduct_stock(
+                                quantity=new_item.quantity,
+                                reason=f"Added to existing Invoice {instance.invoice_number}",
+                                user=request.user if request else None
+                            )
+                        except Exception as e:
+                            from rest_framework.exceptions import ValidationError
+                            raise ValidationError(f"Insufficient stock for {new_item.inventory_item.name}. {str(e)}")
+                            
+                    added_details.append(f"Added {new_item.description} (₹{new_item.unit_price} x {new_item.quantity})")
             
             # Delete items not in provided list (if any were provided)
-            # This logic mimics a full "replace" of the list for UX consistency
-            # Items not in the payload are assumed deleted
-            items_to_delete = existing_ids - provided_ids
-            InvoiceLineItem.objects.filter(id__in=items_to_delete).delete()
+            items_to_delete = set(existing_items.keys()) - provided_ids
+            for item_id_to_delete in items_to_delete:
+                deleted_item = existing_items[item_id_to_delete]
+                
+                # Restore stock if direct sale
+                if deleted_item.inventory_item and not deleted_item.job_part_usage:
+                    deleted_item.inventory_item.add_stock(
+                        quantity=deleted_item.quantity,
+                        reason=f"Removed from Invoice {instance.invoice_number}",
+                        user=request.user if request else None
+                    )
+                    
+                removed_details.append(f"Removed {deleted_item.description}")
+                deleted_item.delete()
 
+            # Compile line item changes string
+            if added_details or updated_details or removed_details:
+                all_line_item_changes = added_details + updated_details + removed_details
+                changes.append("Line items modified: " + " | ".join(all_line_item_changes))
+
+        # Snapshot old totals for edit history
+        old_total = str(instance.total_amount)
+        
         # Recalculate totals
         instance.calculate_totals()
         instance.save()
+        
+        InvoiceEditHistory.objects.create(
+            invoice=instance,
+            edited_by=request.user if request else None,
+            edit_type=InvoiceEditType.DETAILS_UPDATED,
+            summary='\n'.join(changes) if changes else 'Invoice updated',
+            old_values={'total_amount': old_total},
+            new_values={'total_amount': str(instance.total_amount)},
+        )
         
         return instance
 
@@ -407,3 +512,23 @@ class InvoiceStatsSerializer(serializers.Serializer):
     total_collected = serializers.DecimalField(max_digits=14, decimal_places=2)
     pending_count = serializers.IntegerField()
     partial_count = serializers.IntegerField()
+
+
+class InvoiceEditHistorySerializer(serializers.ModelSerializer):
+    """Serializer for invoice edit history."""
+    edited_by_name = serializers.CharField(
+        source='edited_by.get_full_name', read_only=True
+    )
+    edit_type_display = serializers.CharField(
+        source='get_edit_type_display', read_only=True
+    )
+
+    class Meta:
+        model = InvoiceEditHistory
+        fields = [
+            'id', 'invoice', 'edited_by', 'edited_by_name',
+            'edit_type', 'edit_type_display',
+            'summary', 'old_values', 'new_values',
+            'created_at'
+        ]
+        read_only_fields = fields

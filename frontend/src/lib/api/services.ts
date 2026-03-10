@@ -30,9 +30,7 @@ import type {
   InternalAlert,
   PaginatedResponse,
   RevenueReportData,
-  PendingJobsReportData,
   TechnicianProductivityData,
-  InventoryConsumptionData,
   PickupRequest,
 } from "@/types";
 
@@ -558,6 +556,7 @@ export const billingApi = {
       quantity: number;
       unit_price: number;
       gst_rate: number;
+      inventory_item?: string | null;
     }>;
   }): Promise<Invoice> => {
     return apiPost<Invoice>("/billing/invoices/", data);
@@ -576,6 +575,7 @@ export const billingApi = {
         quantity: number;
         unit_price: number;
         gst_rate: number;
+        inventory_item?: string | null;
       }>;
     },
   ): Promise<Invoice> => {
@@ -613,6 +613,14 @@ export const billingApi = {
 
   getPayments: async (invoiceId: string): Promise<Payment[]> => {
     return apiGet<Payment[]>(`/billing/invoices/${invoiceId}/payments/`);
+  },
+
+  getEditHistory: async (invoiceId: string): Promise<any[]> => {
+    return apiGet<any[]>(`/billing/invoices/${invoiceId}/edit_history/`);
+  },
+
+  logDownload: async (invoiceId: string): Promise<void> => {
+    return apiPost<void>(`/billing/invoices/${invoiceId}/log_download/`);
   },
 
   downloadPdf: async (

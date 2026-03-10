@@ -1,4 +1,4 @@
-"use client";
+  "use client";
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -232,7 +232,7 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
         </label>
 
         <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} type="button">
+          <Button variant="secondary" onClick={onClose} type="button">
             Cancel
           </Button>
           <Button type="submit" isLoading={mutation.isPending}>
@@ -309,7 +309,7 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
         <div className="p-6 space-y-6">
           {/* Status */}
           <div className="flex items-center gap-2">
-            <Badge variant={org.is_active ? "success" : "neutral"}>
+            <Badge variant={org.is_active ? "success" : "default"}>
               {org.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
@@ -409,7 +409,7 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
                       </p>
                     </div>
                     <Badge
-                      variant={branch.is_active ? "success" : "neutral"}
+                      variant={branch.is_active ? "success" : "default"}
                       className="text-xs"
                     >
                       {branch.is_active ? "Active" : "Inactive"}
@@ -510,7 +510,7 @@ function OrgCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={org.is_active ? "success" : "neutral"}>
+          <Badge variant={org.is_active ? "success" : "default"}>
             {org.is_active ? "Active" : "Inactive"}
           </Badge>
         </div>

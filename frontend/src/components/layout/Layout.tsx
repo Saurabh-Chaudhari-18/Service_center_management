@@ -272,7 +272,7 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
   const [notificationCount, setNotificationCount] = React.useState(0);
 
   return (
-    <header className="h-16 bg-white border-b border-neutral-100 px-6 flex items-center justify-between">
+    <header className="min-h-[4rem] py-3 bg-white border-b border-neutral-100 px-6 flex flex-wrap items-center justify-between gap-y-3">
       <div>
         {organizationBranding?.name &&
         organizationBranding.name !== "ServiceHub" ? (
@@ -285,7 +285,7 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         {subtitle && <p className="text-sm text-neutral-500">{subtitle}</p>}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         {actions}
 
         {/* Notifications */}
