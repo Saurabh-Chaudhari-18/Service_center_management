@@ -8,10 +8,31 @@ from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
     JobPhoto, JobNote, PartRequest, DiagnosisPart, ALLOWED_STATUS_TRANSITIONS,
     AccessoryType, DeviceType,
-    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS
+    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
+    DropdownOption, DropdownCategory
 )
 from customers.serializers import CustomerMinimalSerializer
 from core.models import User
+
+
+class DropdownOptionSerializer(serializers.ModelSerializer):
+    """Serializer for dropdown options."""
+    category_display = serializers.CharField(
+        source='get_category_display', read_only=True
+    )
+    device_type_display = serializers.CharField(
+        source='get_device_type_display', read_only=True
+    )
+
+    class Meta:
+        model = DropdownOption
+        fields = [
+            'id', 'category', 'category_display',
+            'device_type', 'device_type_display',
+            'label', 'display_order', 'is_active', 'has_text_input',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class JobAccessorySerializer(serializers.ModelSerializer):
@@ -140,13 +161,18 @@ class JobCardSerializer(serializers.ModelSerializer):
         source='get_total_parts_cost', max_digits=10, decimal_places=2, read_only=True
     )
     
+    physical_condition_display = serializers.SerializerMethodField()
+    engineer_diagnosis_display = serializers.SerializerMethodField()
+    
     class Meta:
         model = JobCard
         fields = [
             'id', 'branch', 'branch_name', 'job_number',
             'customer', 'customer_id',
             'device_type', 'device_type_display', 'brand', 'model', 'serial_number',
-            'customer_complaint', 'physical_condition', 'additional_comments',
+            'customer_complaint', 'physical_condition', 'physical_condition_display',
+            'engineer_diagnosis', 'engineer_diagnosis_display',
+            'additional_comments',
             'status', 'status_display', 'allowed_transitions', 'is_readonly',
             'assigned_technician', 'assigned_technician_name',
             'received_by', 'received_by_name',
@@ -184,6 +210,36 @@ class JobCardSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You do not have access to this branch.")
         return value
 
+    def _resolve_dropdown_ids(self, json_data):
+        """Resolve dropdown option IDs to labels."""
+        if not json_data or not isinstance(json_data, dict):
+            # Legacy text data
+            if isinstance(json_data, str):
+                return json_data
+            return ''
+        
+        selected_ids = json_data.get('selected', [])
+        other_text = json_data.get('other_text', '')
+        
+        if not selected_ids:
+            return other_text or ''
+        
+        options = DropdownOption.objects.filter(
+            id__in=selected_ids
+        ).values_list('label', flat=True)
+        labels = list(options)
+        
+        if other_text:
+            labels.append(f'Others: {other_text}')
+        
+        return ', '.join(labels)
+
+    def get_physical_condition_display(self, obj):
+        return self._resolve_dropdown_ids(obj.physical_condition)
+
+    def get_engineer_diagnosis_display(self, obj):
+        return self._resolve_dropdown_ids(obj.engineer_diagnosis)
+
 
 class JobCardCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating job cards."""
@@ -205,7 +261,8 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'job_number', 'branch', 'customer_id', 'device_type', 'brand', 'model',
             'serial_number', 'device_password', 'bios_password',
-            'customer_complaint', 'physical_condition', 'diagnosis_notes',
+            'customer_complaint', 'physical_condition', 'engineer_diagnosis',
+            'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
             'accessories', 'additional_comments', 'estimated_cost'
         ]
@@ -296,7 +353,8 @@ class JobCardUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'job_number', 'branch', 'customer_id',
             'device_type', 'brand', 'model', 'serial_number',
-            'customer_complaint', 'physical_condition', 'diagnosis_notes',
+            'customer_complaint', 'physical_condition', 'engineer_diagnosis',
+            'diagnosis_notes',
             'estimated_cost', 'estimated_completion_date',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
             'accessories', 'additional_comments'

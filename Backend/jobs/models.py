@@ -137,9 +137,18 @@ class JobCard(TimeStampedModel):
         help_text="Customer's description of the problem"
     )
     
-    # Physical Condition
-    physical_condition = models.TextField(
-        help_text="Physical condition of device on receipt (scratches, dents, etc.)"
+    # Physical Condition (JSON: {"selected": ["uuid1", ...], "other_text": "..."})
+    physical_condition = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Physical condition selections and optional text"
+    )
+
+    # Engineer Diagnosis (JSON: {"selected": ["uuid1", ...], "other_text": "..."})
+    engineer_diagnosis = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Engineer diagnosis selections and optional text"
     )
 
     # Additional Comments
@@ -811,3 +820,56 @@ class PickupRequest(TimeStampedModel):
         count = PickupRequest.objects.filter(branch=self.branch).count() + 1
         seq = str(count).zfill(5)
         return f"PU/{fy}/{self.branch.code}/{seq}"
+
+
+class DropdownCategory(models.TextChoices):
+    """Categories for configurable dropdown options."""
+    PHYSICAL_CONDITION = 'PHYSICAL_CONDITION', 'Physical Condition'
+    ENGINEER_DIAGNOSIS = 'ENGINEER_DIAGNOSIS', 'Engineer Diagnosis'
+
+
+class DropdownOption(TimeStampedModel):
+    """
+    Configurable dropdown options stored in DB.
+    Allows dynamic add/remove of options from the admin panel or API.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    category = models.CharField(
+        max_length=30,
+        choices=DropdownCategory.choices,
+        db_index=True,
+        help_text="Which dropdown this option belongs to"
+    )
+    device_type = models.CharField(
+        max_length=20,
+        choices=DeviceType.choices,
+        null=True,
+        blank=True,
+        help_text="If set, option only shows for this device type. NULL = show for all."
+    )
+    label = models.CharField(
+        max_length=255,
+        help_text="Display label for this option"
+    )
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Lower numbers appear first"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive options are hidden from dropdowns"
+    )
+    has_text_input = models.BooleanField(
+        default=False,
+        help_text="If True, shows a text input when this option is selected (e.g. 'Others')"
+    )
+
+    class Meta:
+        ordering = ['category', 'device_type', 'display_order', 'label']
+        indexes = [
+            models.Index(fields=['category', 'device_type', 'is_active']),
+        ]
+
+    def __str__(self):
+        dt = f" ({self.get_device_type_display()})" if self.device_type else " (All)"
+        return f"{self.get_category_display()}{dt}: {self.label}"

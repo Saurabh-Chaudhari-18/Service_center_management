@@ -47,6 +47,7 @@ import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import type { Invoice, InvoiceStatus, InvoiceLineItem, Payment } from "@/types";
 import { INVOICE_STATUS_CONFIG } from "@/types";
+import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 
 // =====================================================
 // Debounce Hook
@@ -316,9 +317,11 @@ function InvoiceRow({
 function InvoiceDetailPanel({
   invoice,
   onClose,
+  onDownload,
 }: {
   invoice: Invoice;
   onClose: () => void;
+  onDownload: (inv: Invoice) => void;
 }) {
   const statusConfig = INVOICE_STATUS_CONFIG[invoice.status];
 
@@ -591,14 +594,7 @@ function InvoiceDetailPanel({
           <Button
             variant="secondary"
             leftIcon={<Download className="w-4 h-4" />}
-            onClick={async () => {
-              try {
-                await billingApi.logDownload(inv.id);
-                await billingApi.downloadPdf(inv.id, inv.invoice_number);
-              } catch (e) {
-                console.error(e);
-              }
-            }}
+            onClick={() => onDownload(inv)}
           >
             PDF
           </Button>
@@ -627,6 +623,41 @@ export default function BillingPage() {
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  // PDF Generation State
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const [downloadingInvoice, setDownloadingInvoice] = useState<Invoice | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  useEffect(() => {
+    if (downloadingInvoice && pdfContainerRef.current) {
+      const generatePdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+          const html2pdf = (await import("html2pdf.js")).default;
+          const opt = {
+            margin: 0,
+            filename: `${downloadingInvoice.invoice_number}.pdf`,
+            image: { type: "jpeg", quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+          };
+          await html2pdf()
+            .set(opt)
+            .from(pdfContainerRef.current)
+            .save();
+          await billingApi.logDownload(downloadingInvoice.id);
+        } catch (error) {
+          console.error("Failed to generate PDF:", error);
+        } finally {
+          setIsGeneratingPdf(false);
+          setDownloadingInvoice(null);
+        }
+      };
+
+      setTimeout(generatePdf, 150);
+    }
+  }, [downloadingInvoice]);
 
   // Sort state
   const [sortField, setSortField] = useState<SortField>("invoice_date");
@@ -713,7 +744,8 @@ export default function BillingPage() {
 
   const handleDownload = async (invoice: Invoice) => {
     try {
-      await billingApi.downloadPdf(invoice.id, invoice.invoice_number);
+      const fullInvoice = await billingApi.getInvoice(invoice.id);
+      setDownloadingInvoice(fullInvoice);
     } catch (error) {
       console.error("Failed to download invoice:", error);
     }
@@ -739,6 +771,13 @@ export default function BillingPage() {
   return (
     <ProtectedRoute requiredPermission="canViewBilling">
       <AppLayout>
+        {/* Hidden PDF Template Container */}
+        <div style={{ display: "none" }}>
+          <div ref={pdfContainerRef}>
+            {downloadingInvoice && <InvoiceTemplate invoice={downloadingInvoice} />}
+          </div>
+        </div>
+
         <Header
           title="Billing & Invoices"
           subtitle={`${data?.count || 0} total invoices`}
@@ -970,6 +1009,7 @@ export default function BillingPage() {
                 <InvoiceDetailPanel
                   invoice={selectedInvoice}
                   onClose={() => setSelectedInvoice(null)}
+                  onDownload={handleDownload}
                 />
               </>
             )}

@@ -980,9 +980,20 @@ export default function JobDetailPage() {
                       Physical Condition
                     </p>
                     <p className="text-neutral-900 bg-neutral-50 p-3 rounded-lg">
-                      {job.physical_condition || "Not documented"}
+                      {(job as any).physical_condition_display || "Not documented"}
                     </p>
                   </div>
+
+                  {(job as any).engineer_diagnosis_display && (
+                    <div>
+                      <p className="text-sm font-medium text-neutral-500 mb-1">
+                        Engineer Diagnosis
+                      </p>
+                      <p className="text-neutral-900 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        {(job as any).engineer_diagnosis_display}
+                      </p>
+                    </div>
+                  )}
 
                   {job.diagnosis_notes && (
                     <div>
@@ -1332,7 +1343,7 @@ export default function JobDetailPage() {
                     )}
                     <p>
                       <b>Physical Condition:</b>{" "}
-                      {job.physical_condition || "Not documented"}
+                      {(job as any).physical_condition_display || "Not documented"}
                     </p>
                   </div>
                 </div>

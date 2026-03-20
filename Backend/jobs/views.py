@@ -14,7 +14,8 @@ from django.utils import timezone
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
     JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType, DiagnosisPart,
-    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS
+    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
+    DropdownOption, DropdownCategory
 )
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
@@ -26,7 +27,8 @@ from jobs.serializers import (
     PartRequestSerializer, AccessoryTypeSerializer, DeviceTypeSerializer,
     JobStatusHistorySerializer,
     PickupRequestSerializer, PickupRequestCreateSerializer,
-    PickupRequestListSerializer, PickupRequestStatusUpdateSerializer
+    PickupRequestListSerializer, PickupRequestStatusUpdateSerializer,
+    DropdownOptionSerializer
 )
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
@@ -656,6 +658,40 @@ class JobEnumsView(viewsets.ViewSet):
         """Get all pickup request statuses."""
         statuses = [{'value': ps.value, 'label': ps.label} for ps in PickupRequestStatus]
         return Response(statuses)
+
+
+class DropdownOptionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing dropdown options.
+    Supports filtering by category and device_type.
+    
+    Query params:
+      - category: PHYSICAL_CONDITION or ENGINEER_DIAGNOSIS
+      - device_type: LAPTOP, DESKTOP, etc. (returns options for that type + options with no type)
+    """
+    serializer_class = DropdownOptionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['category', 'is_active']
+    ordering_fields = ['display_order', 'label']
+    ordering = ['display_order', 'label']
+
+    def get_queryset(self):
+        queryset = DropdownOption.objects.all()
+        
+        # Filter by device_type: returns matching + universal (NULL) options
+        device_type = self.request.query_params.get('device_type')
+        if device_type:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(device_type=device_type) | Q(device_type__isnull=True)
+            )
+        
+        # Default to active only for list
+        if self.action == 'list' and 'is_active' not in self.request.query_params:
+            queryset = queryset.filter(is_active=True)
+        
+        return queryset
 
 
 class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):

@@ -373,17 +373,19 @@ export interface JobCard extends BaseEntity {
 }
 
 export interface CreateJobCardData {
-  branch: string;
+  branch: string | null;
   customer_id: string;
   device_type: DeviceType;
   brand: string;
   model: string;
   serial_number?: string;
   customer_complaint: string;
-  physical_condition: string;
+  physical_condition: { selected: string[]; other_text?: string };
+  engineer_diagnosis?: { selected: string[]; other_text?: string };
   additional_comments?: string;
   device_password?: string;
   diagnosis_notes?: string;
+  estimated_cost?: number;
   is_urgent?: boolean;
   is_warranty_repair?: boolean;
   warranty_details?: string;

@@ -401,6 +401,52 @@ export const jobsApi = {
 };
 
 // =====================================================
+// Dropdown Options API
+// =====================================================
+
+export interface DropdownOptionItem {
+  id: string;
+  category: string;
+  category_display: string;
+  device_type: string | null;
+  device_type_display: string | null;
+  label: string;
+  display_order: number;
+  is_active: boolean;
+  has_text_input: boolean;
+}
+
+export const dropdownOptionsApi = {
+  list: async (params?: {
+    category?: string;
+    device_type?: string;
+    is_active?: boolean;
+  }): Promise<DropdownOptionItem[]> => {
+    const res = await apiGet<
+      DropdownOptionItem[] | { results: DropdownOptionItem[] }
+    >("/jobs/dropdown-options/", params);
+    return Array.isArray(res) ? res : (res as any)?.results || [];
+  },
+
+  create: async (
+    data: Partial<DropdownOptionItem>,
+  ): Promise<DropdownOptionItem> => {
+    return apiPost<DropdownOptionItem>("/jobs/dropdown-options/", data);
+  },
+
+  update: async (
+    id: string,
+    data: Partial<DropdownOptionItem>,
+  ): Promise<DropdownOptionItem> => {
+    return apiPatch<DropdownOptionItem>(`/jobs/dropdown-options/${id}/`, data);
+  },
+
+  delete: async (id: string): Promise<void> => {
+    return apiDelete(`/jobs/dropdown-options/${id}/`);
+  },
+};
+
+// =====================================================
 // Inventory API
 // =====================================================
 
@@ -680,7 +726,7 @@ export const notificationsApi = {
       is_active: boolean;
     }>
   > => {
-    const res = await apiGet("/notifications/templates/");
+    const res = await apiGet<any>("/notifications/templates/");
     return Array.isArray(res) ? res : res?.results || [];
   },
 

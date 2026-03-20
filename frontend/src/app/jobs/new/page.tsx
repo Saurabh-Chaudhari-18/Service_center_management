@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -19,7 +18,7 @@ import {
   Alert,
   Modal,
 } from "@/components/ui";
-import { jobsApi, customersApi, branchesApi } from "@/lib/api";
+import { jobsApi, customersApi, branchesApi, dropdownOptionsApi } from "@/lib/api";
 import {
   ArrowLeft,
   Search,
@@ -46,9 +45,14 @@ const createJobSchema = z.object({
   model: z.string().min(1, "Model is required"),
   serial_number: z.string().optional(),
   customer_complaint: z.string().min(10, "Please describe the issue in detail"),
-  physical_condition: z
-    .string()
-    .min(5, "Please describe the physical condition"),
+  physical_condition: z.object({
+    selected: z.array(z.string()),
+    other_text: z.string().optional(),
+  }).optional(),
+  engineer_diagnosis: z.object({
+    selected: z.array(z.string()),
+    other_text: z.string().optional(),
+  }).optional(),
   device_password: z.string().optional(),
   is_urgent: z.boolean().optional(),
   is_warranty_repair: z.boolean().optional(),
@@ -58,20 +62,6 @@ const createJobSchema = z.object({
 });
 
 type CreateJobFormData = z.infer<typeof createJobSchema>;
-
-// =====================================================
-// Print Portal Component
-// =====================================================
-
-const PrintPortal = ({ children }: { children: React.ReactNode }) => {
-  // Client-side only rendering for portal - check window directly
-  if (typeof window === "undefined") return null;
-
-  return createPortal(
-    <div id="print-portal-root">{children}</div>,
-    document.body,
-  );
-};
 
 // =====================================================
 // Customer Search Component
@@ -388,645 +378,8 @@ function AccessoriesChecklist({ value, onChange }: AccessoriesChecklistProps) {
 }
 
 // =====================================================
-// Job Card Preview Modal (Printable Consent Form)
-// =====================================================
-
-interface JobCardPreviewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  isSubmitting: boolean;
-  formData: CreateJobFormData;
-  customer: Customer | null;
-  accessories: Partial<
-    Record<AccessoryType, { present: boolean; condition: string }>
-  >;
-  branchName: string;
-  serviceCharge: string;
-  predictedJobNumber: string;
-  accessoryManualDetails: string;
-}
-
-// Simple Brand Logo Component
-function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
-  switch (brand) {
-    case "HP":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle cx="50" cy="50" r="45" fill="#0096D6" />
-          <text
-            x="50"
-            y="65"
-            fontSize="40"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            style={{ fontStyle: "italic", fontFamily: "serif" }}
-          >
-            hp
-          </text>
-        </svg>
-      );
-    case "DELL":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle
-            cx="50"
-            cy="50"
-            r="48"
-            fill="none"
-            stroke="#007DB8"
-            strokeWidth="4"
-          />
-          <text
-            x="50"
-            y="60"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#007DB8"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            DELL
-          </text>
-        </svg>
-      );
-    case "ASUS":
-      return (
-        <svg viewBox="0 0 100 30" className="w-12 h-6">
-          <text
-            x="50"
-            y="22"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#00539B"
-            textAnchor="middle"
-            style={{ letterSpacing: "2px" }}
-          >
-            ASUS
-          </text>
-          <line
-            x1="10"
-            y1="12"
-            x2="90"
-            y2="12"
-            stroke="white"
-            strokeWidth="2"
-          />
-        </svg>
-      );
-    case "LENOVO":
-      return (
-        <svg viewBox="0 0 100 40" className="w-16 h-8">
-          <rect width="100" height="40" fill="#E2231A" />
-          <text
-            x="50"
-            y="28"
-            fontSize="20"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            Lenovo
-          </text>
-        </svg>
-      );
-  }
-}
-
-function JobCardPreviewModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  isSubmitting,
-  formData,
-  customer,
-  accessories,
-  branchName,
-  serviceCharge,
-  predictedJobNumber,
-  accessoryManualDetails,
-}: JobCardPreviewModalProps) {
-  // Auto-print when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      // Small delay to ensure the print portal content is rendered
-      const timer = setTimeout(() => {
-        window.print();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-  // Helper to get accessory display list with details
-  const getAccessoryDisplayList = () => {
-    return Object.entries(accessories)
-      .filter(([_, v]) => v.present)
-      .map(([type, v]) => {
-        const label =
-          type === "CHARGER"
-            ? "Charger/Adapter"
-            : type === "BATTERY"
-              ? "Battery"
-              : type === "BAG"
-                ? "Laptop Bag"
-                : type === "SSD"
-                  ? "SSD"
-                  : type === "HDD"
-                    ? "Hard Drive"
-                    : type === "RAM"
-                      ? "RAM Module"
-                      : type;
-
-        // Simple parsing logic derived from main page
-        const lines = accessoryManualDetails.split("\n");
-        const matchingLine = lines.find((line) =>
-          line.toLowerCase().includes(label.toLowerCase()),
-        );
-        const description = matchingLine
-          ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
-          : "";
-
-        return description && description.trim() !== ""
-          ? `${label} (${description})`
-          : label;
-      });
-  };
-
-  const selectedAccessories = getAccessoryDisplayList();
-  const currentDate = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop - hidden on print */}
-      <div className="fixed inset-0 bg-black/50 no-print" onClick={onClose} />
-
-      {/* Modal Container */}
-      <div className="flex min-h-full items-center justify-center p-4 no-print">
-        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-          {/* Screen Header */}
-          <div className="px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-semibold text-neutral-900">
-              Job Card Preview - Consent Form
-            </h2>
-            <p className="text-sm text-neutral-500">
-              Review the details below, print for customer signature, then
-              confirm to create.
-            </p>
-          </div>
-
-          {/* Printable Content Preview (shown on screen inside scrollable area) */}
-          <div className="p-6 space-y-4 text-sm">
-            {/* Enhanced Shop Header with Brand Logos */}
-            <div className="border-2 border-neutral-900 p-3 bg-neutral-50">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-4 items-center">
-                  <BrandLogo brand="HP" />
-                  <BrandLogo brand="DELL" />
-                  <BrandLogo brand="ASUS" />
-                  <BrandLogo brand="LENOVO" />
-                </div>
-                <div className="text-right">
-                  <h1 className="text-xl font-bold text-neutral-900">
-                    SHIVANGI INFOTECH
-                  </h1>
-                  <p className="text-xs text-neutral-600">
-                    HP | DELL | ASUS Authorised Partner
-                  </p>
-                </div>
-              </div>
-              <div className="text-center pt-2 border-t border-neutral-300 text-xs text-neutral-600">
-                <p>
-                  Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom,
-                  Pune-411038
-                </p>
-                <p>Mobile: 9890888295, 9850292673</p>
-              </div>
-              <div className="text-center pt-2 mt-2 border-t border-neutral-300">
-                <p className="font-bold text-neutral-900">
-                  SERVICE INWARD FORM / JOB CARD
-                </p>
-                <p className="text-xs text-neutral-500">Date: {currentDate}</p>
-              </div>
-            </div>
-
-            {/* Customer & Device Info - Side by Side */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="border border-neutral-300 p-2">
-                <h3 className="font-bold border-b mb-1 pb-1">
-                  CUSTOMER DETAILS
-                </h3>
-                <p>
-                  <b>Name:</b> {customer?.first_name} {customer?.last_name}
-                </p>
-                <p>
-                  <b>Mobile:</b> {customer?.mobile}
-                </p>
-                {customer?.email && (
-                  <p>
-                    <b>Email:</b> {customer.email}
-                  </p>
-                )}
-                {customer?.city && (
-                  <p>
-                    <b>Address:</b> {customer.city}, {customer?.state}
-                  </p>
-                )}
-              </div>
-              <div className="border border-neutral-300 p-2">
-                <h3 className="font-bold border-b mb-1 pb-1">DEVICE DETAILS</h3>
-                <p>
-                  <b>Type:</b> {formData.device_type}
-                </p>
-                <p>
-                  <b>Brand/Model:</b> {formData.brand} {formData.model}
-                </p>
-                {formData.serial_number && (
-                  <p>
-                    <b>Serial:</b> {formData.serial_number}
-                  </p>
-                )}
-                {formData.is_urgent && (
-                  <p className="text-red-600 font-bold">⚠ URGENT</p>
-                )}
-                <p>
-                  <b>Warranty:</b> {formData.is_warranty_repair ? "YES" : "NO"}
-                </p>
-                {formData.is_warranty_repair && formData.warranty_details && (
-                  <p>
-                    <b>Warranty Details:</b> {formData.warranty_details}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Accessories & Warranty */}
-            <div className="border border-neutral-300 p-2 text-xs">
-              <h3 className="font-bold border-b mb-1 pb-1">ACCESSORIES</h3>
-              {selectedAccessories.length > 0 ? (
-                <p>
-                  <b>Accessories:</b> {selectedAccessories.join(", ")}
-                </p>
-              ) : (
-                <p className="text-neutral-400">No accessories submitted</p>
-              )}
-              <p className="mt-1">
-                <b>Physical Condition:</b> {formData.physical_condition}
-              </p>
-            </div>
-
-            {/* Issue Details */}
-            <div className="border border-neutral-300 p-2 text-xs">
-              <h3 className="font-bold border-b mb-1 pb-1">ISSUE DETAILS</h3>
-              <p>
-                <b>Customer Complaint:</b> {formData.customer_complaint}
-              </p>
-              {formData.diagnosis_notes && (
-                <p className="mt-1">
-                  <b>Initial Observations:</b> {formData.diagnosis_notes}
-                </p>
-              )}
-              {formData.additional_comments && (
-                <p className="mt-1">
-                  <b>Additional Comments:</b> {formData.additional_comments}
-                </p>
-              )}
-            </div>
-
-            {/* Terms & Conditions - Compact */}
-            <div className="border border-neutral-300 p-2 text-[10px] bg-neutral-50">
-              <h3 className="font-bold mb-1">TERMS & CONDITIONS</h3>
-              <p>
-                <b>Condition:</b> In case of hard disk failure, formatting may
-                be required which may lead to data loss. Customers are advised
-                to backup important data. Only recommended OS with drivers will
-                be installed. Physical/water/burn damage not covered under
-                warranty. For warranty claims, provide purchase invoice.
-                Defective parts not returned. Product may become non-functional
-                during repair - we will not be responsible.
-              </p>
-              <p className="mt-1">
-                <b>Note:</b> Customer must confirm repair within 48 hours of
-                estimate, else repair will proceed automatically. Defective
-                parts not returned. Complaints must be reported within 24 hours
-                of delivery. Collect product within 45 days or it will be
-                scrapped. After 45 days, ₹500/month handling charge applies.
-              </p>
-            </div>
-
-            {/* Authorization & Charges */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="border border-neutral-300 p-2">
-                <h3 className="font-bold border-b mb-1 pb-1">
-                  CUSTOMER AUTHORIZATION
-                </h3>
-                <p className="text-[10px] mb-6">
-                  I authorize Shivangi Infotech for repair & service. I have
-                  backed up all important data.
-                </p>
-                <div className="mt-4 pt-2 border-t border-dashed border-black">
-                  <p className="font-bold mb-2">
-                    {customer?.first_name} {customer?.last_name}
-                  </p>
-                  <p className="font-bold">
-                    Customer Signature: _________________
-                  </p>
-                </div>
-              </div>
-              <div className="border border-neutral-300 p-2">
-                <h3 className="font-bold border-b mb-1 pb-1">
-                  CHARGES (Approx)
-                </h3>
-                <div className="space-y-1">
-                  <p className="flex justify-between">
-                    <span>Service:</span>
-                    <span>₹ _______</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span>Parts:</span>
-                    <span>₹ _______</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span>Discount:</span>
-                    <span>₹ _______</span>
-                  </p>
-                  <p className="flex justify-between font-bold border-t pt-1">
-                    <span>Total:</span>
-                    <span>₹ _______</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Note */}
-            <p className="text-[9px] text-center text-neutral-500">
-              All estimates without taxes. GST extra. Diagnosis: Laptop ₹750,
-              Mobile/Tablet ₹500, Desktop ₹350-550. NON-WARRANTY PRODUCTS HAVE
-              NO WARRANTY ON REPAIRING.
-            </p>
-          </div>
-
-          {/* Action Buttons - Screen only */}
-          <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3 sticky bottom-0 bg-white">
-            <Button variant="secondary" onClick={onClose}>
-              Back to Edit
-            </Button>
-            <Button
-              variant="secondary"
-              leftIcon={<Printer className="w-4 h-4" />}
-              onClick={() => window.print()}
-            >
-              Reprint
-            </Button>
-            <Button onClick={onConfirm} isLoading={isSubmitting}>
-              Create Job Card
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* PRINT-ONLY CONTENT - Uses ID for CSS targeting */}
-      <PrintPortal>
-        <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
-          <div className="space-y-3">
-            {/* Enhanced Shop Header with Brand Logos */}
-            <div className="print-section border-2 border-black p-2 mb-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-4 items-center">
-                  <BrandLogo brand="HP" />
-                  <BrandLogo brand="DELL" />
-                  <BrandLogo brand="ASUS" />
-                  <BrandLogo brand="LENOVO" />
-                </div>
-                <div className="text-right">
-                  <h1 className="text-2xl font-bold uppercase tracking-wider">
-                    SHIVANGI INFOTECH
-                  </h1>
-                  <p className="text-[10pt] font-semibold">
-                    HP | DELL | ASUS Authorised Partner
-                  </p>
-                </div>
-              </div>
-              <div className="text-center mt-2 pt-2 border-t-2 border-black">
-                <p className="text-[10pt] font-medium">
-                  Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom,
-                  Pune-411038
-                </p>
-                <p className="text-[10pt] font-bold mt-1">
-                  Mobile: 9890888295, 9850292673
-                </p>
-              </div>
-              <div className="text-center mt-2 pt-2 border-t-2 border-black">
-                <p className="font-bold text-lg uppercase tracking-wide">
-                  JOB CARD: {predictedJobNumber}
-                </p>
-                <p className="text-[11pt] font-medium">Date: {currentDate}</p>
-              </div>
-            </div>
-
-            {/* Customer & Device */}
-            <div className="print-grid print-section grid grid-cols-2 gap-4 mb-2">
-              <div className="border border-black p-2">
-                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                  CUSTOMER DETAILS
-                </p>
-                <div className="space-y-1">
-                  <p>
-                    <b>Name:</b> {customer?.first_name} {customer?.last_name}
-                  </p>
-                  <p>
-                    <b>Mobile:</b> {customer?.mobile}
-                  </p>
-                  {customer?.email && (
-                    <p>
-                      <b>Email:</b> {customer.email}
-                    </p>
-                  )}
-                  {customer?.city && (
-                    <p>
-                      <b>Address:</b> {customer.city}, {customer?.state}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="border border-black p-2">
-                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                  DEVICE DETAILS
-                </p>
-                <div className="space-y-1">
-                  <p>
-                    <b>Type:</b> {formData.device_type}
-                  </p>
-                  <p>
-                    <b>Brand/Model:</b> {formData.brand} {formData.model}
-                  </p>
-                  {formData.serial_number && (
-                    <p>
-                      <b>Serial:</b> {formData.serial_number}
-                    </p>
-                  )}
-                  {formData.is_urgent && (
-                    <p className="text-red-600 font-bold text-[11pt] mt-1">
-                      ⚠ URGENT REPAIR
-                    </p>
-                  )}
-                  <p>
-                    <b>Warranty:</b>{" "}
-                    {formData.is_warranty_repair ? "YES" : "NO"}
-                  </p>
-                  {formData.is_warranty_repair && formData.warranty_details && (
-                    <p>
-                      <b>Warranty Details:</b> {formData.warranty_details}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Accessories & Warranty */}
-            <div className="print-section border border-black p-2 mb-2">
-              <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                ACCESSORIES
-              </p>
-              <div className="space-y-2">
-                {selectedAccessories.length > 0 ? (
-                  <p>
-                    <b>Accessories:</b> {selectedAccessories.join(", ")}
-                  </p>
-                ) : (
-                  <p className="text-neutral-400">No accessories submitted</p>
-                )}
-                <p>
-                  <b>Physical Condition:</b> {formData.physical_condition}
-                </p>
-              </div>
-            </div>
-
-            {/* Issue Details */}
-            <div className="print-section border border-black p-2 mb-2">
-              <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                ISSUE DETAILS
-              </p>
-              <div className="space-y-2">
-                <p>
-                  <b>Customer Complaint:</b> {formData.customer_complaint}
-                </p>
-                {formData.diagnosis_notes && (
-                  <p>
-                    <b>Initial Observations:</b> {formData.diagnosis_notes}
-                  </p>
-                )}
-                {formData.additional_comments && (
-                  <p>
-                    <b>Additional Comments:</b> {formData.additional_comments}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Terms & Conditions */}
-            <div className="print-section border border-black p-2 terms-text mb-2">
-              <p className="font-bold text-[10pt] mb-1 uppercase underline">
-                TERMS & CONDITIONS
-              </p>
-              <div className="space-y-2 text-[9pt] leading-[1.4] text-justify">
-                <p>
-                  <b>1. Condition:</b> In case of hard disk failure, formatting
-                  may be required which may lead to data loss. Customers are
-                  advised to backup important data. Only recommended OS with
-                  drivers will be installed. Physical/water/burn damage not
-                  covered under warranty. For warranty claims, provide purchase
-                  invoice. Defective parts not returned. Product may become
-                  non-functional during repair - we will not be responsible.
-                </p>
-                <p>
-                  <b>2. Note:</b> Customer must confirm repair within 48 hours
-                  of estimate, else repair will proceed automatically. Defective
-                  parts not returned. Complaints must be reported within 24
-                  hours of delivery. Collect product within 45 days or it will
-                  be scrapped. After 45 days, ₹500/month handling charge
-                  applies.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {/* Authorization & Charges */}
-            <div className="print-grid print-section grid grid-cols-2 gap-4">
-              <div className="border border-black p-2 h-full flex flex-col justify-between">
-                <div>
-                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                    CUSTOMER AUTHORIZATION
-                  </p>
-                  <p className="text-[10pt] mb-4 italic">
-                    I hereby authorize Shivangi Infotech to provide necessary
-                    repair & service. I have taken backup of all important data.
-                  </p>
-                </div>
-                <div className="mt-8 pt-2 border-t border-dashed border-black">
-                  <p className="font-bold mb-2">
-                    {customer?.first_name} {customer?.last_name}
-                  </p>
-                  <p className="font-bold">
-                    Customer Signature: _________________
-                  </p>
-                </div>
-              </div>
-              <div className="border border-black p-2">
-                <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                  APPROX REPAIR CHARGES
-                </p>
-                <div className="space-y-3 text-[11pt]">
-                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                    <span>Service Charges:</span>
-                    <span className="w-24 border-b border-black text-right px-1">
-                      {serviceCharge ? `₹ ${serviceCharge}` : "₹"}
-                    </span>
-                  </p>
-                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                    <span>Parts/Spares:</span>
-                    <span className="w-24 border-b border-black">₹</span>
-                  </p>
-                  <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                    <span>Discount:</span>
-                    <span className="w-24 border-b border-black">₹</span>
-                  </p>
-                  <p className="flex justify-between font-bold text-lg pt-1">
-                    <span>FINAL COST:</span>
-                    <span className="w-24 border-b-2 border-black">₹</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="footer-text text-center mt-2 pt-2 border-t-2 border-black text-[9pt]">
-              <p>
-                All estimates without taxes. GST are Extra as applicable.
-                Diagnosis: Laptop ₹750, Mobile/Tablet ₹500, Desktop ₹350-550
-              </p>
-              <p className="font-bold text-[10pt] mt-1">
-                NON-WARRANTY PRODUCTS HAVE NO WARRANTY ON REPAIRING
-              </p>
-            </div>
-          </div>
-        </div>
-      </PrintPortal>
-    </div>
-  );
-}
-
-// =====================================================
 // Main Create Job Card Page
-// =====================================================
+// ===========================================================================================
 
 export default function CreateJobCardPage() {
   const router = useRouter();
@@ -1038,15 +391,53 @@ export default function CreateJobCardPage() {
   const [accessories, setAccessories] = useState<
     Partial<Record<AccessoryType, { present: boolean; condition: string }>>
   >({});
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewFormData, setPreviewFormData] =
-    useState<CreateJobFormData | null>(null);
-  const [predictedNumber, setPredictedNumber] = useState<string>("");
-
   // New State for Service Charge
   const [serviceCharge, setServiceCharge] = useState("");
   // New State for Accessory Manual Details
   const [accessoryManualDetails, setAccessoryManualDetails] = useState("");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm<CreateJobFormData>({
+    resolver: zodResolver(createJobSchema),
+    defaultValues: {
+      device_type: "LAPTOP",
+      is_urgent: false,
+      is_warranty_repair: false,
+      physical_condition: { selected: [], other_text: "" },
+      engineer_diagnosis: { selected: [], other_text: "" },
+    },
+  });
+
+  // Dropdown options state
+  const [selectedPhysicalConditions, setSelectedPhysicalConditions] = useState<string[]>([]);
+  const [physicalConditionOtherText, setPhysicalConditionOtherText] = useState("");
+  const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
+  const [diagnosisOtherText, setDiagnosisOtherText] = useState("");
+
+  // Fetch dropdown options
+  const { data: physicalConditionOptions = [] } = useQuery({
+    queryKey: ["dropdown-options", "PHYSICAL_CONDITION"],
+    queryFn: () => dropdownOptionsApi.list({ category: "PHYSICAL_CONDITION" }),
+  });
+
+  const watchDeviceType = watch("device_type");
+
+  const { data: diagnosisOptions = [] } = useQuery({
+    queryKey: ["dropdown-options", "ENGINEER_DIAGNOSIS", watchDeviceType],
+    queryFn: () => dropdownOptionsApi.list({ category: "ENGINEER_DIAGNOSIS", device_type: watchDeviceType }),
+    enabled: !!watchDeviceType,
+  });
+
+  // Reset diagnosis selections when device type changes
+  useEffect(() => {
+    setSelectedDiagnoses([]);
+    setDiagnosisOtherText("");
+  }, [watchDeviceType]);
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -1064,8 +455,8 @@ export default function CreateJobCardPage() {
   // Auto-populate accessory details when checklist changes
   useEffect(() => {
     const presentAccessories = Object.entries(accessories)
-      .filter(([_, v]) => v.present)
-      .map(([k, _]) => {
+      .filter(([, v]) => v.present)
+      .map(([k]) => {
         // Get label from predefined list or format it
         const labels: Record<string, string> = {
           CHARGER: "Charger/Adapter",
@@ -1103,49 +494,6 @@ export default function CreateJobCardPage() {
     }
   }, [accessories]);
 
-  // Fetch predicted job number from API
-  const fetchPredictedNumber = async () => {
-    if (!currentBranch) return;
-    try {
-      const response = await jobsApi.nextNumber(currentBranch.id);
-      setPredictedNumber(response.next_number);
-    } catch (error) {
-      console.error("Failed to fetch next job number:", error);
-      // Fallback to client-side prediction if API fails
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth() + 1;
-      const fyStartYear = currentMonth >= 4 ? currentYear : currentYear - 1;
-      const fyShort = (fyStartYear + 1).toString().slice(-2);
-      const fy = `${fyStartYear}-${fyShort}`;
-      const currentNum = currentBranch.jobcard_current_number || 0;
-      const nextNum = currentNum + 1;
-      const sequence = nextNum.toString().padStart(5, "0");
-      setPredictedNumber(
-        `${currentBranch.jobcard_prefix || "JC"}/${fy}/${
-          currentBranch.code
-        }/${sequence}`,
-      );
-    }
-  };
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-    getValues,
-    trigger,
-  } = useForm<CreateJobFormData>({
-    resolver: zodResolver(createJobSchema),
-    defaultValues: {
-      device_type: "LAPTOP",
-      is_urgent: false,
-      is_warranty_repair: false,
-    },
-  });
-
   // Update form when customer is selected
   React.useEffect(() => {
     if (selectedCustomer) {
@@ -1160,10 +508,17 @@ export default function CreateJobCardPage() {
         branch: selectedBranchId === "universal" ? null : selectedBranchId,
         device_type: data.device_type as DeviceType,
         estimated_cost: serviceCharge ? parseFloat(serviceCharge) : undefined,
+        physical_condition: {
+          selected: selectedPhysicalConditions,
+          other_text: physicalConditionOtherText,
+        },
+        engineer_diagnosis: {
+          selected: selectedDiagnoses,
+          other_text: diagnosisOtherText,
+        },
         accessories: Object.entries(accessories)
-          .filter(([_, v]) => v.present)
+          .filter(([, v]) => v.present)
           .map(([type, v]) => {
-            // Parse description from manual details
             const label =
               type === "CHARGER"
                 ? "Charger/Adapter"
@@ -1179,7 +534,6 @@ export default function CreateJobCardPage() {
                           ? "RAM Module"
                           : type;
 
-            // Simple extraction: find line starting with label
             const lines = accessoryManualDetails.split("\n");
             const matchingLine = lines.find((line) =>
               line.toLowerCase().includes(label.toLowerCase()),
@@ -1192,7 +546,7 @@ export default function CreateJobCardPage() {
               accessory_type: type as AccessoryType,
               is_present: true,
               condition: v.condition,
-              description: description || v.condition, // Use parsed description or fallback
+              description: description || v.condition,
             };
           }),
         diagnosis_notes: data.diagnosis_notes || accessoryManualDetails,
@@ -1201,13 +555,6 @@ export default function CreateJobCardPage() {
       router.push(`/jobs/${job.id}`);
     },
   });
-
-  // Handle confirm from preview - actually submit the job
-  const handleConfirmCreate = () => {
-    if (previewFormData) {
-      mutate(previewFormData);
-    }
-  };
 
   const deviceTypes = [
     { value: "LAPTOP", label: "Laptop" },
@@ -1251,7 +598,7 @@ export default function CreateJobCardPage() {
           }
         />
 
-        <div className="p-6 max-w-4xl">
+        <div className="p-6 max-w-4xl mx-auto">
           {error && (
             <Alert variant="error" className="mb-6" title="Error">
               {error.message}
@@ -1261,7 +608,7 @@ export default function CreateJobCardPage() {
           <form onSubmit={handleSubmit((d) => mutate(d))} className="space-y-6">
             {/* Branch Selection (Owners Only) */}
             {hasPermission("canManageBranches") && (
-              <Card>
+              <Card className="border border-neutral-300 shadow-sm">
                 <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
                   <Printer className="w-5 h-5 text-primary-500" />
                   Branch Assignment
@@ -1279,9 +626,9 @@ export default function CreateJobCardPage() {
                       ...(Array.isArray(branches)
                         ? branches
                         : Object.hasOwn(branches, "results")
-                          ? (branches as any).results
+                          ? (branches as { results: { id: string; name: string }[] }).results
                           : []
-                      ).map((b: any) => ({ value: b.id, label: b.name })),
+                      ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
                     ]}
                   />
                   <p className="text-sm text-neutral-500 mt-1 col-span-full">
@@ -1291,7 +638,7 @@ export default function CreateJobCardPage() {
               </Card>
             )}
             {/* Customer Section */}
-            <Card>
+            <Card className="border border-neutral-300 shadow-sm">
               <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
                 <User className="w-5 h-5 text-primary-500" />
                 Customer Information
@@ -1310,7 +657,7 @@ export default function CreateJobCardPage() {
             </Card>
 
             {/* Device Section */}
-            <Card>
+            <Card className="border border-neutral-300 shadow-sm">
               <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
                 <Laptop className="w-5 h-5 text-primary-500" />
                 Device Details
@@ -1400,8 +747,8 @@ export default function CreateJobCardPage() {
               </div>
             </Card>
 
-            {/* Accessories & Warranty */}
-            <Card>
+            {/* Accessories & Condition */}
+            <Card className="border border-neutral-300 shadow-sm">
               <h3 className="text-lg font-semibold text-neutral-900 mb-4">
                 Accessories & Condition
               </h3>
@@ -1434,24 +781,67 @@ export default function CreateJobCardPage() {
 
                 <div className="border-t border-neutral-200"></div>
 
+                {/* Physical Condition - Multi-select Checkboxes */}
                 <div>
                   <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
                     Physical Condition
                   </h4>
-                  <Textarea
-                    label="Physical Condition"
-                    placeholder="Describe the physical condition of the device (scratches, dents, etc.)..."
-                    {...register("physical_condition")}
-                    error={errors.physical_condition?.message}
-                    required
-                    rows={2}
-                  />
+                  <p className="text-sm text-neutral-500 mb-3">
+                    Select all that apply
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {physicalConditionOptions.map((option) => {
+                      const isChecked = selectedPhysicalConditions.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPhysicalConditions(prev =>
+                              isChecked
+                                ? prev.filter(id => id !== option.id)
+                                : [...prev, option.id]
+                            );
+                          }}
+                          className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                            isChecked
+                              ? "bg-orange-50 border-orange-300 text-orange-700"
+                              : "bg-neutral-50 border-neutral-200 text-neutral-600"
+                          }`}
+                        >
+                          <div
+                            className={`w-5 h-5 rounded border flex items-center justify-center ${
+                              isChecked
+                                ? "bg-orange-500 border-orange-500"
+                                : "border-neutral-300"
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className="text-sm font-medium">{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Show text input for 'Others' */}
+                  {selectedPhysicalConditions.some(id =>
+                    physicalConditionOptions.find(o => o.id === id && o.has_text_input)
+                  ) && (
+                    <div className="mt-3">
+                      <Input
+                        label="Specify Other Condition"
+                        placeholder="Please describe..."
+                        value={physicalConditionOtherText}
+                        onChange={(e) => setPhysicalConditionOtherText(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
 
             {/* Problem Description */}
-            <Card>
+            <Card className="border border-neutral-300 shadow-sm">
               <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-primary-500" />
                 Problem Description
@@ -1466,12 +856,69 @@ export default function CreateJobCardPage() {
                   rows={3}
                 />
 
-                <Textarea
-                  label="Engineer Diagnosis (Initial Observations)"
-                  placeholder="Enter any initial technical observations..."
-                  {...register("diagnosis_notes")}
-                  rows={2}
-                />
+                {/* Engineer Diagnosis - Multi-select Checkboxes */}
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                    Engineer Diagnosis
+                  </h4>
+                  <p className="text-sm text-neutral-500 mb-3">
+                    Select applicable diagnosis based on device type ({watchDeviceType || 'select device type'})
+                  </p>
+                  {diagnosisOptions.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {diagnosisOptions.map((option) => {
+                          const isChecked = selectedDiagnoses.includes(option.id);
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDiagnoses(prev =>
+                                  isChecked
+                                    ? prev.filter(id => id !== option.id)
+                                    : [...prev, option.id]
+                                );
+                              }}
+                              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                                isChecked
+                                  ? "bg-blue-50 border-blue-300 text-blue-700"
+                                  : "bg-neutral-50 border-neutral-200 text-neutral-600"
+                              }`}
+                            >
+                              <div
+                                className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                  isChecked
+                                    ? "bg-blue-500 border-blue-500"
+                                    : "border-neutral-300"
+                                }`}
+                              >
+                                {isChecked && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="text-sm font-medium">{option.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Show text input for 'Others' */}
+                      {selectedDiagnoses.some(id =>
+                        diagnosisOptions.find(o => o.id === id && o.has_text_input)
+                      ) && (
+                        <div className="mt-3">
+                          <Input
+                            label="Specify Other Diagnosis"
+                            placeholder="Please describe..."
+                            value={diagnosisOtherText}
+                            onChange={(e) => setDiagnosisOtherText(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-neutral-400 italic">Select a device type to see diagnosis options</p>
+                  )}
+                </div>
+
                 <Textarea
                   label="Additional Comments"
                   placeholder="Any other details or comments..."
@@ -1482,7 +929,7 @@ export default function CreateJobCardPage() {
             </Card>
 
             {/* Service Charge & Priority */}
-            <Card>
+            <Card className="border border-neutral-300 shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1522,37 +969,13 @@ export default function CreateJobCardPage() {
                 </Button>
               </Link>
               <Button
-                type="button"
-                leftIcon={<Printer className="w-4 h-4" />}
-                onClick={async () => {
-                  const isValid = await trigger();
-                  if (isValid) {
-                    setPreviewFormData(getValues());
-                    await fetchPredictedNumber();
-                    setShowPreview(true);
-                  }
-                }}
+                type="submit"
                 isLoading={isPending}
               >
-                Print & Create
+                Create Job Card
               </Button>
             </div>
           </form>
-
-          {/* Preview Modal */}
-          <JobCardPreviewModal
-            isOpen={showPreview}
-            onClose={() => setShowPreview(false)}
-            onConfirm={handleSubmit((data) => mutate(data))}
-            isSubmitting={isPending}
-            formData={previewFormData || getValues()}
-            customer={selectedCustomer}
-            accessories={accessories}
-            branchName={currentBranch?.name || ""}
-            serviceCharge={serviceCharge}
-            predictedJobNumber={predictedNumber}
-            accessoryManualDetails={accessoryManualDetails}
-          />
         </div>
       </AppLayout>
     </ProtectedRoute>

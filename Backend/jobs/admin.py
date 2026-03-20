@@ -3,7 +3,7 @@ Jobs admin configuration.
 """
 
 from django.contrib import admin
-from jobs.models import JobCard, JobStatusHistory, JobAccessory, JobPhoto, JobNote, PartRequest
+from jobs.models import JobCard, JobStatusHistory, JobAccessory, JobPhoto, JobNote, PartRequest, DropdownOption
 
 
 class JobAccessoryInline(admin.TabularInline):
@@ -62,3 +62,12 @@ class PartRequestAdmin(admin.ModelAdmin):
     list_filter = ['status']
     search_fields = ['job__job_number', 'part_name']
     ordering = ['-created_at']
+
+
+@admin.register(DropdownOption)
+class DropdownOptionAdmin(admin.ModelAdmin):
+    list_display = ['label', 'category', 'device_type', 'display_order', 'is_active', 'has_text_input']
+    list_filter = ['category', 'device_type', 'is_active', 'has_text_input']
+    search_fields = ['label']
+    ordering = ['category', 'device_type', 'display_order']
+    list_editable = ['display_order', 'is_active']
