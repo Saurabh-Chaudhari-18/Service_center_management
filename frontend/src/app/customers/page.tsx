@@ -56,7 +56,7 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
           <h3 className="font-medium text-neutral-900 truncate flex items-center gap-2">
             {customer.first_name} {customer.last_name}
             {!customer.branch_name && (
-              <span className="px-2 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 rounded-full">
+              <span className="px-2 py-0.5 text-[10px] font-semibold bg-purple-600 text-white rounded-full">
                 🌍 Universal
               </span>
             )}
@@ -159,7 +159,7 @@ function AddCustomerModal({
     mutationFn: (data: CustomerFormData) =>
       customersApi.create({
         ...data,
-        branch: selectedBranchId === "universal" ? null : selectedBranchId,
+        branch: selectedBranchId === "universal" ? undefined : selectedBranchId,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -200,9 +200,9 @@ function AddCustomerModal({
                 ...(Array.isArray(branches)
                   ? branches
                   : Object.hasOwn(branches, "results")
-                    ? (branches as any).results
+                    ? (branches as { results: { id: string; name: string }[] }).results
                     : []
-                ).map((b: any) => ({ value: b.id, label: b.name })),
+                ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
               ]}
             />
           </div>

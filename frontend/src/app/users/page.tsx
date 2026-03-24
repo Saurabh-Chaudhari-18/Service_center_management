@@ -765,8 +765,8 @@ export default function StaffManagementPage() {
           </div>
 
           {/* Search & Filters */}
-          <Card padding="md">
-            <div className="flex flex-wrap items-center gap-4">
+          <Card padding="sm">
+            <div className="flex flex-col md:flex-row gap-4 bg-white/50 backdrop-blur-xl">
               <div className="relative flex-1 min-w-[250px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                 <input
@@ -794,7 +794,7 @@ export default function StaffManagementPage() {
                   placeholder="All Branches"
                   options={[
                     { value: "", label: "All Branches" },
-                    ...branchesList.map((b: any) => ({
+                    ...branchesList.map((b: { id: string; name: string }) => ({
                       value: b.id,
                       label: b.name,
                     })),

@@ -16,10 +16,8 @@ import {
   Button,
   Input,
   Select,
-  InvoiceStatusBadge,
   LoadingState,
   EmptyState,
-  StatsCard,
 } from "@/components/ui";
 import { billingApi } from "@/lib/api";
 import {
@@ -36,16 +34,13 @@ import {
   ArrowUp,
   ArrowDown,
   CreditCard,
-  Calendar,
-  AlertCircle,
   Edit,
   IndianRupee,
-  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import type { Invoice, InvoiceStatus, InvoiceLineItem, Payment } from "@/types";
+import type { Invoice, InvoiceLineItem, Payment } from "@/types";
 import { INVOICE_STATUS_CONFIG } from "@/types";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 
@@ -104,59 +99,49 @@ function PaymentSummaryBanner({
 
   const items = [
     {
-      label: "Total Outstanding",
+      label: "TOTAL OUTSTANDING",
       value: `₹${stats.total_pending.toLocaleString("en-IN")}`,
-      icon: <AlertCircle className="w-5 h-5" />,
-      color: "text-amber-700",
-      bg: "bg-amber-50",
-      iconBg: "bg-amber-100",
+      icon: <Clock className="w-5 h-5" />,
+      iconStyle: { background: "#fef3c7", color: "#d97706" },
+      valueColor: "text-amber-600",
     },
     {
-      label: "Total Collected",
+      label: "TOTAL COLLECTED",
       value: `₹${stats.total_paid.toLocaleString("en-IN")}`,
       icon: <CheckCircle className="w-5 h-5" />,
-      color: "text-green-700",
-      bg: "bg-green-50",
-      iconBg: "bg-green-100",
+      iconStyle: { background: "#dcfce7", color: "#16a34a" },
+      valueColor: "text-green-600",
     },
     {
-      label: "Total Invoiced",
+      label: "TOTAL INVOICED",
       value: `₹${stats.total_invoiced.toLocaleString("en-IN")}`,
       icon: <IndianRupee className="w-5 h-5" />,
-      color: "text-primary-700",
-      bg: "bg-primary-50",
-      iconBg: "bg-primary-100",
+      iconStyle: { background: "#ede9fe", color: "#4f46e5" },
+      valueColor: "text-indigo-600",
     },
     {
-      label: "Invoice Count",
-      value: stats.invoice_count,
+      label: "INVOICE COUNT",
+      value: String(stats.invoice_count),
       icon: <FileText className="w-5 h-5" />,
-      color: "text-blue-700",
-      bg: "bg-blue-50",
-      iconBg: "bg-blue-100",
+      iconStyle: { background: "#dbeafe", color: "#2563eb" },
+      valueColor: "text-blue-600",
     },
   ];
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
-        <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
-          Payment Summary
-        </h3>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-neutral-100">
+    <div className="glass-card">
+      <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/60">
         {items.map((item) => (
           <div key={item.label} className="flex items-center gap-4 p-5">
             <div
-              className={`w-10 h-10 rounded-xl ${item.iconBg} ${item.color} flex items-center justify-center flex-shrink-0`}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+              style={item.iconStyle}
             >
               {item.icon}
             </div>
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                {item.label}
-              </p>
-              <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
+              <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">{item.label}</p>
+              <p className={`text-xl font-bold ${item.valueColor}`}>{item.value}</p>
             </div>
           </div>
         ))}
@@ -175,39 +160,34 @@ function SortableHeader({
   currentSort,
   currentDir,
   onSort,
-  children,
 }: {
   label: string;
   field: SortField;
   currentSort: SortField;
   currentDir: SortDir;
   onSort: (field: SortField) => void;
-  children?: React.ReactNode;
 }) {
   const isActive = currentSort === field;
 
   return (
     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-      <div className="space-y-1.5">
-        <button
-          onClick={() => onSort(field)}
-          className={`flex items-center gap-1.5 hover:text-neutral-900 transition-colors ${
-            isActive ? "text-primary-700" : ""
-          }`}
-        >
-          <span>{label}</span>
-          {isActive ? (
-            currentDir === "asc" ? (
-              <ArrowUp className="w-3.5 h-3.5" />
-            ) : (
-              <ArrowDown className="w-3.5 h-3.5" />
-            )
+      <button
+        onClick={() => onSort(field)}
+        className={`flex items-center gap-1.5 hover:text-neutral-900 transition-colors ${
+          isActive ? "text-primary-700" : ""
+        }`}
+      >
+        <span>{label}</span>
+        {isActive ? (
+          currentDir === "asc" ? (
+            <ArrowUp className="w-3.5 h-3.5" />
           ) : (
-            <ArrowUpDown className="w-3 h-3 opacity-40" />
-          )}
-        </button>
-        {children}
-      </div>
+            <ArrowDown className="w-3.5 h-3.5" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3 h-3 opacity-40" />
+        )}
+      </button>
     </th>
   );
 }
@@ -287,18 +267,18 @@ function InvoiceRow({
       </td>
       <td className="px-4 py-4">
         <div
-          className="flex items-center gap-1"
+          className="flex items-center gap-2"
           onClick={(e) => e.stopPropagation()}
         >
           <Link href={`/billing/${invoice.id}`}>
-            <Button variant="ghost" size="sm">
+            <Button variant="secondary" className="!px-3 !py-2">
               <Eye className="w-4 h-4" />
             </Button>
           </Link>
           {invoice.status !== "CANCELLED" && (
             <Button
-              variant="ghost"
-              size="sm"
+              variant="secondary"
+              className="!px-3 !py-2"
               onClick={() => onDownload(invoice)}
             >
               <Download className="w-4 h-4" />
@@ -627,30 +607,29 @@ export default function BillingPage() {
   // PDF Generation State
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState<Invoice | null>(null);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
     if (downloadingInvoice && pdfContainerRef.current) {
       const generatePdf = async () => {
-        setIsGeneratingPdf(true);
         try {
           const html2pdf = (await import("html2pdf.js")).default;
           const opt = {
             margin: 0,
             filename: `${downloadingInvoice.invoice_number}.pdf`,
-            image: { type: "jpeg", quality: 0.98 },
+            image: { type: "jpeg" as const, quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+            jsPDF: { unit: "in", format: "a4", orientation: "portrait" as const },
           };
+          const element = pdfContainerRef.current;
+          if (!element) return;
           await html2pdf()
             .set(opt)
-            .from(pdfContainerRef.current)
+            .from(element)
             .save();
           await billingApi.logDownload(downloadingInvoice.id);
         } catch (error) {
           console.error("Failed to generate PDF:", error);
         } finally {
-          setIsGeneratingPdf(false);
           setDownloadingInvoice(null);
         }
       };
@@ -796,8 +775,8 @@ export default function BillingPage() {
 
           {/* Universal Search + Status */}
           <Card padding="md">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              <div className="md:col-span-5">
                 <Input
                   placeholder="Search by invoice number or customer..."
                   leftIcon={<Search className="w-5 h-5" />}
@@ -805,7 +784,23 @@ export default function BillingPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                 />
               </div>
-              <div className="w-48">
+              <div className="md:col-span-4 flex gap-2">
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full text-sm font-normal text-neutral-800"
+                  title="From date"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full text-sm font-normal text-neutral-800"
+                  title="To date"
+                />
+              </div>
+              <div className="md:col-span-3">
                 <Select
                   options={statusOptions}
                   value={statusFilter}
@@ -813,9 +808,20 @@ export default function BillingPage() {
                     setStatusFilter(e.target.value);
                     setPage(1);
                   }}
+                  className="w-full"
                 />
               </div>
             </div>
+            {hasColumnFilters && (
+              <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3">
+                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                  Active Filters
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearColumnFilters} leftIcon={<X className="w-3.5 h-3.5" />}>
+                  Clear All
+                </Button>
+              </div>
+            )}
           </Card>
 
           {/* Main Content Area */}
@@ -868,42 +874,14 @@ export default function BillingPage() {
                             currentSort={sortField}
                             currentDir={sortDir}
                             onSort={handleSort}
-                          >
-                            <input
-                              type="text"
-                              placeholder="Filter..."
-                              value={customerInput}
-                              onChange={(e) => setCustomerInput(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="block w-full px-2 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800 placeholder-neutral-400"
-                            />
-                          </SortableHeader>
+                          />
                           <SortableHeader
                             label="Date"
                             field="invoice_date"
                             currentSort={sortField}
                             currentDir={sortDir}
                             onSort={handleSort}
-                          >
-                            <div className="flex gap-1">
-                              <input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => setDateFrom(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="block w-full px-1.5 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800"
-                                title="From date"
-                              />
-                              <input
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => setDateTo(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="block w-full px-1.5 py-1 text-xs font-normal border border-neutral-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400 bg-white text-neutral-800"
-                                title="To date"
-                              />
-                            </div>
-                          </SortableHeader>
+                          />
                           <SortableHeader
                             label="Amount"
                             field="total_amount"

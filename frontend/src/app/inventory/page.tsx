@@ -9,7 +9,6 @@ import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
   Input,
   Textarea,
@@ -17,7 +16,6 @@ import {
   Modal,
   LoadingState,
   EmptyState,
-  Badge,
   Alert,
 } from "@/components/ui";
 import { inventoryApi } from "@/lib/api";
@@ -888,6 +886,34 @@ function AdjustStockModal({ isOpen, onClose, item }: AdjustStockModalProps) {
 type SortKey = "name" | "quantity" | "cost_price" | "selling_price";
 type SortDir = "asc" | "desc";
 
+const SortHeader = ({
+  label,
+  sortKeyName,
+  currentSortKey,
+  currentSortDir,
+  onSort,
+}: {
+  label: string;
+  sortKeyName: SortKey;
+  currentSortKey: SortKey;
+  currentSortDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) => (
+  <th
+    className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-700 select-none"
+    onClick={() => onSort(sortKeyName)}
+  >
+    <span className="flex items-center gap-1">
+      {label}
+      {currentSortKey === sortKeyName && (
+        <span className="text-primary-500">
+          {currentSortDir === "asc" ? "↑" : "↓"}
+        </span>
+      )}
+    </span>
+  </th>
+);
+
 export default function InventoryPage() {
   const { currentBranch } = useAuth();
   const [search, setSearch] = useState("");
@@ -969,28 +995,6 @@ export default function InventoryPage() {
     }
   };
 
-  const SortHeader = ({
-    label,
-    sortKeyName,
-  }: {
-    label: string;
-    sortKeyName: SortKey;
-  }) => (
-    <th
-      className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-700 select-none"
-      onClick={() => handleSort(sortKeyName)}
-    >
-      <span className="flex items-center gap-1">
-        {label}
-        {sortKey === sortKeyName && (
-          <span className="text-primary-500">
-            {sortDir === "asc" ? "↑" : "↓"}
-          </span>
-        )}
-      </span>
-    </th>
-  );
-
   const activeCategoryName = selectedCategory
     ? categoryStats?.find((c) => c.id === selectedCategory)?.name
     : null;
@@ -1068,7 +1072,7 @@ export default function InventoryPage() {
                     )}
                   </button>
                   {showCategories && (
-                    <div className="px-4 pb-4 flex flex-wrap gap-2">
+                    <div className="px-4 pb-4 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                       <button
                         onClick={() => setSelectedCategory(null)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-sm ${
@@ -1201,18 +1205,19 @@ export default function InventoryPage() {
                     <table className="w-full">
                       <thead className="bg-neutral-50 border-b border-neutral-100">
                         <tr>
-                          <SortHeader label="Name" sortKeyName="name" />
+                          <SortHeader label="Name" sortKeyName="name" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} />
                           <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                             SKU
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                             Category
                           </th>
-                          <SortHeader label="Qty" sortKeyName="quantity" />
-                          <SortHeader label="Cost" sortKeyName="cost_price" />
+                          <SortHeader label="Qty" sortKeyName="quantity" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} />
+                          <SortHeader label="Cost" sortKeyName="cost_price" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} />
                           <SortHeader
                             label="Selling"
                             sortKeyName="selling_price"
+                            currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort}
                           />
                           <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                             Status

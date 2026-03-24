@@ -9,7 +9,6 @@ import {
   Card,
   Button,
   Input,
-  Select,
   JobStatusBadge,
   LoadingState,
   EmptyState,
@@ -30,8 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import type { JobCard, JobStatus } from "@/types";
-import { JOB_STATUS_CONFIG } from "@/types";
+import type { JobCard } from "@/types";
 
 // =====================================================
 // Job Card Item Component
@@ -48,8 +46,8 @@ function JobCardItem({ job }: JobCardItemProps) {
   );
 
   return (
-    <Link href={`/jobs/${job.id}`}>
-      <div className="p-5 border border-neutral-100 rounded-xl hover:border-primary-200 hover:shadow-md transition-all bg-white">
+    <Link href={`/jobs/${job.id}`} className="block">
+      <div className="glass-card p-5 hover:shadow-lg transition-all duration-200 cursor-pointer">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {/* Header Row */}
@@ -241,7 +239,7 @@ export default function JobsPage() {
 
         <div className="p-6 space-y-6">
           {/* Search & Filters */}
-          <Card padding="md">
+          <Card padding="sm">
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <Input

@@ -32,7 +32,6 @@ import {
   Users,
   Truck,
   Package,
-  Calendar,
   IndianRupee,
   ChevronDown,
 } from "lucide-react";
@@ -135,22 +134,26 @@ function DashboardStats() {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {stats.map((stat) => (
-        <Link
-          key={stat.label}
-          href={stat.href}
-          className="block hover:scale-[1.02] transition-transform"
-        >
-          <StatsCard
-            label={stat.label}
-            value={stat.value}
-            icon={stat.icon}
-            variant={stat.variant}
-          />
-        </Link>
-      ))}
-    </div>
+    <Card>
+      <h3 className="text-lg font-semibold text-neutral-900 mb-4">Overview Stats</h3>
+      <div className="flex flex-col space-y-1">
+        {stats.map((stat) => (
+          <Link key={stat.label} href={stat.href} className="flex justify-between items-center p-3 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-0">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg stats-icon-${stat.variant}`}>
+                {stat.icon}
+              </div>
+              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                {stat.label}
+              </span>
+            </div>
+            <span className="font-bold text-neutral-900 dark:text-neutral-100">
+              {stat.value}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -193,13 +196,13 @@ function RevenueTrendChart() {
   const currentLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label;
 
   return (
-    <Card className="h-full">
-      <div className="flex items-center justify-between mb-6">
+    <Card className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h3 className="text-lg font-semibold text-neutral-900">
             Revenue Trend
           </h3>
-          <p className="text-sm text-neutral-500">Daily revenue overview</p>
+          <p className="text-sm text-neutral-500">Monthly earnings analysis</p>
         </div>
         {/* Period Selector */}
         <div className="relative">
@@ -216,7 +219,7 @@ function RevenueTrendChart() {
                 className="fixed inset-0 z-10"
                 onClick={() => setShowPeriodMenu(false)}
               />
-              <div className="absolute right-0 mt-1 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 py-1">
+              <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-20 py-1">
                 {PERIOD_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -224,10 +227,10 @@ function RevenueTrendChart() {
                       setPeriod(opt.value);
                       setShowPeriodMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 transition-colors ${
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors ${
                       period === opt.value
-                        ? "text-primary-700 font-medium bg-primary-50"
-                        : "text-neutral-700"
+                        ? "text-primary-700 font-medium bg-primary-50 dark:bg-primary-900/30"
+                        : "text-neutral-700 dark:text-neutral-300"
                     }`}
                   >
                     {opt.label}
@@ -240,11 +243,11 @@ function RevenueTrendChart() {
       </div>
 
       {isLoading ? (
-        <div className="h-64 flex items-center justify-center">
+        <div className="flex-1 min-h-[16rem] flex items-center justify-center">
           <LoadingState />
         </div>
       ) : chartData.length === 0 ? (
-        <div className="h-64 flex items-center justify-center">
+        <div className="flex-1 min-h-[16rem] flex items-center justify-center">
           <EmptyState
             icon={<TrendingUp className="w-8 h-8 text-neutral-400" />}
             title="No revenue data"
@@ -252,53 +255,55 @@ function RevenueTrendChart() {
           />
         </div>
       ) : (
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12, fill: "#64748b" }}
-                axisLine={{ stroke: "#e2e8f0" }}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(val) =>
-                  val >= 1000 ? `₹${(val / 1000).toFixed(0)}K` : `₹${val}`
-                }
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "0.75rem",
-                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                  padding: "12px",
-                }}
-                formatter={(value: number) => [
-                  `₹${value.toLocaleString("en-IN")}`,
-                  "Revenue",
-                ]}
-                labelStyle={{ fontWeight: 600, color: "#1e293b" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="revenue"
-                stroke="#6366f1"
-                strokeWidth={2.5}
-                dot={{ fill: "#6366f1", r: 4, strokeWidth: 2, stroke: "#fff" }}
-                activeDot={{
-                  r: 6,
-                  fill: "#6366f1",
-                  stroke: "#fff",
-                  strokeWidth: 3,
-                }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="flex-1 min-h-[16rem] relative">
+          <div className="absolute inset-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  axisLine={{ stroke: "#e2e8f0" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(val) =>
+                    val >= 1000 ? `₹${(val / 1000).toFixed(0)}K` : `₹${val}`
+                  }
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "0.75rem",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                    padding: "10px 14px",
+                    fontSize: "13px",
+                  }}
+                  formatter={(value: number | undefined) =>
+                    [`₹${(value ?? 0).toLocaleString("en-IN")}`, "Revenue"]
+                  }
+                  labelStyle={{ fontWeight: 600, color: "#1e293b" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#6366f1"
+                  strokeWidth={2.5}
+                  dot={{ fill: "#6366f1", r: 3, strokeWidth: 2, stroke: "#fff" }}
+                  activeDot={{
+                    r: 5,
+                    fill: "#6366f1",
+                    stroke: "#fff",
+                    strokeWidth: 3,
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
     </Card>
@@ -323,49 +328,51 @@ function RevenueSummary() {
   const totalInvoiced = stats?.total_invoiced || 0;
 
   return (
-    <Card className="h-full flex flex-col">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6">
+    <Card className="flex flex-col">
+      <h3 className="text-lg font-semibold text-neutral-900 mb-1">
         Financial Summary
       </h3>
-      <div className="flex-1 flex flex-col justify-center space-y-6">
-        {/* Incoming */}
-        <div className="text-center p-4 rounded-xl bg-green-50 border border-green-100">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-green-600" />
-            <span className="text-sm font-medium text-green-700">
-              Collected
-            </span>
+      <p className="text-sm text-neutral-500 mb-4">Real-time billing status</p>
+
+      <div className="flex-1 flex flex-col justify-between space-y-3">
+        {/* Collected */}
+        <div className="flex items-center justify-between p-3 rounded-xl bg-green-50 border border-green-100">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+            <span className="text-sm font-medium text-green-700">Collected</span>
           </div>
-          <span className="text-2xl font-bold text-green-700">
+          <span className="text-lg font-bold text-green-700">
             ₹{incoming.toLocaleString("en-IN")}
           </span>
         </div>
 
-        {/* Outgoing / Pending */}
-        <div className="text-center p-4 rounded-xl bg-amber-50 border border-amber-100">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <TrendingDown className="w-4 h-4 text-amber-600" />
-            <span className="text-sm font-medium text-amber-700">
-              Outstanding
-            </span>
+        {/* Outstanding */}
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+            <span className="text-sm font-medium text-amber-700">Outstanding</span>
           </div>
-          <span className="text-2xl font-bold text-amber-700">
+          <span className="text-lg font-bold text-amber-700">
             ₹{outstanding.toLocaleString("en-IN")}
           </span>
         </div>
 
-        {/* Net */}
-        <div className="text-center p-4 rounded-xl bg-primary-50 border border-primary-100">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <IndianRupee className="w-4 h-4 text-primary-600" />
-            <span className="text-sm font-medium text-primary-700">
-              Total Invoiced
+        {/* Total Invoiced */}
+        <div className="pt-3 border-t border-neutral-100 dark:border-neutral-700">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-neutral-600">Total Invoiced</span>
+            <span className="text-xl font-bold text-neutral-900">
+              ₹{totalInvoiced.toLocaleString("en-IN")}
             </span>
           </div>
-          <span className="text-2xl font-bold text-primary-700">
-            ₹{totalInvoiced.toLocaleString("en-IN")}
-          </span>
         </div>
+
+        {/* Generate Statement Button */}
+        <Link href="/reports">
+          <Button className="w-full mt-1" size="md">
+            Generate Statement
+          </Button>
+        </Link>
       </div>
     </Card>
   );
@@ -401,19 +408,19 @@ function JobStatusChart() {
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+      <h3 className="text-lg font-semibold text-neutral-900 mb-1">
         Jobs by Status
       </h3>
-      <p className="text-sm text-neutral-500 mb-4">
+      <p className="text-sm text-neutral-500 mb-3">
         {data?.total_pending || 0} active jobs
       </p>
 
       {isLoading ? (
-        <div className="h-48 flex items-center justify-center">
+        <div className="h-36 flex items-center justify-center">
           <LoadingState />
         </div>
       ) : chartData.length === 0 ? (
-        <div className="h-48 flex items-center justify-center">
+        <div className="h-36 flex items-center justify-center">
           <EmptyState
             icon={<FileText className="w-8 h-8 text-neutral-400" />}
             title="No active jobs"
@@ -421,15 +428,15 @@ function JobStatusChart() {
           />
         </div>
       ) : (
-        <div className="h-52">
+        <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={chartData}
-                cx="50%"
+                cx="35%"
                 cy="50%"
-                innerRadius={45}
-                outerRadius={75}
+                innerRadius={35}
+                outerRadius={60}
                 paddingAngle={3}
                 dataKey="value"
                 stroke="none"
@@ -447,7 +454,7 @@ function JobStatusChart() {
                   padding: "8px 12px",
                   fontSize: "13px",
                 }}
-                formatter={(value: number, name: string) => [value, name]}
+                formatter={(value: number | undefined, name: string | undefined) => [value ?? 0, name ?? ""]}
               />
               <Legend
                 layout="vertical"
@@ -455,7 +462,12 @@ function JobStatusChart() {
                 align="right"
                 iconType="circle"
                 iconSize={8}
-                wrapperStyle={{ fontSize: "12px", lineHeight: "20px" }}
+                wrapperStyle={{ fontSize: "11px", lineHeight: "18px" }}
+                formatter={(value) => (
+                  <span className="text-neutral-700 dark:text-neutral-300 font-medium ml-1">
+                    {value}
+                  </span>
+                )}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -481,7 +493,7 @@ function RecentJobs() {
   const recentJobs = data?.results?.slice(0, 5) || [];
 
   return (
-    <Card className="h-full">
+    <Card>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-neutral-900">
@@ -559,63 +571,62 @@ function QuickActions() {
       label: "New Job Card",
       icon: <Plus className="w-5 h-5" />,
       href: "/jobs/new",
-      color: "bg-primary-500",
+      iconBg: "background:linear-gradient(135deg,#818cf8,#6366f1)",
+      textColor: "#4f46e5",
       visible: hasPermission("canCreateJobCards"),
     },
     {
       label: "Add Customer",
       icon: <Users className="w-5 h-5" />,
       href: "/customers/new",
-      color: "bg-blue-500",
+      iconBg: "background:linear-gradient(135deg,#60a5fa,#3b82f6)",
+      textColor: "#2563eb",
       visible: isRole("SUPER_ADMIN", "OWNER", "MANAGER", "RECEPTIONIST"),
     },
     {
       label: "Create Invoice",
       icon: <FileText className="w-5 h-5" />,
       href: "/billing/new",
-      color: "bg-green-500",
+      iconBg: "background:linear-gradient(135deg,#4ade80,#22c55e)",
+      textColor: "#16a34a",
       visible: hasPermission("canCreateInvoices"),
     },
     {
       label: "View Reports",
       icon: <TrendingUp className="w-5 h-5" />,
       href: "/reports",
-      color: "bg-purple-500",
+      iconBg: "background:linear-gradient(135deg,#e879f9,#a855f7)",
+      textColor: "#9333ea",
       visible: hasPermission("canViewReports"),
     },
     {
       label: "New Pickup",
       icon: <Truck className="w-5 h-5" />,
       href: "/pickups/new",
-      color: "bg-cyan-500",
+      iconBg: "background:linear-gradient(135deg,#22d3ee,#06b6d4)",
+      textColor: "#0891b2",
       visible: hasPermission("canViewPickups"),
     },
-  ].filter((action) => action.visible);
+  ].filter((a) => a.visible);
 
   return (
-    <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-        Quick Actions
-      </h3>
-      <div className="grid grid-cols-2 gap-3">
-        {actions.map((action) => (
-          <Link
-            key={action.label}
-            href={action.href}
-            className="flex items-center gap-3 p-3 rounded-xl border border-neutral-100 hover:border-primary-200 hover:bg-neutral-50 transition-all"
-          >
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
+      {actions.map((action) => (
+        <Link key={action.label} href={action.href} className="block group">
+          <Card className="h-full hover:border-[color:var(--tw-prose-links)] hover:shadow-md transition-all flex flex-col items-center justify-center p-5 text-center dark:hover:border-indigo-500/50">
             <div
-              className={`w-9 h-9 rounded-lg ${action.color} text-white flex items-center justify-center`}
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white mb-3 shadow-inner group-hover:scale-105 transition-transform"
+              style={{ background: action.iconBg.replace("background:", "") }}
             >
               {action.icon}
             </div>
-            <span className="font-medium text-sm text-neutral-700">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">
               {action.label}
             </span>
-          </Link>
-        ))}
-      </div>
-    </Card>
+          </Card>
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -770,7 +781,7 @@ function TechnicianJobs() {
   const { data, isLoading } = useQuery({
     queryKey: ["technician-jobs", user?.id],
     queryFn: () =>
-      jobsApi.list({ assigned_to: user?.id, ordering: "-created_at" }),
+      jobsApi.list({ technician: user?.id }),
     enabled: !!user,
   });
 
@@ -854,56 +865,64 @@ export default function DashboardPage() {
           }
           subtitle={
             currentBranch
-              ? `${currentBranch.name} Branch`
+              ? currentBranch.name
               : "Dashboard Overview"
           }
           actions={
             hasPermission("canCreateJobCards") ? (
-              <Link href="/jobs/new">
-                <Button leftIcon={<Plus className="w-4 h-4" />}>
-                  New Job Card
-                </Button>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link href="/jobs/new">
+                  <Button leftIcon={<Plus className="w-4 h-4" />}>
+                    New Job Card
+                  </Button>
+                </Link>
+              </div>
             ) : undefined
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Stats Cards */}
-          <DashboardStats />
+        <div className="p-6 space-y-5">
+          {/* Dashboard Overview Title */}
+          <div>
+            <h2 className="text-2xl font-bold text-neutral-900">Dashboard Overview</h2>
+            <p className="text-sm text-neutral-500 mt-0.5">
+              Welcome back, {user?.first_name}. Here&apos;s what&apos;s happening today.
+            </p>
+          </div>
 
-          {/* Revenue Section */}
-          {hasPermission("canViewReports") && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Revenue Chart - 2/3 width */}
-              <div className="lg:col-span-2">
-                <RevenueTrendChart />
-              </div>
-              {/* Financial Summary - 1/3 width */}
-              <div>
-                <RevenueSummary />
-              </div>
+          {/* Top Quick Actions (Replaced Stats Grid) */}
+          <QuickActions />
+
+          {/* Revenue Chart + Financial Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 min-w-0">
+              {hasPermission("canViewReports") && <RevenueTrendChart />}
             </div>
-          )}
-
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Jobs - 2/3 width */}
-            {hasPermission("canViewJobCards") && (
-              <div className="lg:col-span-2">
-                <RecentJobs />
-              </div>
-            )}
-
-            {/* Right Sidebar */}
-            <div className="space-y-6">
-              {hasPermission("canViewJobCards") && <JobStatusChart />}
-              <QuickActions />
-              {hasPermission("canViewPickups") && <PendingPickups />}
-              {hasPermission("canViewInventory") && <LowStockAlerts />}
-              {isRole("TECHNICIAN") && <TechnicianJobs />}
+            <div className="space-y-5">
+              {/* Stats Table moved above Financial Summary */}
+              <DashboardStats />
+              {hasPermission("canViewReports") && <RevenueSummary />}
             </div>
           </div>
+
+          {/* Recent Jobs + Right panel (Job Status) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 min-w-0">
+              {hasPermission("canViewJobCards") && <RecentJobs />}
+              {isRole("TECHNICIAN") && <TechnicianJobs />}
+            </div>
+            <div className="space-y-5">
+              {hasPermission("canViewJobCards") && <JobStatusChart />}
+            </div>
+          </div>
+
+          {/* Bottom Alerts Row */}
+          {(hasPermission("canViewPickups") || hasPermission("canViewInventory")) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {hasPermission("canViewInventory") && <LowStockAlerts />}
+              {hasPermission("canViewPickups") && <PendingPickups />}
+            </div>
+          )}
         </div>
       </AppLayout>
     </ProtectedRoute>
