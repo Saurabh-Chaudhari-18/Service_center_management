@@ -32,6 +32,7 @@ import type {
   RevenueReportData,
   TechnicianProductivityData,
   PickupRequest,
+  Purchase,
 } from "@/types";
 
 // =====================================================
@@ -563,6 +564,40 @@ export const inventoryApi = {
             results: Array<{ id: string; name: string; description: string }>;
           }
         )?.results || [];
+  },
+};
+
+// =====================================================
+// Purchases API
+// =====================================================
+
+export const purchasesApi = {
+  list: async (params?: {
+    branch?: string;
+    search?: string;
+    page?: number;
+  }): Promise<PaginatedResponse<Purchase>> => {
+    return apiGet<PaginatedResponse<Purchase>>("/inventory/purchases/", params);
+  },
+
+  get: async (id: string): Promise<Purchase> => {
+    return apiGet<Purchase>(`/inventory/purchases/${id}/`);
+  },
+
+  create: async (data: Partial<Purchase>): Promise<Purchase> => {
+    return apiPost<Purchase>("/inventory/purchases/", data);
+  },
+
+  update: async (id: string, data: Partial<Purchase>): Promise<Purchase> => {
+    return apiPatch<Purchase>(`/inventory/purchases/${id}/`, data);
+  },
+
+  importExcel: async (file: File, vendorName: string, invoiceNumber: string, purchaseDate: string) => {
+    return apiUpload<{ message: string; purchase_id: string; total_amount: number }>("/inventory/purchases/import_excel/", file, "file", {
+      vendor_name: vendorName,
+      invoice_number: invoiceNumber || "",
+      purchase_date: purchaseDate,
+    });
   },
 };
 

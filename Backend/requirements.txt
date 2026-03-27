@@ -24,6 +24,7 @@ reportlab==4.2.2
 
 # Excel Export (optional, for report exports)
 openpyxl==3.1.2
+pandas==2.2.0
 
 # Other utilities
 python-dateutil==2.8.2

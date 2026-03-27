@@ -448,3 +448,63 @@ class StockTransferItem(models.Model):
     
     def __str__(self):
         return f"{self.inventory_item.name} x{self.quantity}"
+
+
+class Purchase(TimeStampedModel):
+    """
+    Record of a bulk purchase of inventory from a vendor.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.CASCADE,
+        related_name='purchases',
+        null=True,
+        blank=True
+    )
+    vendor_name = models.CharField(max_length=255)
+    invoice_number = models.CharField(max_length=100, blank=True)
+    purchase_date = models.DateField()
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-purchase_date', '-created_at']
+
+    def __str__(self):
+        return f"Purchase {self.invoice_number} from {self.vendor_name}"
+
+
+class PurchaseItem(TimeStampedModel):
+    """
+    Items included in a specific purchase.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purchase = models.ForeignKey(
+        Purchase,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    inventory_item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.PROTECT,
+        related_name='purchase_items'
+    )
+    quantity = models.PositiveIntegerField()
+    unit_price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        help_text="Cost per unit at the time of purchase"
+    )
+    total_price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        help_text="Total cost for this quantity"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.inventory_item.name} x{self.quantity} for Purchase {self.purchase.invoice_number}"
+

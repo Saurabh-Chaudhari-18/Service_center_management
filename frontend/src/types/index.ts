@@ -434,6 +434,25 @@ export interface StockAdjustment extends BaseEntity {
   job: string | null;
 }
 
+export interface PurchaseItem extends BaseEntity {
+  inventory_item: string;
+  item_name: string;
+  sku: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface Purchase extends BaseEntity {
+  branch: string;
+  vendor_name: string;
+  invoice_number: string;
+  purchase_date: string;
+  total_amount: number;
+  notes: string;
+  items: PurchaseItem[];
+}
+
 // =====================================================
 // Billing & Invoice
 // =====================================================

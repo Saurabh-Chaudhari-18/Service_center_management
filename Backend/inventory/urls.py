@@ -7,7 +7,7 @@ from rest_framework.routers import DefaultRouter
 from inventory.views import (
     InventoryItemViewSet, InventoryCategoryViewSet,
     InventoryAdjustmentViewSet, JobPartUsageViewSet,
-    StockTransferViewSet
+    StockTransferViewSet, PurchaseViewSet
 )
 
 app_name = 'inventory'
@@ -18,6 +18,7 @@ router.register(r'categories', InventoryCategoryViewSet, basename='inventory-cat
 router.register(r'adjustments', InventoryAdjustmentViewSet, basename='inventory-adjustment')
 router.register(r'part-usage', JobPartUsageViewSet, basename='part-usage')
 router.register(r'transfers', StockTransferViewSet, basename='stock-transfer')
+router.register(r'purchases', PurchaseViewSet, basename='purchases')
 
 urlpatterns = [
     path('', include(router.urls)),

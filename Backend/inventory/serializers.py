@@ -181,3 +181,34 @@ class LowStockAlertSerializer(serializers.ModelSerializer):
 
     def get_shortage(self, obj):
         return max(0, obj.low_stock_threshold - obj.quantity)
+
+
+from inventory.models import Purchase, PurchaseItem
+
+class PurchaseItemSerializer(serializers.ModelSerializer):
+    """Serializer for items within a purchase."""
+    item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+    sku = serializers.CharField(source='inventory_item.sku', read_only=True)
+    
+    class Meta:
+        model = PurchaseItem
+        fields = ['id', 'inventory_item', 'item_name', 'sku', 'quantity', 'unit_price', 'total_price']
+        read_only_fields = ['id', 'total_price']
+
+
+class PurchaseSerializer(serializers.ModelSerializer):
+    """Serializer for tracking inventory purchases."""
+    items = PurchaseItemSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Purchase
+        fields = ['id', 'branch', 'vendor_name', 'invoice_number', 'purchase_date', 'total_amount', 'notes', 'items', 'created_at']
+        read_only_fields = ['id', 'created_at', 'total_amount']
+
+
+class ExcelImportSerializer(serializers.Serializer):
+    """Serializer for Excel upload validation (Swagger)."""
+    file = serializers.FileField(help_text="Excel file containing Inventory Items")
+    vendor_name = serializers.CharField(max_length=255)
+    invoice_number = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    purchase_date = serializers.DateField()

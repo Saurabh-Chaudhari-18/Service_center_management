@@ -411,3 +411,207 @@ class StockTransferViewSet(viewsets.ModelViewSet):
             transfer.save()
         
         return Response({'message': 'Transfer completed successfully.'})
+
+import pandas as pd
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.db import transaction
+from drf_spectacular.utils import extend_schema
+from inventory.models import Purchase, PurchaseItem
+from inventory.serializers import PurchaseSerializer, ExcelImportSerializer
+
+class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
+    """ViewSet for managing Purchases and importing via Excel."""
+    serializer_class = PurchaseSerializer
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageInventory]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['vendor_name', 'invoice_number']
+    ordering_fields = ['purchase_date', 'total_amount', 'created_at']
+    ordering = ['-purchase_date']
+    branch_field = 'branch'
+    queryset = Purchase.objects.all()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset
+        return queryset.prefetch_related('items__inventory_item')
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+        from django.shortcuts import get_object_or_404
+        
+        super().perform_create(serializer)
+        purchase = serializer.instance
+        
+        items_data = self.request.data.get('items', [])
+        if isinstance(items_data, str):
+            import json
+            try:
+                items_data = json.loads(items_data)
+            except:
+                items_data = []
+
+        total_amount = 0
+        
+        for item_data in items_data:
+            inventory_item_id = item_data.get('inventory_item')
+            try:
+                quantity = int(item_data.get('quantity', 0))
+                unit_price = float(item_data.get('unit_price', 0))
+            except (ValueError, TypeError):
+                continue
+                
+            if quantity <= 0 or unit_price < 0 or not inventory_item_id:
+                continue
+                
+            inventory_item = get_object_or_404(InventoryItem, id=inventory_item_id)
+            
+            if inventory_item.branch_id and purchase.branch_id and inventory_item.branch_id != purchase.branch_id:
+                raise ValidationError(f"Item {inventory_item.name} does not belong to the selected branch")
+                
+            total_price = quantity * unit_price
+            
+            PurchaseItem.objects.create(
+                purchase=purchase,
+                inventory_item=inventory_item,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=total_price
+            )
+            
+            inventory_item.add_stock(
+                quantity, 
+                reason=f"Manual Purchase Entry from {purchase.vendor_name} (Invoice: {purchase.invoice_number})", 
+                user=self.request.user
+            )
+            
+            total_amount += total_price
+            
+        purchase.total_amount = total_amount
+        purchase.save()
+
+    @extend_schema(request=ExcelImportSerializer)
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def import_excel(self, request):
+        """
+        Import purchases from an Excel file.
+        Expects a file upload and parameters for vendor_name, invoice_number, purchase_date.
+        """
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_name = request.data.get('vendor_name')
+        if not vendor_name:
+            return Response({'error': 'vendor_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        invoice_number = request.data.get('invoice_number', '')
+        purchase_date = request.data.get('purchase_date')
+        if not purchase_date:
+            return Response({'error': 'purchase_date is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            if file_obj.name.lower().endswith('.csv'):
+                df = pd.read_csv(file_obj)
+            else:
+                df = pd.read_excel(file_obj)
+        except Exception as e:
+            return Response({'error': f'Failed to parse upload file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        required_cols = ['Quantity', 'Unit Price']
+        
+        if 'SKU' in df.columns:
+            lookup_col = 'SKU'
+        elif 'Name' in df.columns:
+            lookup_col = 'Name'
+        else:
+            return Response({'error': 'Excel must contain either a "SKU" or "Name" column to identify items.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        for col in required_cols:
+            if col not in df.columns:
+                return Response({'error': f'Missing required column: {col}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        branch_id = request.headers.get('X-Branch-ID') or (request.user.get_accessible_branches().first().id if request.user.get_accessible_branches().exists() else None)
+
+        try:
+            with transaction.atomic():
+                purchase = Purchase.objects.create(
+                    branch_id=branch_id,
+                    vendor_name=vendor_name,
+                    invoice_number=invoice_number,
+                    purchase_date=purchase_date,
+                    total_amount=0
+                )
+                
+                total_amount = 0
+                errors = []
+
+                for index, row in df.iterrows():
+                    identifier = str(row[lookup_col]).strip()
+                    if not identifier or pd.isna(row[lookup_col]) or identifier.lower() == 'nan':
+                        continue
+                        
+                    try:
+                        quantity = int(row['Quantity'])
+                        unit_price = float(row['Unit Price'])
+                    except (ValueError, TypeError):
+                        errors.append(f"Row {index+2}: Invalid quantity or price for {identifier}")
+                        continue
+                        
+                    if quantity <= 0 or unit_price < 0:
+                        errors.append(f"Row {index+2}: Quantity and price must be positive for {identifier}")
+                        continue
+
+                    # Find inventory item
+                    item_query = InventoryItem.objects.filter(branch_id=branch_id) if branch_id else InventoryItem.objects.all()
+                    if lookup_col == 'SKU':
+                        item = item_query.filter(sku=identifier).first()
+                    else:
+                        item = item_query.filter(name__iexact=identifier).first()
+
+                    if not item:
+                        try:
+                            item = InventoryItem.objects.create(
+                                branch_id=branch_id,
+                                name=identifier if lookup_col == 'Name' else f"Imported SKU {identifier}",
+                                sku=identifier if lookup_col == 'SKU' else '',
+                                cost_price=unit_price,
+                                selling_price=unit_price,
+                                quantity=0
+                            )
+                        except Exception as e:
+                            errors.append(f"Row {index+2}: Failed to auto-create item {identifier}: {str(e)}")
+                            continue
+
+                    total_price = quantity * unit_price
+
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        inventory_item=item,
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        total_price=total_price
+                    )
+                    
+                    item.add_stock(quantity, reason=f"Purchase from {vendor_name} (Invoice: {invoice_number})", user=request.user)
+                    
+                    total_amount += total_price
+
+                if errors:
+                    raise ValueError("Errors during import:\\n" + "\\n".join(errors))
+                
+                purchase.total_amount = total_amount
+                purchase.save()
+
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'message': 'Purchase imported successfully',
+            'purchase_id': purchase.id,
+            'total_amount': total_amount
+        }, status=status.HTTP_201_CREATED)

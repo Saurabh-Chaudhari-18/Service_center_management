@@ -10,6 +10,7 @@ import {
   FileText,
   Users,
   Package,
+  ShoppingCart,
   Receipt,
   BarChart3,
   Settings,
@@ -46,6 +47,7 @@ const navigationItems: NavItem[] = [
   { name: "My Jobs",       href: "/my-jobs",       icon: Wrench,          roles: ["TECHNICIAN"] },
   { name: "Customers",     href: "/customers",     icon: Users,           roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Inventory",     href: "/inventory",     icon: Package,         permission: "canViewInventory" },
+  { name: "Purchases",     href: "/purchases",     icon: ShoppingCart,    permission: "canManageInventory" },
   { name: "Billing",       href: "/billing",       icon: Receipt,         permission: "canViewBilling" },
   { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
@@ -185,17 +187,16 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
   const [notificationCount] = React.useState(0);
 
   return (
-    <header className="min-h-[4.5rem] py-3 px-6 flex flex-wrap items-center justify-between gap-y-3"
-            style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(226,232,240,0.5)" }}>
+    <header className="min-h-[4.5rem] py-3 px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
       <div>
         {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent">
             {title}
           </h1>
         ) : (
-          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{title}</h1>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">{title}</h1>
         )}
-        {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -216,9 +217,8 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
 
         {/* Branch Badge */}
         {currentBranch && (
-          <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-200/60 dark:border-indigo-500/30"
-               style={{ background: "rgba(238,242,255,0.8)" }}>
-            <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-200/60 dark:border-indigo-500/30 bg-indigo-50/80 dark:bg-indigo-900/30">
+            <Building2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
             <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{currentBranch.name}</span>
           </div>
         )}
