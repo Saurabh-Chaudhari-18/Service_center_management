@@ -82,10 +82,12 @@ function CustomerSearch({
   const [showResults, setShowResults] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
 
+  // Search by name OR mobile — uses the general list endpoint with a search param
   const { data, isLoading } = useQuery({
     queryKey: ["customer-search", search, branchId],
-    queryFn: () => customersApi.searchByMobile(search),
-    enabled: search.length >= 5,
+    queryFn: () =>
+      customersApi.list({ search, branch: branchId }).then((res) => res.results || []),
+    enabled: search.trim().length >= 2,
   });
 
   const customers = data || [];
@@ -121,7 +123,7 @@ function CustomerSearch({
     <div className="space-y-3">
       <div className="relative">
         <Input
-          placeholder="Search by mobile number..."
+          placeholder="Search by name or mobile number..."
           leftIcon={<Search className="w-5 h-5" />}
           value={search}
           onChange={(e) => {
@@ -129,10 +131,11 @@ function CustomerSearch({
             setShowResults(true);
           }}
           onFocus={() => setShowResults(true)}
+          onBlur={() => setTimeout(() => setShowResults(false), 200)}
         />
 
-        {showResults && search.length >= 5 && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 max-h-60 overflow-y-auto">
+        {showResults && search.trim().length >= 2 && (
+          <div className="customer-search-dropdown">
             {isLoading ? (
               <div className="p-4 text-center text-neutral-500">
                 Searching...
@@ -142,13 +145,14 @@ function CustomerSearch({
                 <button
                   key={customer.id}
                   type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 text-left transition-colors"
-                  onClick={() => {
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-100 text-left transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // prevent blur firing before click
                     onSelect(customer);
                     setShowResults(false);
-                  }}  
+                  }}
                 >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-sm font-medium">
+                  <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-sm font-medium shrink-0">
                     {customer.first_name[0]}
                   </div>
                   <div>
@@ -163,16 +167,7 @@ function CustomerSearch({
               ))
             ) : (
               <div className="p-4 text-center">
-                <p className="text-neutral-500 mb-2">No customer found</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={() => setShowNewCustomerModal(true)}
-                >
-                  Add New Customer
-                </Button>
+                <p className="text-sm text-neutral-500 mb-2">No customer found for &quot;{search}&quot;</p>
               </div>
             )}
           </div>
@@ -180,8 +175,18 @@ function CustomerSearch({
       </div>
 
       <p className="text-sm text-neutral-500">
-        Enter at least 5 digits of the mobile number to search
+        Search by name or mobile (min 2 characters)
       </p>
+
+      {/* Always visible Add New Customer button */}
+      <button
+        type="button"
+        onClick={() => setShowNewCustomerModal(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-dashed border-primary-300 text-primary-600 hover:bg-primary-50 hover:border-primary-400 transition-all text-sm font-semibold"
+      >
+        <Plus className="w-4 h-4" />
+        Add New Customer
+      </button>
 
       <NewCustomerModal
         isOpen={showNewCustomerModal}

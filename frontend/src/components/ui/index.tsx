@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, AlertCircle, Check, X, Info } from "lucide-react";
 import { JOB_STATUS_CONFIG, INVOICE_STATUS_CONFIG } from "@/types";
 import type { JobStatus, InvoiceStatus } from "@/types";
@@ -390,11 +391,17 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, size = "md", footer }: ModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl" };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div
         className={`modal-content ${sizeClasses[size]} w-full`}
@@ -411,7 +418,8 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
           <div className="px-6 py-4 border-t border-neutral-100/80 flex justify-end gap-3">{footer}</div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
