@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, AlertCircle, Check, X, Info } from "lucide-react";
+import { Loader2, AlertCircle, Check, X, Info, ChevronDown } from "lucide-react";
 import { JOB_STATUS_CONFIG, INVOICE_STATUS_CONFIG } from "@/types";
 import type { JobStatus, InvoiceStatus } from "@/types";
 
@@ -108,6 +108,110 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, placeholder, className = "", ...props }, ref) => {
+    const internalRef = React.useRef<HTMLSelectElement | null>(null);
+    const triggerRef = React.useRef<HTMLButtonElement>(null);
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+
+    // Track local value for immediate UI update
+    const [localValue, setLocalValue] = useState(props.value || props.defaultValue || "");
+
+    useEffect(() => { setMounted(true); }, []);
+
+    // Manage refs for react-hook-form compatibility
+    const handleRef = React.useCallback((node: HTMLSelectElement | null) => {
+      internalRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLSelectElement | null>).current = node;
+      if (node && node.value) setLocalValue(node.value);
+    }, [ref]);
+
+    // Resync when controlled value changes
+    useEffect(() => {
+      if (props.value !== undefined) setLocalValue(props.value as string);
+    }, [props.value]);
+
+    // Poll for react-hook-form async resets
+    useEffect(() => {
+      const interval = setInterval(() => {
+        if (internalRef.current && internalRef.current.value !== localValue && props.value === undefined) {
+          setLocalValue(internalRef.current.value);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }, [localValue, props.value]);
+
+    // Calculate position and open
+    const openDropdown = () => {
+      if (props.disabled) return;
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const maxDropH = 280;
+        // If not enough space below, open upward
+        if (spaceBelow < maxDropH && rect.top > spaceBelow) {
+          setDropdownPos({ top: rect.top - Math.min(maxDropH, rect.top - 8), left: rect.left, width: Math.max(rect.width, 200) });
+        } else {
+          setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 200) });
+        }
+      }
+      setIsOpen(prev => !prev);
+    };
+
+    // Close on click outside
+    useEffect(() => {
+      if (!isOpen) return;
+      const handler = (e: MouseEvent) => {
+        if (
+          triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+          dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+        ) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [isOpen]);
+
+    // Close on outside scroll (but NOT when scrolling inside dropdown) + resize
+    useEffect(() => {
+      if (!isOpen) return;
+
+      const handleScroll = (e: Event) => {
+        // If the scroll is happening inside the dropdown panel, ignore it
+        if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) {
+          return;
+        }
+        setIsOpen(false);
+      };
+
+      const handleResize = () => setIsOpen(false);
+
+      window.addEventListener("scroll", handleScroll, true);
+      window.addEventListener("resize", handleResize);
+      return () => {
+        window.removeEventListener("scroll", handleScroll, true);
+        window.removeEventListener("resize", handleResize);
+      };
+    }, [isOpen]);
+
+    const handleSelect = (val: string) => {
+      setLocalValue(val);
+      setIsOpen(false);
+      if (internalRef.current) {
+        internalRef.current.value = val;
+        internalRef.current.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      if (props.onChange) {
+        props.onChange({ target: { name: props.name, value: val }, currentTarget: { name: props.name, value: val } } as any);
+      }
+    };
+
+    const selectedOption = options.find((o) => String(o.value) === String(localValue));
+    const displayLabel = selectedOption ? selectedOption.label : (placeholder || "Select…");
+
     return (
       <div className="space-y-1.5">
         {label && (
@@ -116,12 +220,75 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
-        <select ref={ref} className={`input ${error ? "input-error" : ""} ${className}`} {...props}>
+
+        {/* Hidden native select for form integration */}
+        <select
+          ref={handleRef}
+          className="hidden"
+          {...props}
+          value={localValue}
+          onChange={(e) => { setLocalValue(e.target.value); props.onChange?.(e); }}
+        >
           {placeholder && <option value="">{placeholder}</option>}
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+
+        {/* Custom trigger button */}
+        <button
+          ref={triggerRef}
+          type="button"
+          className={`w-full flex items-center justify-between text-left input cursor-pointer ${error ? "input-error" : ""} ${className}`}
+          onClick={openDropdown}
+          disabled={props.disabled}
+        >
+          <span className={`block truncate ${!selectedOption && placeholder ? "text-neutral-400" : "text-neutral-900 font-medium"}`}>
+            {displayLabel}
+          </span>
+          <ChevronDown className={`w-4 h-4 ml-2 text-neutral-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Portal-based dropdown */}
+        {isOpen && mounted && createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] bg-white border border-neutral-200 rounded-xl shadow-2xl max-h-[280px] overflow-y-auto ring-1 ring-black/5"
+            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+          >
+            <div className="p-1.5 space-y-0.5">
+              {placeholder && (
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm text-neutral-400 hover:bg-neutral-50 rounded-lg transition-colors"
+                  onClick={() => handleSelect("")}
+                >
+                  {placeholder}
+                </button>
+              )}
+              {options.map((opt) => {
+                const isSelected = String(localValue) === String(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                      isSelected
+                        ? "bg-primary-50 text-primary-700 font-bold"
+                        : "text-neutral-700 hover:bg-neutral-50 font-medium"
+                    }`}
+                    onClick={() => handleSelect(opt.value)}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected && <Check className="w-4 h-4 text-primary-500 shrink-0 ml-2" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body
+        )}
+
         {error && (
           <p className="text-xs text-red-500 flex items-center gap-1 font-medium">
             <AlertCircle className="w-3 h-3" />{error}

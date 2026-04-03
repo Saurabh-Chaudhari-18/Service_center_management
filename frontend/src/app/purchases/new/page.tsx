@@ -6,6 +6,7 @@ import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, Fil
 import { purchasesApi, inventoryApi } from "@/lib/api/services";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
+import { Select } from "@/components/ui";
 import { InventoryItem } from "@/types";
 
 export default function NewPurchasePage() {
@@ -306,20 +307,19 @@ export default function NewPurchasePage() {
                       <div key={index} className="flex gap-4 items-start bg-neutral-50 dark:bg-slate-900/40 p-4 rounded-xl border border-neutral-200 dark:border-slate-700/50">
                         <div className="flex-1">
                           <label className="block text-xs font-semibold text-neutral-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Inventory Item</label>
-                          <select 
+                          <Select
                             value={item.inventory_item}
                             onChange={(e) => {
                               const newItems = [...manualItems];
                               newItems[index].inventory_item = e.target.value;
                               setManualItems(newItems);
                             }}
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 rounded-lg text-neutral-900 dark:text-slate-200 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-                          >
-                            <option value="">Select an Item...</option>
-                            {inventoryList.map(inv => (
-                              <option key={inv.id} value={inv.id}>{inv.name} {inv.sku ? `(SKU: ${inv.sku})` : ''}</option>
-                            ))}
-                          </select>
+                            options={inventoryList.map(inv => ({
+                              value: inv.id,
+                              label: `${inv.name}${inv.sku ? ` (SKU: ${inv.sku})` : ''}`
+                            }))}
+                            placeholder="Select an Item..."
+                          />
                         </div>
                         <div className="w-24">
                           <label className="block text-xs font-semibold text-neutral-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Qty</label>

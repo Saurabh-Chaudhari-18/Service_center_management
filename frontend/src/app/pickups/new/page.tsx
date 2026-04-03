@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button } from "@/components/ui";
+import { Card, Button, Select } from "@/components/ui";
 import { pickupsApi, customersApi } from "@/lib/api";
 import {
   ArrowLeft,
@@ -262,20 +262,14 @@ export default function NewPickupPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className={labelClasses}>Device Type</label>
-                  <select
+                  <Select
+                    label="Device Type"
                     value={form.device_type}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, device_type: e.target.value }))
                     }
-                    className={inputClasses}
-                  >
-                    {DEVICE_TYPES.map((dt) => (
-                      <option key={dt.value} value={dt.value}>
-                        {dt.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={DEVICE_TYPES}
+                  />
                 </div>
 
                 <div>
@@ -369,11 +363,7 @@ export default function NewPickupPage() {
                   </div>
 
                   <div>
-                    <label className={labelClasses}>
-                      <Clock className="w-4 h-4 inline mr-1" />
-                      Time Slot
-                    </label>
-                    <select
+                    <Select
                       value={form.pickup_time_slot}
                       onChange={(e) =>
                         setForm((f) => ({
@@ -381,15 +371,9 @@ export default function NewPickupPage() {
                           pickup_time_slot: e.target.value,
                         }))
                       }
-                      className={inputClasses}
-                    >
-                      <option value="">Select time slot</option>
-                      {TIME_SLOTS.map((ts) => (
-                        <option key={ts} value={ts}>
-                          {ts}
-                        </option>
-                      ))}
-                    </select>
+                      options={TIME_SLOTS.map((ts) => ({ value: ts, label: ts }))}
+                      placeholder="Select time slot"
+                    />
                   </div>
 
                   <div>

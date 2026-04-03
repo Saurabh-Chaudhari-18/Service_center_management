@@ -30,6 +30,8 @@ import {
   AlertCircle,
   Phone,
   Printer,
+  ChevronRight,
+  Save
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer, DeviceType, AccessoryType } from "@/types";
@@ -94,19 +96,19 @@ function CustomerSearch({
 
   if (selectedCustomer) {
     return (
-      <div className="p-4 border border-primary-200 bg-primary-50 rounded-xl">
+      <div className="p-4 border border-primary-200 bg-primary-50 rounded-xl transition-all">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-medium">
+            <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-medium shrink-0 shadow-sm">
               {selectedCustomer.first_name[0]}
               {selectedCustomer.last_name?.[0]}
             </div>
             <div>
-              <p className="font-medium text-neutral-900">
+              <p className="font-semibold text-neutral-900">
                 {selectedCustomer.first_name} {selectedCustomer.last_name}
               </p>
-              <p className="text-sm text-neutral-500 flex items-center gap-1">
-                <Phone className="w-3 h-3" />
+              <p className="text-sm text-neutral-600 flex items-center gap-1 font-medium">
+                <Phone className="w-3.5 h-3.5" />
                 {selectedCustomer.mobile}
               </p>
             </div>
@@ -124,7 +126,7 @@ function CustomerSearch({
       <div className="relative">
         <Input
           placeholder="Search by name or mobile number..."
-          leftIcon={<Search className="w-5 h-5" />}
+          leftIcon={<Search className="w-5 h-5 text-neutral-400" />}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -132,12 +134,13 @@ function CustomerSearch({
           }}
           onFocus={() => setShowResults(true)}
           onBlur={() => setTimeout(() => setShowResults(false), 200)}
+          className="bg-white"
         />
 
         {showResults && search.trim().length >= 2 && (
-          <div className="customer-search-dropdown">
+          <div className="customer-search-dropdown absolute z-50 w-full bg-white mt-1 border border-neutral-200 rounded-lg shadow-xl max-h-60 overflow-y-auto ring-1 ring-black/5">
             {isLoading ? (
-              <div className="p-4 text-center text-neutral-500">
+              <div className="p-4 text-center text-neutral-500 text-sm">
                 Searching...
               </div>
             ) : customers.length > 0 ? (
@@ -145,21 +148,21 @@ function CustomerSearch({
                 <button
                   key={customer.id}
                   type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-100 text-left transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary-50 text-left transition-colors border-b border-neutral-100 last:border-0 group"
                   onMouseDown={(e) => {
                     e.preventDefault(); // prevent blur firing before click
                     onSelect(customer);
                     setShowResults(false);
                   }}
                 >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-sm font-medium shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-600 group-hover:bg-primary-100 group-hover:text-primary-700 flex items-center justify-center text-sm font-semibold shrink-0 transition-colors">
                     {customer.first_name[0]}
                   </div>
                   <div>
-                    <p className="font-medium text-neutral-900">
+                    <p className="font-medium text-neutral-900 text-sm">
                       {customer.first_name} {customer.last_name}
                     </p>
-                    <p className="text-sm text-neutral-500">
+                    <p className="text-xs text-neutral-500">
                       {customer.mobile}
                     </p>
                   </div>
@@ -174,18 +177,18 @@ function CustomerSearch({
         )}
       </div>
 
-      <p className="text-sm text-neutral-500">
-        Search by name or mobile (min 2 characters)
+      <p className="text-xs text-neutral-500 pl-1">
+        Type at least 2 characters to search existing clients
       </p>
 
       {/* Always visible Add New Customer button */}
       <button
         type="button"
         onClick={() => setShowNewCustomerModal(true)}
-        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-dashed border-primary-300 text-primary-600 hover:bg-primary-50 hover:border-primary-400 transition-all text-sm font-semibold"
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-dashed border-primary-200 text-primary-600 hover:bg-primary-50 hover:border-primary-400 transition-all text-sm font-semibold bg-white"
       >
         <Plus className="w-4 h-4" />
-        Add New Customer
+        Register New Customer
       </button>
 
       <NewCustomerModal
@@ -349,7 +352,7 @@ function AccessoriesChecklist({ value, onChange }: AccessoriesChecklistProps) {
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="flex flex-wrap gap-2.5">
       {accessories.map((acc) => {
         const isChecked = value[acc]?.present || false;
         const label = acc.toLowerCase().replace("_", " ");
@@ -359,22 +362,14 @@ function AccessoriesChecklist({ value, onChange }: AccessoriesChecklistProps) {
             key={acc}
             type="button"
             onClick={() => toggleAccessory(acc)}
-            className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold cursor-pointer ${
               isChecked
-                ? "bg-green-50 border-green-300 text-green-700"
-                : "bg-neutral-50 border-neutral-200 text-neutral-600"
+                ? "bg-green-50 border-green-400 text-green-800 shadow-sm"
+                : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
             }`}
           >
-            <div
-              className={`w-5 h-5 rounded border flex items-center justify-center ${
-                isChecked
-                  ? "bg-green-500 border-green-500"
-                  : "border-neutral-300"
-              }`}
-            >
-              {isChecked && <Check className="w-3 h-3 text-white" />}
-            </div>
-            <span className="text-sm font-medium capitalize">{label}</span>
+            {isChecked && <Check className="w-3h-3 text-green-600" />}
+            <span className="capitalize">{label}</span>
           </button>
         );
       })}
@@ -389,16 +384,16 @@ function AccessoriesChecklist({ value, onChange }: AccessoriesChecklistProps) {
 export default function CreateJobCardPage() {
   const router = useRouter();
   const { currentBranch, hasPermission } = useAuth();
+  
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
+    null
   );
   const [accessories, setAccessories] = useState<
     Partial<Record<AccessoryType, { present: boolean; condition: string }>>
   >({});
-  // New State for Service Charge
+  
   const [serviceCharge, setServiceCharge] = useState("");
-  // New State for Accessory Manual Details
   const [accessoryManualDetails, setAccessoryManualDetails] = useState("");
 
   const {
@@ -418,13 +413,11 @@ export default function CreateJobCardPage() {
     },
   });
 
-  // Dropdown options state
   const [selectedPhysicalConditions, setSelectedPhysicalConditions] = useState<string[]>([]);
   const [physicalConditionOtherText, setPhysicalConditionOtherText] = useState("");
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [diagnosisOtherText, setDiagnosisOtherText] = useState("");
 
-  // Fetch dropdown options
   const { data: physicalConditionOptions = [] } = useQuery({
     queryKey: ["dropdown-options", "PHYSICAL_CONDITION"],
     queryFn: () => dropdownOptionsApi.list({ category: "PHYSICAL_CONDITION" }),
@@ -438,7 +431,6 @@ export default function CreateJobCardPage() {
     enabled: !!watchDeviceType,
   });
 
-  // Reset diagnosis selections when device type changes
   useEffect(() => {
     setSelectedDiagnoses([]);
     setDiagnosisOtherText("");
@@ -450,19 +442,16 @@ export default function CreateJobCardPage() {
     enabled: hasPermission("canManageBranches"),
   });
 
-  // Default the selector to current branch
   useEffect(() => {
     if (currentBranch?.id && !selectedBranchId) {
       setSelectedBranchId(currentBranch.id);
     }
   }, [currentBranch, selectedBranchId]);
 
-  // Auto-populate accessory details when checklist changes
   useEffect(() => {
     const presentAccessories = Object.entries(accessories)
       .filter(([, v]) => v.present)
       .map(([k]) => {
-        // Get label from predefined list or format it
         const labels: Record<string, string> = {
           CHARGER: "Charger/Adapter",
           BATTERY: "Battery",
@@ -482,13 +471,12 @@ export default function CreateJobCardPage() {
 
     if (presentAccessories.length > 0) {
       setAccessoryManualDetails((prev) => {
-        // Only append if not already in text to avoid duplicates
         const lines = prev.split("\n");
         let newText = prev;
 
         presentAccessories.forEach((label) => {
           const hasLabel = lines.some((line) =>
-            line.toLowerCase().includes(label.toLowerCase()),
+            line.toLowerCase().includes(label.toLowerCase())
           );
           if (!hasLabel) {
             newText += (newText ? "\n" : "") + `${label}: `;
@@ -499,10 +487,11 @@ export default function CreateJobCardPage() {
     }
   }, [accessories]);
 
-  // Update form when customer is selected
   React.useEffect(() => {
     if (selectedCustomer) {
-      setValue("customer_id", selectedCustomer.id);
+      setValue("customer_id", selectedCustomer.id, { shouldValidate: true });
+    } else {
+      setValue("customer_id", "");
     }
   }, [selectedCustomer, setValue]);
 
@@ -541,7 +530,7 @@ export default function CreateJobCardPage() {
 
             const lines = accessoryManualDetails.split("\n");
             const matchingLine = lines.find((line) =>
-              line.toLowerCase().includes(label.toLowerCase()),
+              line.toLowerCase().includes(label.toLowerCase())
             );
             const description = matchingLine
               ? matchingLine.replace(new RegExp(`^.*?${label}:?\\s*`, "i"), "")
@@ -592,394 +581,357 @@ export default function CreateJobCardPage() {
           title="Create Job Card"
           subtitle="Register a new device for service"
           actions={
-            <Link href="/jobs">
-              <Button
-                variant="secondary"
-                leftIcon={<ArrowLeft className="w-4 h-4" />}
-              >
-                Cancel
-              </Button>
-            </Link>
+             <Link href="/jobs">
+               <Button
+                 variant="ghost"
+                 leftIcon={<ArrowLeft className="w-4 h-4" />}
+               >
+                 Go Back
+               </Button>
+             </Link>
           }
         />
 
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="p-6 w-full max-w-[1920px] mx-auto">
           {error && (
             <Alert variant="error" className="mb-6" title="Error">
               {error.message}
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit((d) => mutate(d))} className="space-y-6">
-            {/* Branch Selection (Owners Only) */}
-            {hasPermission("canManageBranches") && (
-              <Card className="border border-neutral-300 shadow-sm">
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-primary-500" />
-                  Branch Assignment
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Select
-                    label="Assign to Branch"
-                    value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
-                    options={[
-                      {
-                        value: "universal",
-                        label: "🌍 Universal / All Branches",
-                      },
-                      ...(Array.isArray(branches)
-                        ? branches
-                        : Object.hasOwn(branches, "results")
-                          ? (branches as { results: { id: string; name: string }[] }).results
-                          : []
-                      ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
-                    ]}
-                  />
-                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
-                    Universal jobs are visible across all branches.
-                  </p>
-                </div>
-              </Card>
-            )}
-            {/* Customer Section */}
-            <Card className="border border-neutral-300 shadow-sm">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-primary-500" />
-                Customer Information
-              </h3>
-              <CustomerSearch
-                onSelect={setSelectedCustomer}
-                selectedCustomer={selectedCustomer}
-                branchId={currentBranch.id}
-              />
-              {errors.customer_id && (
-                <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.customer_id.message}
-                </p>
-              )}
-            </Card>
-
-            {/* Device Section */}
-            <Card className="border border-neutral-300 shadow-sm">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                <Laptop className="w-5 h-5 text-primary-500" />
-                Device Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select
-                  label="Device Type"
-                  options={deviceTypes}
-                  {...register("device_type")}
-                  error={errors.device_type?.message}
-                  required
-                />
-                <Input
-                  label="Brand"
-                  placeholder="e.g., Dell, HP, Lenovo"
-                  {...register("brand")}
-                  error={errors.brand?.message}
-                  required
-                />
-                <Input
-                  label="Model"
-                  placeholder="e.g., Inspiron 15 3520"
-                  {...register("model")}
-                  error={errors.model?.message}
-                  required
-                />
-                <Input
-                  label="Serial Number"
-                  placeholder="Device serial number (optional)"
-                  {...register("serial_number")}
-                />
-                <Input
-                  label="Device Password"
-                  type="password"
-                  placeholder="Login password (if applicable)"
-                  {...register("device_password")}
-                  helperText="Stored securely and only visible to authorized technicians"
-                />
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-neutral-100">
-                <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
-                  Warranty Information
-                </h4>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-700 mb-3">
-                      Is this a warranty repair?
-                    </p>
-                    <div className="flex items-center gap-6">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="true"
-                          checked={watch("is_warranty_repair") === true}
-                          onChange={() => setValue("is_warranty_repair", true)}
-                          className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
-                        />
-                        <span className="font-medium text-neutral-900">
-                          Yes
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="false"
-                          checked={
-                            watch("is_warranty_repair") === false ||
-                            watch("is_warranty_repair") === undefined
-                          }
-                          onChange={() => setValue("is_warranty_repair", false)}
-                          className="w-5 h-5 text-primary-500 border-neutral-300 focus:ring-primary-500"
-                        />
-                        <span className="font-medium text-neutral-900">No</span>
-                      </label>
-                    </div>
-                  </div>
-                  {watch("is_warranty_repair") && (
-                    <Textarea
-                      label="Warranty Details"
-                      placeholder="Enter warranty claim details, warranty card number, etc."
-                      {...register("warranty_details")}
-                      rows={2}
-                    />
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            {/* Accessories & Condition */}
-            <Card className="border border-neutral-300 shadow-sm">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Accessories & Condition
-              </h3>
-
+          <form onSubmit={handleSubmit((d) => mutate(d))}>
+            {/* 2-Column Extra Wide Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8">
+              
+              {/* LEFT COLUMN */}
               <div className="space-y-6">
-                {/* Accessories Subsection */}
-                <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
-                    Accessories Received
-                  </h4>
-                  <p className="text-sm text-neutral-500 mb-3">
-                    Check all accessories received with the device
-                  </p>
-                  <AccessoriesChecklist
-                    value={accessories}
-                    onChange={setAccessories}
-                  />
-                  <div className="mt-3">
-                    <Textarea
-                      label="Accessories Details"
-                      placeholder="Details will auto-populate here. Add Serial Numbers etc."
-                      value={accessoryManualDetails}
-                      onChange={(e) =>
-                        setAccessoryManualDetails(e.target.value)
-                      }
-                      rows={3}
+                
+                {hasPermission("canManageBranches") && (
+                  <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                    <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
+                      <Printer className="w-5 h-5 text-primary-500" />
+                      Branch Assignment
+                    </h3>
+                    <Select
+                      label="Assign to Branch"
+                      value={selectedBranchId}
+                      onChange={(e) => setSelectedBranchId(e.target.value)}
+                      options={[
+                        {
+                          value: "universal",
+                          label: "🌍 Universal / All Branches",
+                        },
+                        ...(Array.isArray(branches)
+                          ? branches
+                          : Object.hasOwn(branches, "results")
+                            ? (branches as { results: { id: string; name: string }[] }).results
+                            : []
+                        ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
+                      ]}
                     />
-                  </div>
-                </div>
+                  </Card>
+                )}
 
-                <div className="border-t border-neutral-200"></div>
-
-                {/* Physical Condition - Multi-select Checkboxes */}
-                <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
-                    Physical Condition
-                  </h4>
-                  <p className="text-sm text-neutral-500 mb-3">
-                    Select all that apply
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {physicalConditionOptions.map((option) => {
-                      const isChecked = selectedPhysicalConditions.includes(option.id);
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedPhysicalConditions(prev =>
-                              isChecked
-                                ? prev.filter(id => id !== option.id)
-                                : [...prev, option.id]
-                            );
-                          }}
-                          className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
-                            isChecked
-                              ? "bg-orange-50 border-orange-300 text-orange-700"
-                              : "bg-neutral-50 border-neutral-200 text-neutral-600"
-                          }`}
-                        >
-                          <div
-                            className={`w-5 h-5 rounded border flex items-center justify-center ${
-                              isChecked
-                                ? "bg-orange-500 border-orange-500"
-                                : "border-neutral-300"
-                            }`}
-                          >
-                            {isChecked && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {/* Show text input for 'Others' */}
-                  {selectedPhysicalConditions.some(id =>
-                    physicalConditionOptions.find(o => o.id === id && o.has_text_input)
-                  ) && (
-                    <div className="mt-3">
-                      <Input
-                        label="Specify Other Condition"
-                        placeholder="Please describe..."
-                        value={physicalConditionOtherText}
-                        onChange={(e) => setPhysicalConditionOtherText(e.target.value)}
-                      />
-                    </div>
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                  <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
+                    <User className="w-5 h-5 text-primary-500" />
+                    Customer Details
+                  </h3>
+                  <CustomerSearch
+                    onSelect={setSelectedCustomer}
+                    selectedCustomer={selectedCustomer}
+                    branchId={currentBranch.id}
+                  />
+                  {errors.customer_id && (
+                    <p className="mt-3 text-sm text-red-600 flex items-center gap-1.5 font-semibold bg-red-50 p-2.5 rounded-lg border border-red-100">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {errors.customer_id.message}
+                    </p>
                   )}
-                </div>
+                </Card>
+
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors flex-1">
+                    <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center gap-2">
+                      <Laptop className="w-5 h-5 text-primary-500" />
+                      Device Specifications
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                      <Select
+                        label="Device Type"
+                        options={deviceTypes}
+                        {...register("device_type")}
+                        error={errors.device_type?.message}
+                        required
+                      />
+                      <Input
+                        label="Brand"
+                        placeholder="e.g., Dell, Apple"
+                        {...register("brand")}
+                        error={errors.brand?.message}
+                        required
+                      />
+                      <Input
+                        label="Model"
+                        placeholder="e.g., XPS 15"
+                        {...register("model")}
+                        error={errors.model?.message}
+                        required
+                      />
+                      <Input
+                        label="Serial Number"
+                        placeholder="(Optional)"
+                        {...register("serial_number")}
+                      />
+                      <div className="sm:col-span-2">
+                        <Input
+                          label="Device Password"
+                          type="text"
+                          placeholder="Login passcode (if applicable)"
+                          {...register("device_password")}
+                          helperText="Stored securely and only visible to authorized personnel."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-5 border-t border-neutral-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                        <span className="text-sm font-semibold text-neutral-800">Is this a warranty repair?</span>
+                          <div className="flex bg-neutral-100/80 rounded-lg p-1 border border-neutral-200/50">
+                            <button
+                              type="button"
+                              className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${
+                                watch("is_warranty_repair") === true
+                                  ? "bg-white text-primary-700 shadow-sm ring-1 ring-black/5"
+                                  : "text-neutral-500 hover:text-neutral-700"
+                              }`}
+                              onClick={() => setValue("is_warranty_repair", true)}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${
+                                !watch("is_warranty_repair")
+                                  ? "bg-white text-neutral-800 shadow-sm ring-1 ring-black/5"
+                                  : "text-neutral-500 hover:text-neutral-700"
+                              }`}
+                              onClick={() => setValue("is_warranty_repair", false)}
+                            >
+                              No
+                            </button>
+                          </div>
+                      </div>
+                      {watch("is_warranty_repair") && (
+                        <div className="mt-3 animate-in fade-in slide-in-from-top-1">
+                            <Input
+                              placeholder="Enter warranty card #, dates, coverage details..."
+                              {...register("warranty_details")}
+                            />
+                        </div>
+                      )}
+                    </div>
+                </Card>
+
               </div>
-            </Card>
 
-            {/* Problem Description */}
-            <Card className="border border-neutral-300 shadow-sm">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-primary-500" />
-                Problem Description
-              </h3>
-              <div className="space-y-4">
-                <Textarea
-                  label="Customer Complaint"
-                  placeholder="Describe the issue reported by the customer..."
-                  {...register("customer_complaint")}
-                  error={errors.customer_complaint?.message}
-                  required
-                  rows={3}
-                />
+              {/* RIGHT COLUMN */}
+              <div className="space-y-6">
+                
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                  <h3 className="text-base font-bold text-neutral-900 mb-4">
+                    Items & Condition
+                  </h3>
 
-                {/* Engineer Diagnosis - Multi-select Checkboxes */}
-                <div>
-                  <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
-                    Engineer Diagnosis
-                  </h4>
-                  <p className="text-sm text-neutral-500 mb-3">
-                    Select applicable diagnosis based on device type ({watchDeviceType || 'select device type'})
-                  </p>
-                  {diagnosisOptions.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {diagnosisOptions.map((option) => {
-                          const isChecked = selectedDiagnoses.includes(option.id);
+                  <div className="space-y-6">
+                    {/* Accessories */}
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
+                        Included Accessories
+                      </h4>
+                      <AccessoriesChecklist
+                        value={accessories}
+                        onChange={setAccessories}
+                      />
+                      {Object.values(accessories).some(a => a?.present) && (
+                        <div className="mt-3 animate-in fade-in">
+                          <Textarea
+                            placeholder="Add Serial Numbers or specific notes for accessories..."
+                            value={accessoryManualDetails}
+                            onChange={(e) => setAccessoryManualDetails(e.target.value)}
+                            rows={2}
+                            className="text-sm bg-neutral-50"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-neutral-100"></div>
+
+                    {/* Physical Condition Chips */}
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
+                        Physical Condition
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {physicalConditionOptions.map((option) => {
+                          const isChecked = selectedPhysicalConditions.includes(option.id);
                           return (
                             <button
                               key={option.id}
                               type="button"
                               onClick={() => {
-                                setSelectedDiagnoses(prev =>
+                                setSelectedPhysicalConditions(prev =>
                                   isChecked
                                     ? prev.filter(id => id !== option.id)
                                     : [...prev, option.id]
                                 );
                               }}
-                              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold cursor-pointer ${
                                 isChecked
-                                  ? "bg-blue-50 border-blue-300 text-blue-700"
-                                  : "bg-neutral-50 border-neutral-200 text-neutral-600"
+                                  ? "bg-amber-50 border-amber-300 text-amber-800 shadow-sm"
+                                  : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
                               }`}
                             >
-                              <div
-                                className={`w-5 h-5 rounded border flex items-center justify-center ${
-                                  isChecked
-                                    ? "bg-blue-500 border-blue-500"
-                                    : "border-neutral-300"
-                                }`}
-                              >
-                                {isChecked && <Check className="w-3 h-3 text-white" />}
-                              </div>
-                              <span className="text-sm font-medium">{option.label}</span>
+                              {isChecked && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                              <span>{option.label}</span>
                             </button>
                           );
                         })}
                       </div>
-                      {/* Show text input for 'Others' */}
-                      {selectedDiagnoses.some(id =>
-                        diagnosisOptions.find(o => o.id === id && o.has_text_input)
+                      {selectedPhysicalConditions.some(id =>
+                        physicalConditionOptions.find(o => o.id === id && o.has_text_input)
                       ) && (
-                        <div className="mt-3">
+                        <div className="mt-3 animate-in fade-in">
                           <Input
-                            label="Specify Other Diagnosis"
-                            placeholder="Please describe..."
-                            value={diagnosisOtherText}
-                            onChange={(e) => setDiagnosisOtherText(e.target.value)}
+                            placeholder="Please describe 'Other' physical condition..."
+                            value={physicalConditionOtherText}
+                            onChange={(e) => setPhysicalConditionOtherText(e.target.value)}
                           />
                         </div>
                       )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-neutral-400 italic">Select a device type to see diagnosis options</p>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                </Card>
 
-                <Textarea
-                  label="Additional Comments"
-                  placeholder="Any other details or comments..."
-                  {...register("additional_comments")}
-                  rows={2}
-                />
-              </div>
-            </Card>
-
-            {/* Service Charge & Priority */}
-            <Card className="border border-neutral-300 shadow-sm">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      {...register("is_urgent")}
-                      className="w-5 h-5 rounded border-neutral-300 text-red-500 focus:ring-red-500"
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors flex-1">
+                  <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center gap-2">
+                      <HelpCircle className="w-5 h-5 text-primary-500" />
+                      Diagnosis & Remarks
+                  </h3>
+                  
+                  <div className="space-y-5">
+                    <Textarea
+                      label="Customer Complaint"
+                      placeholder="Describe the issue reported by the customer..."
+                      {...register("customer_complaint")}
+                      error={errors.customer_complaint?.message}
+                      required
+                      rows={3}
+                      className="text-sm shadow-inner bg-white"
                     />
-                    <span className="font-medium text-neutral-900">
-                      Mark as Urgent
-                    </span>
-                  </label>
-                  <span className="text-sm text-neutral-500">
-                    Prioritize this job
-                  </span>
-                </div>
 
-                <div>
-                  <Input
-                    label="Service Charge (Estimate)"
-                    placeholder="0.00"
-                    value={serviceCharge}
-                    onChange={(e) => setServiceCharge(e.target.value)}
-                    leftIcon={
-                      <span className="text-neutral-500 font-bold px-1">₹</span>
-                    }
-                  />
-                </div>
+                    {/* Engineer Diagnosis Chips */}
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
+                        Initial Diagnosis ({watchDeviceType})
+                      </h4>
+                      {diagnosisOptions.length > 0 ? (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {diagnosisOptions.map((option) => {
+                              const isChecked = selectedDiagnoses.includes(option.id);
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDiagnoses(prev =>
+                                      isChecked
+                                        ? prev.filter(id => id !== option.id)
+                                        : [...prev, option.id]
+                                    );
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold cursor-pointer ${
+                                    isChecked
+                                      ? "bg-blue-50 border-blue-300 text-blue-800 shadow-sm"
+                                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
+                                  }`}
+                                >
+                                  {isChecked && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                                  <span>{option.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {selectedDiagnoses.some(id =>
+                            diagnosisOptions.find(o => o.id === id && o.has_text_input)
+                          ) && (
+                            <div className="mt-3 animate-in fade-in">
+                              <Input
+                                placeholder="Specify other diagnosis..."
+                                value={diagnosisOtherText}
+                                onChange={(e) => setDiagnosisOtherText(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-neutral-500 font-medium bg-neutral-100 p-3 rounded-lg border border-neutral-200">
+                          No quick-select presets available for {watchDeviceType.toLowerCase()}.
+                        </p>
+                      )}
+                    </div>
+
+                    <Textarea
+                      label="Internal Notes"
+                      placeholder="Additional comments (optional)..."
+                      {...register("additional_comments")}
+                      rows={2}
+                      className="text-sm bg-neutral-50"
+                    />
+                  </div>
+                </Card>
+
               </div>
-            </Card>
-
-            {/* Submit */}
-            <div className="flex justify-end gap-3 mt-6">
-              <Link href="/jobs">
-                <Button variant="secondary" type="button">
-                  Cancel
-                </Button>
-              </Link>
-              <Button
-                type="submit"
-                isLoading={isPending}
-              >
-                Create Job Card
-              </Button>
             </div>
+
+            {/* Sticky Bottom Footer for Submission */}
+            <div className="mt-8 bg-white border border-neutral-200 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-6 sticky bottom-6 z-10 ring-4 ring-neutral-50/50">
+                <div className="flex items-center gap-6 w-full sm:w-auto">
+                  <label className="relative inline-flex items-center cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        {...register("is_urgent")}
+                      />
+                      <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500 group-hover:after:shadow-sm"></div>
+                      <span className="ml-3 text-sm font-bold text-neutral-700 group-hover:text-red-600 transition-colors uppercase tracking-wider">Emergency / Urgent</span>
+                  </label>
+
+                  <div className="w-[200px]">
+                    <Input
+                      placeholder="Cost Estimate"
+                      value={serviceCharge}
+                      onChange={(e) => setServiceCharge(e.target.value)}
+                      leftIcon={<span className="text-neutral-500 font-bold px-1">₹</span>}
+                      className="bg-neutral-50 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <Link href="/jobs" className="w-full sm:w-auto">
+                    <Button variant="secondary" type="button" className="w-full font-semibold">
+                      Cancel
+                    </Button>
+                  </Link>
+                  <Button type="submit" isLoading={isPending} className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 shadow-md font-bold px-8 text-base">
+                    Save Job Card
+                  </Button>
+                </div>
+            </div>
+
           </form>
         </div>
       </AppLayout>

@@ -745,41 +745,32 @@ function EditInvoiceContent() {
                     >
                       {/* Category Dropdown */}
                       <div>
-                        <select
+                        <Select
                           value={rowState.categoryId}
                           onChange={(e) =>
                             handleCategoryChange(index, e.target.value)
                           }
-                          className="w-full text-sm bg-white border border-neutral-200 rounded-lg py-2 px-2.5 text-neutral-700 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors appearance-none cursor-pointer"
-                        >
-                          <option value="">All Categories</option>
-                          {categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={categories.map((cat: any) => ({
+                            value: cat.id,
+                            label: cat.name,
+                          }))}
+                          placeholder="All Categories"
+                        />
                       </div>
 
                       {/* Item Dropdown */}
                       <div>
-                        <select
+                        <Select
                           value={rowState.itemId}
                           onChange={(e) =>
                             handleItemSelect(index, e.target.value)
                           }
-                          className="w-full text-sm bg-white border border-neutral-200 rounded-lg py-2 px-2.5 text-neutral-700 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-colors appearance-none cursor-pointer"
-                        >
-                          <option value="">— Select Item —</option>
-                          {filteredItems.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}{" "}
-                              {item.quantity > 0
-                                ? `(${item.quantity})`
-                                : "(Out)"}
-                            </option>
-                          ))}
-                        </select>
+                          options={filteredItems.map((item) => ({
+                            value: item.id,
+                            label: `${item.name} ${item.quantity > 0 ? `(${item.quantity})` : "(Out)"}`,
+                          }))}
+                          placeholder="— Select Item —"
+                        />
                       </div>
 
                       {/* Description + Type */}
@@ -794,17 +785,17 @@ function EditInvoiceContent() {
                           }
                         />
                         <div className="flex gap-2 items-center">
-                          <select
+                          <Select
                             {...register(
                               `line_items.${index}.item_type` as const,
                             )}
-                            className="text-xs bg-white border border-neutral-150 rounded py-1 px-2 text-neutral-600 focus:ring-1"
-                          >
-                            <option value="SERVICE">Service</option>
-                            <option value="PART">Part</option>
-                            <option value="LABOUR">Labour</option>
-                            <option value="OTHER">Other</option>
-                          </select>
+                            options={[
+                              { value: "SERVICE", label: "Service" },
+                              { value: "PART", label: "Part" },
+                              { value: "LABOUR", label: "Labour" },
+                              { value: "OTHER", label: "Other" },
+                            ]}
+                          />
                           {rowState.itemId && (
                             <span className="text-xs text-green-600 flex items-center gap-1">
                               <Package className="w-3 h-3" />
