@@ -567,18 +567,9 @@ function EditInvoiceContent() {
           : "",
         notes: invoice.notes,
         line_items: (invoice.line_items || []).map((item, idx) => {
-<<<<<<< HEAD
-          // Initialize row inventory state if it's an inventory item
-          if (item.inventory_item) {
-            setRowInventory((prev) => ({
-              ...prev,
-              [idx]: { categoryId: "", itemId: item.inventory_item ?? "" },
-            }));
-=======
           const invItemId = item.inventory_item;
           if (invItemId) {
             nextRowInventory[idx] = { categoryId: "", itemId: invItemId };
->>>>>>> e3392abbfcd5703f60077fd3a6f34feaff405385
           }
           return {
             id: item.id,

@@ -1,2 +1,6 @@
 # Docker Compose env (contains secrets)
 .env
+
+# DB backup files — contain secrets, never commit to git
+Backend/neon_backup.sql
+Backend/import_to_neon.bat
