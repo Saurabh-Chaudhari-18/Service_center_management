@@ -625,7 +625,7 @@ export const billingApi = {
   },
 
   createInvoice: async (data: {
-    branch: string;
+    branch: string | null;
     job_id?: string | null;
     customer_id?: string | null;
     due_date?: string;
