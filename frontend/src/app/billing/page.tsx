@@ -588,7 +588,7 @@ function InvoiceDetailPanel({
 // Main Billing Page
 // =====================================================
 
-export default function BillingPage() {
+function BillingContent() {
   const { currentBranch } = useAuth();
 
   // Read initial status from URL (e.g. /billing?status=PENDING)
@@ -995,5 +995,13 @@ export default function BillingPage() {
         </div>
       </AppLayout>
     </ProtectedRoute>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <React.Suspense fallback={<AppLayout><LoadingState /></AppLayout>}>
+      <BillingContent />
+    </React.Suspense>
   );
 }

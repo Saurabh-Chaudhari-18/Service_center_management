@@ -570,7 +570,7 @@ function EditInvoiceContent() {
           if (item.inventory_item) {
             setRowInventory((prev) => ({
               ...prev,
-              [idx]: { categoryId: "", itemId: item.inventory_item },
+              [idx]: { categoryId: "", itemId: item.inventory_item ?? "" },
             }));
           }
           return {

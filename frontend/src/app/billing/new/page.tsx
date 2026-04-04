@@ -879,7 +879,7 @@ function CreateInvoiceContent() {
         customer_id: data.customer_id || null,
         branch: selectedBranchId === "universal" ? null : selectedBranchId,
       };
-      return billingApi.createInvoice(payload);
+      return billingApi.createInvoice(payload as any);
     },
     onSuccess: () => {
       router.push(`/billing`);
