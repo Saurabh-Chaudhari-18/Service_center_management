@@ -41,7 +41,11 @@ import type {
 
 export const authApi = {
   login: async (email: string, password: string): Promise<AuthTokens> => {
-    return apiPost<AuthTokens>("/auth/token/", { email, password });
+    return apiPost<AuthTokens>(
+      "/auth/token/",
+      { email, password },
+      { timeout: 120000 },
+    );
   },
 
   refreshToken: async (refresh: string): Promise<{ access: string }> => {

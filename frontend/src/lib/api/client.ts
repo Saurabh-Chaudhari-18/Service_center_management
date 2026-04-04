@@ -4,6 +4,7 @@
 import axios, {
   AxiosError,
   AxiosInstance,
+  AxiosRequestConfig,
   InternalAxiosRequestConfig,
 } from "axios";
 
@@ -22,7 +23,8 @@ export const apiClient: AxiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 30000, // 30 seconds
+  // Render (and similar) cold starts often exceed 30s; login uses a longer override below.
+  timeout: 60000,
 });
 
 // =====================================================
@@ -139,9 +141,8 @@ apiClient.interceptors.response.use(
       try {
         const response = await axios.post(
           `${API_BASE_URL}/auth/token/refresh/`,
-          {
-            refresh: refreshToken,
-          },
+          { refresh: refreshToken },
+          { timeout: 120000 },
         );
 
         const { access } = response.data;
@@ -175,7 +176,7 @@ apiClient.interceptors.response.use(
 function formatErrorMessage(error: AxiosError<unknown>): string {
   if (!error.response) {
     if (error.code === "ECONNABORTED") {
-      return "Request timed out. Please try again.";
+      return "Request timed out. If the API is on a free host, the first request after idle can take 1–2 minutes—try again. Otherwise check NEXT_PUBLIC_API_URL (must end with /api).";
     }
     return "Network error. Please check your connection.";
   }
@@ -248,8 +249,12 @@ export async function apiGet<T>(
   return response.data;
 }
 
-export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
-  const response = await apiClient.post<T>(url, data);
+export async function apiPost<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  const response = await apiClient.post<T>(url, data, config);
   return response.data;
 }
 
