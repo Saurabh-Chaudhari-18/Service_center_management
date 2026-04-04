@@ -8,7 +8,7 @@ import { Button, Input, Badge, Modal, LoadingState } from "@/components/ui"; // 
 import { branchesApi } from "@/lib/api";
 import { Branch } from "@/types";
 import { Plus, Edit2, MapPin, Phone, Mail, Hash } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -58,10 +58,11 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     reset,
     formState: { errors },
   } = useForm<BranchFormData>({
-    resolver: zodResolver(branchSchema),
+    resolver: zodResolver(branchSchema) as Resolver<BranchFormData>,
     defaultValues: branch
       ? {
           ...branch,
+          default_gst_rate: Number(branch.default_gst_rate),
           address_line2: branch.address_line2 || "",
           gstin: branch.gstin || "",
           state_code: branch.state_code || "",
@@ -111,6 +112,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
         branch
           ? {
               ...branch,
+              default_gst_rate: Number(branch.default_gst_rate),
               address_line2: branch.address_line2 || "",
               gstin: branch.gstin || "",
               state_code: branch.state_code || "",

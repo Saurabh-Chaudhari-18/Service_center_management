@@ -614,8 +614,10 @@ function ItemModal({
     error: mutationError,
   } = useMutation({
     mutationFn: (data: ItemFormData) => {
-      // Clean up: empty category string → null (Django FK rejects empty strings)
-      const cleaned = { ...data, category: data.category || null };
+      const cleaned: Partial<InventoryItem> = {
+        ...data,
+        category: data.category ? data.category : undefined,
+      };
       return isEdit
         ? inventoryApi.update(item.id, cleaned)
         : inventoryApi.create({ ...cleaned, branch: branchId });

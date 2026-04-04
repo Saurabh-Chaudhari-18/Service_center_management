@@ -462,6 +462,8 @@ export const inventoryApi = {
     low_stock?: boolean;
     category?: string;
     page?: number;
+    /** Page size (backend may map to `limit` / `page_size`) */
+    limit?: number;
   }): Promise<PaginatedResponse<InventoryItem>> => {
     return apiGet<PaginatedResponse<InventoryItem>>(
       "/inventory/items/",
@@ -650,7 +652,8 @@ export const billingApi = {
   updateInvoice: async (
     id: string,
     data: {
-      due_date?: string;
+      branch?: string | null;
+      due_date?: string | null;
       notes?: string;
       line_items?: Array<{
         id?: string;

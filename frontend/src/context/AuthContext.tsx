@@ -122,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthenticated: false,
             currentBranch: null,
             accessibleBranches: [],
+            organizationBranding: null,
           });
         }
       }

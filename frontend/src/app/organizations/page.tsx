@@ -31,7 +31,7 @@ import {
   X,
   Store,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -50,9 +50,9 @@ const orgSchema = z.object({
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(6, "Invalid pincode"),
-  country: z.string().default("India"),
+  country: z.string().min(1, "Country is required"),
   pan_number: z.string().optional().or(z.literal("")),
-  is_active: z.boolean().default(true),
+  is_active: z.boolean(),
 });
 
 type OrgFormData = z.infer<typeof orgSchema>;
@@ -77,7 +77,7 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
     reset,
     formState: { errors },
   } = useForm<OrgFormData>({
-    resolver: zodResolver(orgSchema),
+    resolver: zodResolver(orgSchema) as Resolver<OrgFormData>,
     defaultValues: org
       ? {
           ...org,

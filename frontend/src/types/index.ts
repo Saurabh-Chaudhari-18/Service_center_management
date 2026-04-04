@@ -425,6 +425,8 @@ export interface InventoryItem extends BaseEntity {
 
 export interface StockAdjustment extends BaseEntity {
   inventory_item: string;
+  /** Present when API sends an explicit delta; otherwise derive from quantities */
+  quantity?: number;
   previous_quantity: number;
   new_quantity: number;
   adjustment_type: "ADD" | "DEDUCT" | "MANUAL";
@@ -557,6 +559,11 @@ export interface RevenueReportData {
   period: string;
   total_revenue: number;
   total_invoices: number;
+  /** Some API versions nest summary fields under `totals` */
+  totals?: {
+    total_revenue: number;
+    total_invoices: number;
+  };
   total_services: number;
   total_parts: number;
   cgst_collected: number;

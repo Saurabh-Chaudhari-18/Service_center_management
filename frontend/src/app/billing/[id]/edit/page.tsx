@@ -588,7 +588,7 @@ function EditInvoiceContent() {
   }, [invoice, reset, router, id]);
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: UpdateInvoiceFormData) =>
+    mutationFn: (data: Parameters<typeof billingApi.updateInvoice>[1]) =>
       billingApi.updateInvoice(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", id] });
@@ -607,8 +607,7 @@ function EditInvoiceContent() {
       due_date: data.due_date || null,
       branch: selectedBranchId === "universal" ? null : selectedBranchId,
     };
-    // Cast is safe because schema is flexible but backend expects null for empty string
-    mutate(payload as unknown as UpdateInvoiceFormData);
+    mutate(payload);
   };
 
   // Calculations

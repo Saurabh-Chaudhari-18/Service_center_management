@@ -7,6 +7,7 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { Card, Button, Input, LoadingState } from "@/components/ui";
 import { reportsApi } from "@/lib/api";
+import type { InventoryItem, TechnicianProductivityData } from "@/types";
 import {
   Users,
   Package,
@@ -83,8 +84,10 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
   if (!data) return null;
 
   const chartData = data.daily_breakdown || [];
-  const totalRevenue = data.totals?.total_revenue || 0;
-  const totalInvoices = data.totals?.total_invoices || 0;
+  const totalRevenue =
+    data.totals?.total_revenue ?? data.total_revenue ?? 0;
+  const totalInvoices =
+    data.totals?.total_invoices ?? data.total_invoices ?? 0;
 
   return (
     <Card className="h-full">
@@ -123,8 +126,8 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
               fontSize={12}
             />
             <Tooltip
-              formatter={(value: number) => [
-                `₹${Number(value).toLocaleString("en-IN")}`,
+              formatter={(value: number | undefined) => [
+                `₹${Number(value ?? 0).toLocaleString("en-IN")}`,
                 "Revenue",
               ]}
               labelFormatter={(label: string) =>
@@ -204,7 +207,7 @@ function JobsByStatusChart() {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) => [value, "Jobs"]}
+            formatter={(value: number | undefined) => [value ?? 0, "Jobs"]}
             contentStyle={{
               backgroundColor: "white",
               border: "1px solid #e2e8f0",
@@ -278,18 +281,12 @@ function TechnicianProductivity({
       </h3>
 
       <div className="space-y-4">
-        {data.technicians.map(
-          (tech: {
-            technician_id: string;
-            technician_name: string;
-            jobs_completed: number;
-            jobs_in_progress: number;
-            total_assigned: number;
-          }) => {
+        {data.technicians.map((tech: TechnicianProductivityData) => {
+            const assigned = tech.assigned_jobs;
+            const completed = tech.completed_jobs;
+            const pending = tech.pending_jobs;
             const completionRate =
-              tech.total_assigned > 0
-                ? Math.round((tech.jobs_completed / tech.total_assigned) * 100)
-                : 0;
+              assigned > 0 ? Math.round((completed / assigned) * 100) : 0;
 
             return (
               <div
@@ -306,7 +303,7 @@ function TechnicianProductivity({
                         {tech.technician_name}
                       </p>
                       <p className="text-sm text-neutral-500">
-                        {tech.total_assigned} total jobs
+                        {assigned} total jobs
                       </p>
                     </div>
                   </div>
@@ -321,21 +318,21 @@ function TechnicianProductivity({
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <p className="text-lg font-semibold text-neutral-900">
-                      {tech.total_assigned}
+                      {assigned}
                     </p>
                     <p className="text-xs text-neutral-500">Assigned</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-green-600">
-                      {tech.jobs_completed}
+                      {completed}
                     </p>
                     <p className="text-xs text-neutral-500">Completed</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-amber-600">
-                      {tech.jobs_in_progress}
+                      {pending}
                     </p>
-                    <p className="text-xs text-neutral-500">In Progress</p>
+                    <p className="text-xs text-neutral-500">Pending</p>
                   </div>
                 </div>
 
@@ -422,8 +419,8 @@ function InventoryOverview({ fromDate, toDate }: InventoryOverviewProps) {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) =>
-                    `₹${Number(value).toLocaleString("en-IN")}`
+                  formatter={(value: number | undefined) =>
+                    `₹${Number(value ?? 0).toLocaleString("en-IN")}`
                   }
                 />
                 <Legend />
@@ -652,8 +649,7 @@ function LowStockList() {
 
   if (isLoading) return <LoadingState />;
 
-  // Backend returns { total_items, items: [...] }
-  const items = data?.items || (Array.isArray(data) ? data : []);
+  const items: InventoryItem[] = Array.isArray(data) ? data : [];
   if (items.length === 0) return null;
 
   return (
