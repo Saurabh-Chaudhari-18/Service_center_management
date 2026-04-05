@@ -86,9 +86,78 @@ The frontend uses a modern React tech stack (`Next.js`, `Tailwind CSS`, `React Q
 
 ---
 
+## 🏗️ Architectural Inconsistencies
+During the review, several structural inconsistencies were noted where different modules solve the same problem using different patterns:
+
+### 1. Soft Deletion vs. Hard Deletion (Crash Risk)
+- **Issue:** In the `core` app (`UserViewSet`, `BranchViewSet`), overriding `perform_destroy` ensures records are "soft deleted" (`is_active = False`). However, `jobs` and `inventory` ViewSets skip this and default to DRF's **hard delete**. 
+- **Risk:** Because `JobPartUsage` uses `on_delete=models.PROTECT`, an admin attempting to delete a JobCard with parts will trigger a hard `ProtectedError`, yielding an ungraceful **500 Internal Server Error**.
+
+### 2. "Fat Models" vs. "Fat Views"
+- **Issue:** The codebase lacks a unified philosophy on where business logic lives. `inventory/models.py` uses strict "Fat Models" (`item.deduct_stock()` encapsulates its own transactions). But in `jobs/views.py`, the View itself spins up transactions and manually updates multiple tables (e.g. `add_diagnosis`). 
+- **Fix:** Move database write-logic out of DRF views and into Model methods or a `jobs/services.py` layer.
+
+### 3. API Error Envelope Differences
+- **Issue:** Standard DRF serializers return `ValidationError` arrays (`{'field': ['Message']}`). However, your custom `@action` endpoints manually return `Response({'error': 'Message'})`. 
+- **Impact:** The frontend Axios interceptor is forced to use a bloated `switch` block to guess whether the failure message is lodged inside `.detail`, `.message`, or `.error`.
+
+### 4. Custom List Pagination
+- **Issue:** While DRF aggressively paginates standard `.list()` requests, your custom list views behave inconsistently. `JobCardViewSet.pending` manually initiates `self.paginate_queryset()`, but `JobCardViewSet.my_jobs` bypasses pagination entirely.
+- **Impact:** As technicians accrue hundreds of historical jobs, `/api/jobs/my_jobs/` will eventually download massive multi-megabyte JSON payloads, killing rendering speed.
+
+### 5. Enums vs. Inline Choice Tuples
+- **Issue:** The `jobs` app correctly uses modern Django 3.0+ `models.TextChoices`. However, the older `inventory` app still uses legacy inline tuples (`choices=[('PCS', 'Pieces')]`). Standardizing to `TextChoices` globally enables easy frontend consumption via the `/api/jobs/enums/` endpoint.
+
+---
+
+## 🎨 Frontend Specific Inconsistencies
+Focusing strictly on the Next.js frontend, here are a few distinct architectural mismatches:
+
+### 1. Fractured Form Handling (`useState` vs. `react-hook-form`)
+- **Issue:** Major creation pages (like `/jobs/new/page.tsx`) utilize `react-hook-form` paired with `zod` for strict schema validation. However, inline modals (such as the `DiagnosisModal` in `/jobs/[id]/page.tsx`) revert back to basic React `useState` controlled inputs.
+- **Impact:** This splits your form validation strategy in half. Inline modals lack the robust error tracking and accessibility features that `react-hook-form` provides out of the box.
+
+### 2. Bypassing React Query in Contexts
+- **Issue:** Throughout the application, you elegantly use `@tanstack/react-query` to fetch and cache remote data (`useQuery(['jobs'])`). However, inside `AuthContext.tsx`, you manually execute raw Axios requests (`await authApi.getMe()`) inside a `useEffect` hook. 
+- **Impact:** Global user state does not benefit from React Query's built-in caching, background refetching, or stale-time mechanisms.
+
+### 3. Orphaned Dependency (`react-router-dom`)
+- **Issue:** Your `package.json` includes `react-router-dom`, but a global search confirms your entire application correctly uses the Next.js App Router (`next/navigation` and `next/link`). 
+- **Fix:** Run `npm uninstall react-router-dom` to remove this dead dependency and prevent confusing future developers about routing standards.
+
+---
+
 ## 🏆 Final Conclusion
 The **Service Center Management System** is a mature, robust application. Built accurately around DDD (Domain-Driven Design), its Row-Level Security effectively quarantines tenant data, and its strictly enforced models properly reflect real-world Indian taxation & service center workflows. 
 
 Your highest priority moving forward should be **configuring Celery** to offload synchronous Twilio, SMTP, and Openpyxl operations.
+
+---
+
+## 🚨 Critical Vulnerabilities (Big Issues Found)
+During my final sweep of the codebase, I uncovered two severe "Big Issues" that must be fixed before going into production:
+
+### 1. Inventory Race Condition (Data Loss)
+In `inventory/models.py`, your `add_stock` and `deduct_stock` methods suffer from a classic Read-Modify-Write race condition. 
+```python
+with transaction.atomic():
+    old_quantity = self.quantity
+    self.quantity -= quantity
+```
+If two cashiers concurrently invoice the exact same part, they both read the old quantity (e.g., 10) into memory, subtract 1, and save 9 to the database. You've lost a product out of your physical inventory but the database only deducted one. 
+**Fix:** You must fetch `self` using a row-level lock inside the atomic block:
+```python
+with transaction.atomic():
+    locked_item = InventoryItem.objects.select_for_update().get(pk=self.pk)
+    old_quantity = locked_item.quantity
+    locked_item.quantity -= quantity
+    locked_item.save(update_fields=['quantity', 'updated_at'])
+```
+
+### 2. Insecure `settings.py` Defaults
+In `Backend/config/settings.py`, you have fallback values that are catastrophic if deploying to servers where `.env` variables fail to load:
+- `DEBUG = env('DEBUG', default=True)`: This will expose your entire source code & environment variables stack trace on a 500 error in production. Change the default to `False`.
+- `SECRET_KEY = env(..., default='django-insecure-...')`: If an attacker notices you deployed with the default hardcoded key, they can arbitrarily mint their own JWT tokens and impersonate Super Admins.
+- `ENCRYPTION_KEY = env('ENCRYPTION_KEY', default='')`: This is used for encrypting customer device passwords. If left blank by mistake in production, it will either crash the `Cryptography` module preventing jobs from being saved, or silently store passwords in plain string.
 
 *Code Review Complete.*
