@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
+import { CommandPalette } from "../CommandPalette";
 
 // =====================================================
 // Navigation Items Configuration
@@ -249,6 +250,13 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         {/* Dark Mode Toggle */}
         <ThemeToggle />
 
+        {/* Global Search Hint */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-slate-800 rounded-lg border border-neutral-200 dark:border-slate-700 text-xs text-neutral-500 font-medium">
+          <Search className="w-3.5 h-3.5" />
+          <span>Search</span>
+          <kbd className="ml-1 font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-neutral-200 dark:border-slate-700 shadow-sm text-[10px]">Ctrl K</kbd>
+        </div>
+
         {/* Notifications */}
         <button className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10">
           <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
@@ -348,6 +356,9 @@ export function AppLayout({ children }: LayoutProps) {
             </div>
           </>
         )}
+
+        {/* Global Command Palette */}
+        <CommandPalette />
 
         <main className="main-content">{children}</main>
       </div>
