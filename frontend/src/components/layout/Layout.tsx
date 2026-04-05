@@ -26,6 +26,7 @@ import {
   Moon,
   Menu,
   X,
+  Search,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
