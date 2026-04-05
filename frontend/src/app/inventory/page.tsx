@@ -245,7 +245,7 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
   ];
 
   return (
-    <div className="w-full lg:w-[480px] border-l border-neutral-200 bg-white flex flex-col h-full overflow-hidden">
+    <div className="w-full lg:w-[480px] shrink-0 border-l border-neutral-200 bg-white flex flex-col h-full overflow-hidden">
       {/* Panel Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 bg-neutral-50/50">
         <div className="flex-1 min-w-0">
@@ -1017,10 +1017,10 @@ export default function InventoryPage() {
           }
         />
 
-        <div className="flex h-[calc(100vh-64px)]">
+        <div className="flex h-[calc(100vh-64px)] w-full overflow-hidden">
           {/* Main Content */}
           <div
-            className={`flex-1 flex flex-col overflow-hidden ${selectedItem ? "lg:border-r" : ""}`}
+            className={`flex-1 min-w-0 flex flex-col overflow-hidden ${selectedItem ? "hidden lg:flex lg:border-r" : ""}`}
           >
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {/* Stats Row */}
