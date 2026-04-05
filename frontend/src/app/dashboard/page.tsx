@@ -893,18 +893,6 @@ export default function DashboardPage() {
           {/* Top Quick Actions (Replaced Stats Grid) */}
           <QuickActions />
 
-          {/* Revenue Chart + Financial Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 min-w-0">
-              {hasPermission("canViewReports") && <RevenueTrendChart />}
-            </div>
-            <div className="space-y-5">
-              {/* Stats Table moved above Financial Summary */}
-              <DashboardStats />
-              {hasPermission("canViewReports") && <RevenueSummary />}
-            </div>
-          </div>
-
           {/* Recent Jobs + Right panel (Job Status) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 min-w-0">
@@ -912,7 +900,19 @@ export default function DashboardPage() {
               {isRole("TECHNICIAN") && <TechnicianJobs />}
             </div>
             <div className="space-y-5">
+              {/* Stats Table moved above Job Status Chart for better layout balancing */}
+              <DashboardStats />
               {hasPermission("canViewJobCards") && <JobStatusChart />}
+            </div>
+          </div>
+
+          {/* Revenue Chart + Financial Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 min-w-0">
+              {hasPermission("canViewReports") && <RevenueTrendChart />}
+            </div>
+            <div className="space-y-5">
+              {hasPermission("canViewReports") && <RevenueSummary />}
             </div>
           </div>
 

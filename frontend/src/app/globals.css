@@ -54,6 +54,7 @@
   --animate-fade-in: fadeIn 0.3s ease-out forwards;
   --animate-slide-up: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-slide-in-right: slideInRight 0.3s ease-out forwards;
+  --animate-slide-in-from-left: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 
   @keyframes fadeIn {
     from { opacity: 0; }
@@ -68,6 +69,11 @@
   @keyframes slideInRight {
     from { opacity: 0; transform: translateX(100%); }
     to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slideInFromLeft {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
   }
 }
 
@@ -295,12 +301,19 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.15);
   }
 
+  /* Main content – full width on mobile, offset on desktop */
   .main-content {
-    margin-left: 16rem;
+    margin-left: 0;
     min-height: 100vh;
     transition: all 0.3s ease;
     background: radial-gradient(ellipse at top left, #ede9fe 0%, #e0e7ff 30%, #eff6ff 60%, #f8fafc 100%);
     background-attachment: fixed;
+  }
+
+  @media (min-width: 1024px) {
+    .main-content {
+      margin-left: 16rem;
+    }
   }
 
   /* ── Dashboard Grid ──────────────────────────── */
@@ -603,3 +616,101 @@ html *::after {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.15s ease, box-shadow 0.3s ease;
 }
 
+/* ─────────────────────────────────────────────────────
+   Mobile Responsive Overrides
+───────────────────────────────────────────────────── */
+
+/* Slide-in animation for mobile sidebar drawer */
+.animate-slide-in-from-left {
+  animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Make ALL tables horizontally scrollable on small screens */
+@media (max-width: 1023px) {
+  /* Tables must scroll horizontally, not break layout */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+  thead, tbody, tfoot {
+    display: table;
+    width: 100%;
+  }
+
+  /* Reduce padding on pages */
+  .p-6 {
+    padding: 1rem !important;
+  }
+  .px-6 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  .p-8 {
+    padding: 1.25rem !important;
+  }
+
+  /* Detail panel takes full screen on mobile */
+  .fixed.inset-y-0.right-0.w-full.md\:w-\[550px\] {
+    width: 100% !important;
+  }
+
+  /* Stats grid: 2 cols on mobile, not 4 */
+  .grid-cols-2.md\:grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Stats cards padding */
+  .stats-card {
+    padding: 1rem 1rem;
+  }
+
+  /* Card padding */
+  .card {
+    border-radius: 1rem;
+  }
+
+  .glass-card {
+    border-radius: 1rem;
+  }
+
+  /* Modal content takes more width */
+  .modal-content {
+    max-width: calc(100% - 2rem) !important;
+    margin: 0 1rem;
+  }
+}
+
+/* Extra-small screens (< 480px) */
+@media (max-width: 480px) {
+  .p-6 {
+    padding: 0.75rem !important;
+  }
+
+  /* Stack 2-col stats to 1 column on very small phones */
+  .grid-cols-2.md\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Smaller header title */
+  header h1 {
+    font-size: 1rem !important;
+  }
+
+  /* Quick action buttons: 2 cols on phone */
+  .grid-cols-2.md\:grid-cols-4.lg\:grid-cols-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Ensure overflow hidden containers don't clip on mobile */
+.overflow-hidden {
+  overflow: visible;
+}
+
+/* But tables need scroll – override above for table containers */
+.overflow-x-auto {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}

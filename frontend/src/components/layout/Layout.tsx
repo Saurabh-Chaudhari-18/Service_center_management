@@ -24,6 +24,8 @@ import {
   Truck,
   Sun,
   Moon,
+  Menu,
+  X,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -57,6 +59,20 @@ const navigationItems: NavItem[] = [
 ];
 
 // =====================================================
+// Mobile Sidebar Context – share open/close across layout
+// =====================================================
+
+const MobileSidebarContext = React.createContext<{
+  isOpen: boolean;
+  toggle: () => void;
+  close: () => void;
+}>({ isOpen: false, toggle: () => {}, close: () => {} });
+
+function useMobileSidebar() {
+  return React.useContext(MobileSidebarContext);
+}
+
+// =====================================================
 // Sidebar Component
 // =====================================================
 
@@ -64,6 +80,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole } = useAuth();
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
+  const { close: closeMobile } = useMobileSidebar();
 
   const visibleNavItems = navigationItems.filter((item) => {
     if (item.permission) return hasPermission(item.permission);
@@ -85,16 +102,26 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar flex flex-col">
-      {/* Logo */}
+      {/* Logo + Mobile Close */}
       <div className="p-5 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center gradient-accent shadow-lg">
-            <Wrench className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center gradient-accent shadow-lg">
+              <Wrench className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-white tracking-wide">ServiceHub</h1>
+              <p className="text-xs text-violet-300/70">Management System</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-base font-bold text-white tracking-wide">ServiceHub</h1>
-            <p className="text-xs text-violet-300/70">Management System</p>
-          </div>
+          {/* Mobile close button */}
+          <button
+            onClick={closeMobile}
+            className="lg:hidden p-2 rounded-xl text-violet-300/60 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -140,7 +167,12 @@ export function Sidebar() {
           const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
-            <Link key={item.name} href={item.href} className={`sidebar-item ${isActive ? "active" : ""}`}>
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`sidebar-item ${isActive ? "active" : ""}`}
+              onClick={closeMobile} // close sidebar on nav click (mobile)
+            >
               <Icon className="w-4.5 h-4.5 shrink-0" style={{ width: "1.1rem", height: "1.1rem" }} />
               <span>{item.name}</span>
             </Link>
@@ -185,21 +217,33 @@ interface HeaderProps {
 export function Header({ title, subtitle, actions }: HeaderProps) {
   const { currentBranch, organizationBranding } = useAuth();
   const [notificationCount] = React.useState(0);
+  const { toggle } = useMobileSidebar();
 
   return (
-    <header className="min-h-[4.5rem] py-3 px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
-      <div>
-        {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent">
-            {title}
-          </h1>
-        ) : (
-          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">{title}</h1>
-        )}
-        {subtitle && <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
+    <header className="min-h-[4rem] lg:min-h-[4.5rem] py-3 px-4 lg:px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Hamburger button – visible only on mobile */}
+        <button
+          onClick={toggle}
+          className="lg:hidden p-2 -ml-1 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors"
+          aria-label="Open sidebar"
+        >
+          <Menu className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
+        </button>
+
+        <div className="min-w-0">
+          {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
+            <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent truncate">
+              {title}
+            </h1>
+          ) : (
+            <h1 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent truncate">{title}</h1>
+          )}
+          {subtitle && <p className="text-xs lg:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">{subtitle}</p>}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2 lg:gap-3 shrink-0">
         {actions}
 
         {/* Dark Mode Toggle */}
@@ -251,7 +295,7 @@ function ThemeToggle() {
 }
 
 // =====================================================
-// Main Layout Component
+// Main Layout Component (with mobile sidebar toggle)
 // =====================================================
 
 interface LayoutProps {
@@ -259,10 +303,54 @@ interface LayoutProps {
 }
 
 export function AppLayout({ children }: LayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const toggle = React.useCallback(() => setSidebarOpen((o) => !o), []);
+  const close = React.useCallback(() => setSidebarOpen(false), []);
+
+  // Close sidebar on window resize to desktop
+  React.useEffect(() => {
+    const handler = () => {
+      if (window.innerWidth >= 1024) setSidebarOpen(false);
+    };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  // Prevent body scroll when mobile sidebar is open
+  React.useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
+
   return (
-    <div className="min-h-screen" style={{ background: "transparent" }}>
-      <Sidebar />
-      <main className="main-content">{children}</main>
-    </div>
+    <MobileSidebarContext.Provider value={{ isOpen: sidebarOpen, toggle, close }}>
+      <div className="min-h-screen" style={{ background: "transparent" }}>
+        {/* Desktop sidebar – always visible ≥ lg */}
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+
+        {/* Mobile sidebar overlay + drawer */}
+        {sidebarOpen && (
+          <>
+            {/* Backdrop overlay */}
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden animate-fade-in"
+              onClick={close}
+            />
+            {/* Sidebar drawer */}
+            <div className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden animate-slide-in-from-left">
+              <Sidebar />
+            </div>
+          </>
+        )}
+
+        <main className="main-content">{children}</main>
+      </div>
+    </MobileSidebarContext.Provider>
   );
 }
