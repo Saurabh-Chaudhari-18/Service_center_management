@@ -203,17 +203,16 @@ export default function JobsPage() {
     enabled: !!currentBranch,
   });
 
-  // Get counts for status tabs
-  const { data: allJobs } = useQuery({
-    queryKey: ["jobs-counts", currentBranch?.id],
-    queryFn: () => jobsApi.list({ branch: currentBranch?.id }),
+  // Fetch lightweight per-status counts from the dedicated stats endpoint.
+  // Previously this fetched the entire jobs list (potentially thousands of records)
+  // just to count statuses client-side — a major performance anti-pattern.
+  const { data: statsData } = useQuery({
+    queryKey: ["jobs-stats", currentBranch?.id],
+    queryFn: () => jobsApi.getStats({ branch: currentBranch?.id }),
     enabled: !!currentBranch,
   });
 
-  const jobCounts: Record<string, number> = {};
-  allJobs?.results?.forEach((job) => {
-    jobCounts[job.status] = (jobCounts[job.status] || 0) + 1;
-  });
+  const jobCounts: Record<string, number> = statsData?.by_status ?? {};
 
   const jobs = data?.results || [];
   const totalCount = data?.count || 0;

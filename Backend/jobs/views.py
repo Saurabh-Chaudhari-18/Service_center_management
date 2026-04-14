@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction
+from django.db import models as django_models
 from django.utils import timezone
 
 from jobs.models import (
@@ -538,22 +539,50 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_jobs(self, request):
-        """Get jobs assigned to current user (for technicians)."""
+        """Get jobs assigned to current user (for technicians).
+
+        Paginated to prevent massive JSON payloads as technicians
+        accumulate hundreds of historical jobs over time.
+        """
         if request.user.role != Role.TECHNICIAN:
             return Response(
                 {'error': 'This endpoint is for technicians only.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
         queryset = JobCard.objects.filter(
             assigned_technician=request.user,
             branch__in=request.user.get_accessible_branches()
         ).exclude(
             status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED]
         ).order_by('-is_urgent', '-created_at')
-        
+
+        # Paginate to avoid downloading entire job history in one request
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = JobCardListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = JobCardListSerializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get per-status job counts for the current branch.
+
+        Uses PostgreSQL aggregations (COUNT + GROUP BY) so the frontend
+        does NOT need to download the entire jobs table just to count statuses.
+        This replaces the anti-pattern of fetching all jobs client-side to
+        build the status-tab counters on jobs/page.tsx.
+        """
+        qs = self.get_queryset()
+        counts = qs.values('status').annotate(count=django_models.Count('id'))
+        result = {item['status']: item['count'] for item in counts}
+        total = sum(result.values())
+        return Response({
+            'total': total,
+            'by_status': result,
+        })
 
     @action(detail=False, methods=['get'])
     def next_number(self, request):

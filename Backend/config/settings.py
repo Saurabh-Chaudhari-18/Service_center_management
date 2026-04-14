@@ -8,6 +8,7 @@ job lifecycle tracking, and auditability for Indian service centers.
 from pathlib import Path
 from datetime import timedelta
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +22,19 @@ env = environ.Env(
 environ.Env.read_env(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-)brebv!46wiv3qze_e88t0969=y5m4105e9h-u-(tzg)3b8@@l')
+# No insecure default — the application will refuse to start if SECRET_KEY is
+# not explicitly set in the environment. This prevents accidental production
+# deploys with a well-known hardcoded key that attackers could exploit.
+SECRET_KEY = env('SECRET_KEY', default=None)
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "SECRET_KEY environment variable is not set. "
+        "Generate one with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG', default=True)
+# Default is False so that a missing .env in production never exposes tracebacks.
+DEBUG = env('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
@@ -136,7 +146,9 @@ REST_FRAMEWORK = {
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
+    # 30 minutes: short-lived access tokens reduce the attack window if a token
+    # is intercepted. The 7-day refresh token silently rotates it in the background.
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -201,6 +213,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Encryption key for sensitive data (device passwords)
 ENCRYPTION_KEY = env('ENCRYPTION_KEY', default='')
+# In production, a missing encryption key would either crash the cryptography
+# module or silently store passwords in plain text — both are unacceptable.
+if not ENCRYPTION_KEY and not DEBUG:
+    raise ImproperlyConfigured(
+        "ENCRYPTION_KEY environment variable is not set. "
+        "This key encrypts customer device passwords and must be set in production. "
+        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
 
 # GST Configuration (India-specific)
 GST_RATES = {

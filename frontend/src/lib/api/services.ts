@@ -389,8 +389,19 @@ export const jobsApi = {
     return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/pending/");
   },
 
-  getMyJobs: async (): Promise<JobCard[]> => {
-    return apiGet<JobCard[]>("/jobs/jobs/my_jobs/");
+  getMyJobs: async (): Promise<PaginatedResponse<JobCard>> => {
+    return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/my_jobs/");
+  },
+
+  /**
+   * Get per-status job counts for the current branch.
+   * Uses a DB aggregation endpoint so we don't have to download all jobs
+   * just to count them for the status filter tabs.
+   */
+  getStats: async (params?: {
+    branch?: string;
+  }): Promise<{ total: number; by_status: Record<string, number> }> => {
+    return apiGet("/jobs/jobs/stats/", params);
   },
 
   // Enums

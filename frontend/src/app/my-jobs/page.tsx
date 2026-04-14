@@ -409,7 +409,8 @@ export default function MyJobsPage() {
     queryFn: () => jobsApi.getMyJobs(),
   });
 
-  const jobs = data || [];
+  const jobs = data?.results || [];
+  const totalJobs = data?.count ?? jobs.length;
 
   // Group jobs by status
   const inProgress = jobs.filter((j) => j.status === "REPAIR_IN_PROGRESS");
@@ -425,7 +426,7 @@ export default function MyJobsPage() {
       <AppLayout>
         <Header
           title={`My Jobs`}
-          subtitle={`${jobs.length} jobs assigned to you`}
+          subtitle={`${totalJobs} jobs assigned to you`}
         />
 
         <div className="p-6 space-y-6">

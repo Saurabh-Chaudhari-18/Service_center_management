@@ -17,6 +17,16 @@ import uuid
 from decimal import Decimal
 
 
+class UnitType(models.TextChoices):
+    """Unit of measure for inventory items. Standardized as TextChoices."""
+    PIECES = 'PCS', 'Pieces'
+    NUMBERS = 'NOS', 'Numbers'
+    METERS = 'MTR', 'Meters'
+    SET = 'SET', 'Set'
+    BOX = 'BOX', 'Box'
+    KILOGRAM = 'KG', 'Kilogram'
+
+
 class InventoryCategory(TimeStampedModel):
     """Categories for inventory items."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -112,15 +122,8 @@ class InventoryItem(TimeStampedModel):
     # Unit
     unit = models.CharField(
         max_length=20,
-        default='PCS',
-        choices=[
-            ('PCS', 'Pieces'),
-            ('NOS', 'Numbers'),
-            ('MTR', 'Meters'),
-            ('SET', 'Set'),
-            ('BOX', 'Box'),
-            ('KG', 'Kilogram'),
-        ]
+        default=UnitType.PIECES,
+        choices=UnitType.choices,
     )
     
     # Location
@@ -162,22 +165,30 @@ class InventoryItem(TimeStampedModel):
     def add_stock(self, quantity, reason='', user=None):
         """
         Add stock with audit logging.
-        
+        Uses select_for_update() to prevent race conditions when multiple
+        requests try to modify stock simultaneously.
+
         Args:
             quantity: Amount to add
             reason: Reason for adjustment
             user: User performing the action
         """
         from django.db import transaction
-        
+
         if quantity <= 0:
             raise ValueError("Quantity must be positive")
-        
+
         with transaction.atomic():
-            old_quantity = self.quantity
-            self.quantity += quantity
-            self.save(update_fields=['quantity', 'updated_at'])
-            
+            # Acquire a row-level lock to prevent Read-Modify-Write race condition.
+            # Without this, two concurrent requests would both read the same
+            # old_quantity and only deduct once instead of twice.
+            locked_item = InventoryItem.objects.select_for_update().get(pk=self.pk)
+            old_quantity = locked_item.quantity
+            locked_item.quantity += quantity
+            locked_item.save(update_fields=['quantity', 'updated_at'])
+            # Sync in-memory instance with the DB-updated values
+            self.quantity = locked_item.quantity
+
             # Log the adjustment
             InventoryAdjustment.objects.create(
                 item=self,
@@ -193,7 +204,8 @@ class InventoryItem(TimeStampedModel):
         """
         Deduct stock with audit logging.
         Raises InsufficientInventory if not enough stock.
-        
+        Uses select_for_update() to prevent race conditions.
+
         Args:
             quantity: Amount to deduct
             reason: Reason for adjustment
@@ -201,21 +213,29 @@ class InventoryItem(TimeStampedModel):
             job: Related job card (optional)
         """
         from django.db import transaction
-        
+
         if quantity <= 0:
             raise ValueError("Quantity must be positive")
-        
-        if self.quantity < quantity:
-            raise InsufficientInventory(
-                f"Insufficient stock for {self.name}. "
-                f"Requested: {quantity}, Available: {self.quantity}"
-            )
-        
+
         with transaction.atomic():
-            old_quantity = self.quantity
-            self.quantity -= quantity
-            self.save(update_fields=['quantity', 'updated_at'])
-            
+            # Acquire a row-level lock BEFORE reading quantity.
+            # This prevents two simultaneous invoices from both reading stock=10,
+            # both subtracting 1, and both saving 9 — which would lose a unit.
+            locked_item = InventoryItem.objects.select_for_update().get(pk=self.pk)
+
+            # Re-check stock availability with the locked, authoritative value
+            if locked_item.quantity < quantity:
+                raise InsufficientInventory(
+                    f"Insufficient stock for {locked_item.name}. "
+                    f"Requested: {quantity}, Available: {locked_item.quantity}"
+                )
+
+            old_quantity = locked_item.quantity
+            locked_item.quantity -= quantity
+            locked_item.save(update_fields=['quantity', 'updated_at'])
+            # Sync in-memory instance
+            self.quantity = locked_item.quantity
+
             # Log the adjustment
             adjustment = InventoryAdjustment.objects.create(
                 item=self,
@@ -226,7 +246,7 @@ class InventoryItem(TimeStampedModel):
                 reason=reason,
                 adjusted_by=user
             )
-            
+
             # Create job part usage record if job provided
             if job:
                 JobPartUsage.objects.create(
@@ -237,7 +257,7 @@ class InventoryItem(TimeStampedModel):
                     total_price=self.selling_price * quantity,
                     adjustment=adjustment
                 )
-            
+
             # Check for low stock alert
             if self.is_low_stock:
                 self._trigger_low_stock_alert()
@@ -246,19 +266,24 @@ class InventoryItem(TimeStampedModel):
         """
         Manually set stock quantity (for corrections).
         Requires reason and is fully audited.
+        Uses select_for_update() to prevent race conditions.
         """
         from django.db import transaction
-        
+
         if new_quantity < 0:
             raise ValueError("Quantity cannot be negative")
-        
-        old_quantity = self.quantity
-        quantity_diff = new_quantity - old_quantity
-        
+
         with transaction.atomic():
-            self.quantity = new_quantity
-            self.save(update_fields=['quantity', 'updated_at'])
-            
+            # Lock the row to get the authoritative current quantity
+            locked_item = InventoryItem.objects.select_for_update().get(pk=self.pk)
+            old_quantity = locked_item.quantity
+            quantity_diff = new_quantity - old_quantity
+
+            locked_item.quantity = new_quantity
+            locked_item.save(update_fields=['quantity', 'updated_at'])
+            # Sync in-memory instance
+            self.quantity = locked_item.quantity
+
             # Log the adjustment
             InventoryAdjustment.objects.create(
                 item=self,

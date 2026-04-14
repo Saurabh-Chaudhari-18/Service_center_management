@@ -1,12 +1,18 @@
 """
 Audit middleware for request tracking.
+
+Uses asgiref.local.Local() instead of threading.local() to be safe under both
+synchronous WSGI (gunicorn) and asynchronous ASGI (daphne/uvicorn) servers.
+threading.local() is per-thread only; under ASGI, multiple coroutines can run
+on the same OS thread, causing request context to bleed between concurrent users.
 """
 
 from django.utils.deprecation import MiddlewareMixin
-import threading
+from asgiref.local import Local
 
-# Thread-local storage for request context
-_request_local = threading.local()
+# Coroutine-safe local storage for request context.
+# Works correctly under both WSGI and ASGI deployments.
+_request_local = Local()
 
 
 def get_current_request():

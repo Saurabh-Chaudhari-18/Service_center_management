@@ -28,14 +28,20 @@ class IsBranchMember(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
-        
-        # Get branch from view kwargs or query params
-        branch_id = view.kwargs.get('branch_id') or request.query_params.get('branch')
-        
+
+        # Get branch from view kwargs, then query params, then the X-Branch-ID header.
+        # BranchScopedMixin uses the header as its primary source, so checking it here
+        # ensures we return 403 Forbidden (not a misleading 404) for invalid branch access.
+        branch_id = (
+            view.kwargs.get('branch_id')
+            or request.query_params.get('branch')
+            or request.headers.get('X-Branch-ID')
+        )
+
         if not branch_id:
             # If no specific branch requested, allow access (queryset will be filtered)
             return True
-        
+
         from core.models import Branch
         try:
             branch = Branch.objects.get(pk=branch_id)
