@@ -1260,6 +1260,7 @@ export const suppliersApi = {
     branch?: string;
     search?: string;
     page?: number;
+    limit?: number;
   }): Promise<PaginatedResponse<any>> => {
     return apiGet("/suppliers/suppliers/", params);
   },
