@@ -64,6 +64,12 @@ INSTALLED_APPS = [
     'notifications.apps.NotificationsConfig',
     'audit.apps.AuditConfig',
     'reports.apps.ReportsConfig',
+    
+    # Super App modules
+    'expenses.apps.ExpensesConfig',
+    'suppliers.apps.SuppliersConfig',
+    'enquiries.apps.EnquiriesConfig',
+    'marketing.apps.MarketingConfig',
 ]
 
 MIDDLEWARE = [

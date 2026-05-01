@@ -978,6 +978,35 @@ export const reportsApi = {
       filename,
     );
   },
+
+  getNetProfit: async (params: {
+    from_date: string;
+    to_date: string;
+    branch?: string;
+  }): Promise<{
+    from_date: string;
+    to_date: string;
+    revenue: number;
+    expenses: number;
+    net_profit: number;
+    profit_margin: number;
+  }> => {
+    return apiGet("/reports/net_profit/", params);
+  },
+
+  gstr1Export: async (params: {
+    from_date: string;
+    to_date: string;
+    branch?: string;
+  }): Promise<void> => {
+    const filename = `GSTR1_${params.from_date}_${params.to_date}.xlsx`;
+    return apiDownload(
+      `/reports/gstr1_export/?from_date=${params.from_date}&to_date=${params.to_date}${
+        params.branch ? `&branch=${params.branch}` : ""
+      }`,
+      filename,
+    );
+  },
 };
 
 // =====================================================
@@ -1111,5 +1140,169 @@ export const pickupsApi = {
     last_updated: string | null;
   }> => {
     return apiGet(`/jobs/pickups/${id}/track/`);
+  },
+};
+
+// =====================================================
+// Expenses API
+// =====================================================
+
+export const expensesApi = {
+  list: async (params?: {
+    branch?: string;
+    category?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+    page?: number;
+  }): Promise<PaginatedResponse<any>> => {
+    return apiGet("/expenses/expenses/", params);
+  },
+
+  get: async (id: string) => {
+    return apiGet(`/expenses/expenses/${id}/`);
+  },
+
+  create: async (data: Record<string, unknown>) => {
+    return apiPost("/expenses/expenses/", data);
+  },
+
+  update: async (id: string, data: Record<string, unknown>) => {
+    return apiPatch(`/expenses/expenses/${id}/`, data);
+  },
+
+  delete: async (id: string) => {
+    return apiDelete(`/expenses/expenses/${id}/`);
+  },
+
+  getStats: async (params?: {
+    date_from?: string;
+    date_to?: string;
+    branch?: string;
+  }) => {
+    return apiGet("/expenses/expenses/stats/", params);
+  },
+
+  getCategories: async (): Promise<Array<{ value: string; label: string }>> => {
+    return apiGet("/expenses/expenses/categories/");
+  },
+};
+
+// =====================================================
+// Enquiries API
+// =====================================================
+
+export const enquiriesApi = {
+  list: async (params?: {
+    branch?: string;
+    status?: string;
+    source?: string;
+    search?: string;
+    today_followups?: string;
+    overdue?: string;
+    page?: number;
+  }): Promise<PaginatedResponse<any>> => {
+    return apiGet("/enquiries/enquiries/", params);
+  },
+
+  get: async (id: string) => {
+    return apiGet(`/enquiries/enquiries/${id}/`);
+  },
+
+  create: async (data: Record<string, unknown>) => {
+    return apiPost("/enquiries/enquiries/", data);
+  },
+
+  update: async (id: string, data: Record<string, unknown>) => {
+    return apiPatch(`/enquiries/enquiries/${id}/`, data);
+  },
+
+  addNote: async (id: string, note: string) => {
+    return apiPost(`/enquiries/enquiries/${id}/add_note/`, { note });
+  },
+
+  convertToJob: async (id: string): Promise<{
+    message: string;
+    job_id: string;
+    job_number: string;
+    customer_id: string;
+  }> => {
+    return apiPost(`/enquiries/enquiries/${id}/convert_to_job/`, {});
+  },
+
+  markLost: async (id: string, loss_reason: string) => {
+    return apiPost(`/enquiries/enquiries/${id}/mark_lost/`, { loss_reason });
+  },
+
+  getStats: async (params?: {
+    date_from?: string;
+    date_to?: string;
+    branch?: string;
+  }) => {
+    return apiGet("/enquiries/enquiries/stats/", params);
+  },
+
+  getSources: async (): Promise<Array<{ value: string; label: string }>> => {
+    return apiGet("/enquiries/enquiries/sources/");
+  },
+
+  getStatuses: async (): Promise<Array<{ value: string; label: string }>> => {
+    return apiGet("/enquiries/enquiries/statuses/");
+  },
+};
+
+// =====================================================
+// Suppliers API
+// =====================================================
+
+export const suppliersApi = {
+  list: async (params?: {
+    branch?: string;
+    search?: string;
+    page?: number;
+  }): Promise<PaginatedResponse<any>> => {
+    return apiGet("/suppliers/suppliers/", params);
+  },
+
+  get: async (id: string) => {
+    return apiGet(`/suppliers/suppliers/${id}/`);
+  },
+
+  create: async (data: Record<string, unknown>) => {
+    return apiPost("/suppliers/suppliers/", data);
+  },
+
+  update: async (id: string, data: Record<string, unknown>) => {
+    return apiPatch(`/suppliers/suppliers/${id}/`, data);
+  },
+
+  delete: async (id: string) => {
+    return apiDelete(`/suppliers/suppliers/${id}/`);
+  },
+};
+
+// =====================================================
+// Customer Ledger API
+// =====================================================
+
+export const ledgerApi = {
+  list: async (params?: {
+    customer?: string;
+    branch?: string;
+    page?: number;
+  }): Promise<PaginatedResponse<any>> => {
+    return apiGet("/marketing/ledger/", params);
+  },
+
+  create: async (data: Record<string, unknown>) => {
+    return apiPost("/marketing/ledger/", data);
+  },
+
+  getStatement: async (customerId: string) => {
+    return apiGet("/marketing/ledger/customer_statement/", { customer: customerId });
+  },
+
+  getOutstanding: async () => {
+    return apiGet("/marketing/ledger/outstanding/");
   },
 };

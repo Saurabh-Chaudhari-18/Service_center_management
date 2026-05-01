@@ -27,6 +27,10 @@ import {
   Menu,
   X,
   Search,
+  IndianRupee,
+  UserSearch,
+  Contact,
+  BookOpen,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -51,9 +55,13 @@ const navigationItems: NavItem[] = [
   { name: "Job Cards",     href: "/jobs",          icon: FileText,        permission: "canViewJobCards" },
   { name: "My Jobs",       href: "/my-jobs",       icon: Wrench,          roles: ["TECHNICIAN"] },
   { name: "Customers",     href: "/customers",     icon: Users,           roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
+  { name: "Enquiries",     href: "/enquiries",     icon: UserSearch,      roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Inventory",     href: "/inventory",     icon: Package,         permission: "canViewInventory" },
   { name: "Purchases",     href: "/purchases",     icon: ShoppingCart,    permission: "canManageInventory" },
+  { name: "Suppliers",     href: "/suppliers",     icon: Contact,         roles: ["OWNER", "MANAGER"] },
   { name: "Billing",       href: "/billing",       icon: Receipt,         permission: "canViewBilling" },
+  { name: "Expenses",      href: "/expenses",      icon: IndianRupee,     roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
+  { name: "Ledger (Khata)",href: "/ledger",        icon: BookOpen,        roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },

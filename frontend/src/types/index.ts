@@ -856,3 +856,169 @@ export const PICKUP_STATUS_CONFIG: Record<
     textColor: "#334155",
   },
 };
+
+// =====================================================
+// Expense Types
+// =====================================================
+
+export type ExpenseCategory =
+  | "RENT"
+  | "ELECTRICITY"
+  | "INTERNET"
+  | "SALARY"
+  | "TEA_SNACKS"
+  | "TRANSPORT"
+  | "STATIONERY"
+  | "TOOLS"
+  | "MAINTENANCE"
+  | "MARKETING"
+  | "INSURANCE"
+  | "TAX"
+  | "MISCELLANEOUS";
+
+export interface Expense extends BaseEntity {
+  branch: string;
+  category: ExpenseCategory;
+  category_display?: string;
+  title: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  payment_method: string;
+  payment_method_display?: string;
+  reference: string;
+  receipt: string | null;
+  is_recurring: boolean;
+  vendor_name: string;
+  created_by: string;
+  created_by_name?: string;
+}
+
+// =====================================================
+// Enquiry / Lead Types
+// =====================================================
+
+export type EnquiryStatus =
+  | "NEW"
+  | "CONTACTED"
+  | "FOLLOW_UP"
+  | "INTERESTED"
+  | "QUOTED"
+  | "CONVERTED"
+  | "LOST"
+  | "CLOSED";
+
+export type LeadSource =
+  | "WALK_IN"
+  | "PHONE_CALL"
+  | "WHATSAPP"
+  | "WEBSITE"
+  | "GOOGLE"
+  | "SOCIAL_MEDIA"
+  | "REFERRAL"
+  | "JUSTDIAL"
+  | "SULEKHA"
+  | "OTHER";
+
+export interface Enquiry extends BaseEntity {
+  branch: string;
+  customer: string | null;
+  customer_name: string;
+  customer_mobile: string;
+  customer_email: string;
+  device_type: string;
+  brand: string;
+  model_name: string;
+  problem_description: string;
+  quoted_price: number | null;
+  source: LeadSource;
+  source_display?: string;
+  status: EnquiryStatus;
+  status_display?: string;
+  follow_up_date: string | null;
+  follow_up_notes: string;
+  converted_job: string | null;
+  converted_job_number?: string;
+  loss_reason: string;
+  assigned_to: string | null;
+  assigned_to_name?: string;
+  created_by: string;
+  created_by_name?: string;
+  notes: string;
+  interaction_notes?: Array<{
+    id: string;
+    note: string;
+    created_by_name: string;
+    created_at: string;
+  }>;
+}
+
+// =====================================================
+// Supplier Types
+// =====================================================
+
+export interface Supplier extends BaseEntity {
+  branch: string;
+  name: string;
+  contact_person: string;
+  email: string;
+  phone: string;
+  alternate_phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  gstin: string;
+  pan_number: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_ifsc: string;
+  upi_id: string;
+  payment_terms: string;
+  payment_terms_display?: string;
+  categories: string;
+  rating: number;
+  notes: string;
+  is_active: boolean;
+}
+
+// =====================================================
+// Customer Ledger Types
+// =====================================================
+
+export interface CustomerLedgerEntry extends BaseEntity {
+  branch: string;
+  customer: string;
+  customer_name?: string;
+  customer_mobile?: string;
+  entry_type: "CREDIT" | "DEBIT";
+  entry_type_display?: string;
+  amount: number;
+  description: string;
+  reference_type: string;
+  reference_type_display?: string;
+  reference_id: string;
+  entry_date: string;
+  running_balance: number;
+  notes: string;
+  created_by: string;
+  created_by_name?: string;
+}
+
+// =====================================================
+// Enquiry Status Config
+// =====================================================
+
+export const ENQUIRY_STATUS_CONFIG: Record<
+  EnquiryStatus,
+  { label: string; color: string; bgColor: string; textColor: string }
+> = {
+  NEW: { label: "New", color: "#6366f1", bgColor: "#eef2ff", textColor: "#4338ca" },
+  CONTACTED: { label: "Contacted", color: "#f59e0b", bgColor: "#fffbeb", textColor: "#b45309" },
+  FOLLOW_UP: { label: "Follow-up", color: "#8b5cf6", bgColor: "#f5f3ff", textColor: "#6d28d9" },
+  INTERESTED: { label: "Interested", color: "#06b6d4", bgColor: "#ecfeff", textColor: "#0e7490" },
+  QUOTED: { label: "Quoted", color: "#f97316", bgColor: "#fff7ed", textColor: "#c2410c" },
+  CONVERTED: { label: "Converted", color: "#22c55e", bgColor: "#f0fdf4", textColor: "#15803d" },
+  LOST: { label: "Lost", color: "#ef4444", bgColor: "#fef2f2", textColor: "#b91c1c" },
+  CLOSED: { label: "Closed", color: "#64748b", bgColor: "#f1f5f9", textColor: "#334155" },
+};

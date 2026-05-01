@@ -15,6 +15,7 @@ import {
   Download,
   Calendar,
   Activity,
+  FileSpreadsheet,
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import {
@@ -727,6 +728,18 @@ export default function ReportsContent() {
     }
   };
 
+  const handleGstr1Export = async () => {
+    try {
+      await reportsApi.gstr1Export({
+        from_date: dateRange.from,
+        to_date: dateRange.to,
+        branch: currentBranch?.id,
+      });
+    } catch (error) {
+      console.error("GSTR-1 export failed:", error);
+    }
+  };
+
   return (
     <ProtectedRoute requiredPermission="canViewReports">
       <AppLayout>
@@ -734,13 +747,22 @@ export default function ReportsContent() {
           title="Reports & Analytics"
           subtitle="Business insights and performance metrics"
           actions={
-            <Button
-              variant="secondary"
-              leftIcon={<Download className="w-4 h-4" />}
-              onClick={() => handleExport("revenue")}
-            >
-              Export Report
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                leftIcon={<FileSpreadsheet className="w-4 h-4" />}
+                onClick={handleGstr1Export}
+              >
+                GSTR-1 Export
+              </Button>
+              <Button
+                variant="secondary"
+                leftIcon={<Download className="w-4 h-4" />}
+                onClick={() => handleExport("revenue")}
+              >
+                Export Report
+              </Button>
+            </div>
           }
         />
 

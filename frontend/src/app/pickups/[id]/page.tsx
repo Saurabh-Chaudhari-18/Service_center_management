@@ -425,7 +425,7 @@ export default function PickupDetailPage() {
                 <MapPin className="w-5 h-5 text-primary-500" />
                 Live Technician Tracking
               </h3>
-              <TechnicianTrackingView pickupId={pickup.id} technicianName={pickup.assigned_technician_name} />
+              <TechnicianTrackingView pickupId={pickup.id} technicianName={pickup.assigned_technician_name ?? undefined} />
             </Card>
           )}
 

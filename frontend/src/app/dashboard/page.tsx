@@ -379,6 +379,113 @@ function RevenueSummary() {
 }
 
 // =====================================================
+// Net Profit Widget
+// =====================================================
+
+function NetProfitWidget() {
+  const { currentBranch } = useAuth();
+  const today = new Date();
+  const from_date = format(startOfMonth(today), "yyyy-MM-dd");
+  const to_date = format(today, "yyyy-MM-dd");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["net-profit", currentBranch?.id, from_date],
+    queryFn: () =>
+      reportsApi.getNetProfit({
+        from_date,
+        to_date,
+        branch: currentBranch?.id,
+      }),
+    enabled: !!currentBranch,
+  });
+
+  const revenue = data?.revenue || 0;
+  const expenses = data?.expenses || 0;
+  const netProfit = data?.net_profit || 0;
+  const margin = data?.profit_margin || 0;
+  const isPositive = netProfit >= 0;
+
+  return (
+    <Card className="flex flex-col">
+      <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
+        Net Profit
+      </h3>
+      <p className="text-sm text-neutral-500 mb-4">This month so far</p>
+
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center py-6">
+          <LoadingState />
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col justify-between space-y-3">
+          {/* Revenue */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-medium text-green-700 dark:text-green-300">Revenue</span>
+            </div>
+            <span className="text-base font-bold text-green-700 dark:text-green-300">
+              ₹{Number(revenue).toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          {/* Expenses */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="w-4 h-4 text-red-500" />
+              <span className="text-sm font-medium text-red-700 dark:text-red-300">Expenses</span>
+            </div>
+            <span className="text-base font-bold text-red-700 dark:text-red-300">
+              ₹{Number(expenses).toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          {/* Net Profit */}
+          <div
+            className={`flex items-center justify-between p-3 rounded-xl border ${
+              isPositive
+                ? "bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700"
+                : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700"
+            }`}
+          >
+            <span className={`text-sm font-bold ${
+              isPositive ? "text-violet-700 dark:text-violet-300" : "text-amber-700 dark:text-amber-300"
+            }`}>Net Profit</span>
+            <span className={`text-lg font-bold ${
+              isPositive ? "text-violet-700 dark:text-violet-300" : "text-amber-700 dark:text-amber-300"
+            }`}>
+              ₹{Math.abs(netProfit).toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          {/* Profit Margin Bar */}
+          <div>
+            <div className="flex justify-between text-xs text-neutral-500 mb-1">
+              <span>Profit Margin</span>
+              <span className={isPositive ? "text-violet-600 font-semibold" : "text-amber-600 font-semibold"}>
+                {margin}%
+              </span>
+            </div>
+            <div className="h-2 bg-neutral-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  isPositive ? "bg-violet-500" : "bg-amber-500"
+                }`}
+                style={{ width: `${Math.min(Math.abs(margin), 100)}%` }}
+              />
+            </div>
+          </div>
+
+          <Link href="/expenses" className="text-center text-xs text-violet-600 dark:text-violet-400 hover:underline">
+            Manage Expenses →
+          </Link>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// =====================================================
 // Job Status Donut Chart
 // =====================================================
 
@@ -913,6 +1020,7 @@ export default function DashboardPage() {
             </div>
             <div className="space-y-5">
               {hasPermission("canViewReports") && <RevenueSummary />}
+              {hasPermission("canViewReports") && <NetProfitWidget />}
             </div>
           </div>
 

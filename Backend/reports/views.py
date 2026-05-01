@@ -532,3 +532,163 @@ class ReportsViewSet(viewsets.ViewSet):
                 {'error': 'Excel export requires openpyxl library.'},
                 status=status.HTTP_501_NOT_IMPLEMENTED
             )
+
+    @action(detail=False, methods=['get'])
+    def gstr1_export(self, request):
+        """
+        CA-Ready GSTR-1 format export.
+        Exports finalized invoices in the standard GSTR-1 format with:
+        - GSTIN, Invoice Number, Invoice Date, Invoice Value
+        - Place of Supply, Taxable Value, CGST, SGST, IGST
+        """
+        from billing.models import Invoice, InvoiceStatus
+        
+        branches = self.get_accessible_branches()
+        from_date, to_date = self.get_date_range()
+        
+        invoices = Invoice.objects.filter(
+            branch__in=branches,
+            is_finalized=True,
+            invoice_date__gte=from_date,
+            invoice_date__lte=to_date
+        ).exclude(
+            status=InvoiceStatus.CANCELLED
+        ).select_related('branch').order_by('invoice_date')
+
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, Alignment, PatternFill
+            from django.http import HttpResponse
+
+            wb = openpyxl.Workbook()
+
+            # --- B2B Sheet (Business to Business) ---
+            ws_b2b = wb.active
+            ws_b2b.title = "B2B"
+            b2b_headers = [
+                'GSTIN of Recipient', 'Invoice Number', 'Invoice Date',
+                'Invoice Value', 'Place of Supply', 'Reverse Charge',
+                'Invoice Type', 'E-Commerce GSTIN', 'Rate',
+                'Taxable Value', 'CGST Amount', 'SGST Amount', 'IGST Amount',
+                'Cess Amount'
+            ]
+            ws_b2b.append(b2b_headers)
+
+            # --- B2C Sheet (Business to Consumer) ---
+            ws_b2c = wb.create_sheet("B2CL")
+            b2c_headers = [
+                'Invoice Number', 'Invoice Date', 'Invoice Value',
+                'Place of Supply', 'Rate', 'Taxable Value',
+                'CGST Amount', 'SGST Amount', 'IGST Amount', 'Cess Amount'
+            ]
+            ws_b2c.append(b2c_headers)
+
+            for inv in invoices:
+                state_code = inv.customer_state_code or (inv.branch.state_code if inv.branch else '')
+                place_of_supply = f"{state_code}-{inv.branch.state if inv.branch else ''}"
+                
+                row_data = [
+                    inv.invoice_number,
+                    inv.invoice_date.strftime('%d-%m-%Y') if inv.invoice_date else '',
+                    float(inv.total_amount),
+                    place_of_supply,
+                    float(inv.line_items.first().gst_rate if inv.line_items.exists() else 18),
+                    float(inv.subtotal),
+                    float(inv.cgst_total),
+                    float(inv.sgst_total),
+                    float(inv.igst_total),
+                    0  # Cess
+                ]
+
+                if inv.customer_gstin:
+                    # B2B
+                    ws_b2b.append([
+                        inv.customer_gstin,
+                        *row_data[:3],
+                        place_of_supply,
+                        'N',  # Reverse Charge
+                        'Regular',
+                        '',  # E-Commerce GSTIN
+                        *row_data[4:]
+                    ])
+                else:
+                    # B2C
+                    ws_b2c.append(row_data)
+
+            # Style headers
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            
+            for ws in [ws_b2b, ws_b2c]:
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = Alignment(horizontal="center")
+                # Auto-width
+                for col in ws.columns:
+                    max_len = max(len(str(cell.value or '')) for cell in col)
+                    ws.column_dimensions[col[0].column_letter].width = max_len + 3
+
+            # Log export
+            from audit.services import AuditLogService
+            AuditLogService.log_export(
+                user=request.user,
+                export_type='EXCEL',
+                report_name='GSTR-1',
+                parameters=dict(request.query_params)
+            )
+
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="GSTR1_{from_date}_{to_date}.xlsx"'
+            wb.save(response)
+            return response
+
+        except ImportError:
+            return Response(
+                {'error': 'Excel export requires openpyxl library.'},
+                status=status.HTTP_501_NOT_IMPLEMENTED
+            )
+
+    @action(detail=False, methods=['get'])
+    def net_profit(self, request):
+        """
+        Net Profit calculation: Revenue - Expenses.
+        Used for the dashboard's financial overview.
+        """
+        from billing.models import Payment, InvoiceStatus
+        from expenses.models import Expense
+        
+        branches = self.get_accessible_branches()
+        from_date, to_date = self.get_date_range()
+
+        # Revenue = Sum of verified payments
+        revenue = Payment.objects.filter(
+            invoice__branch__in=branches,
+            invoice__is_finalized=True,
+            payment_date__date__gte=from_date,
+            payment_date__date__lte=to_date,
+            is_verified=True
+        ).exclude(
+            invoice__status=InvoiceStatus.CANCELLED
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        # Expenses = Sum of expense amounts
+        expenses_total = Expense.objects.filter(
+            branch__in=branches,
+            expense_date__gte=from_date,
+            expense_date__lte=to_date
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        net_profit = revenue - expenses_total
+
+        return Response({
+            'from_date': str(from_date),
+            'to_date': str(to_date),
+            'revenue': revenue,
+            'expenses': expenses_total,
+            'net_profit': net_profit,
+            'profit_margin': round(float(net_profit) / float(revenue) * 100, 1) if revenue > 0 else 0
+        })
+

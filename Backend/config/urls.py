@@ -40,6 +40,12 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls', namespace='notifications')),
     path('api/audit/', include('audit.urls', namespace='audit')),
     path('api/reports/', include('reports.urls', namespace='reports')),
+    
+    # Super App modules
+    path('api/expenses/', include('expenses.urls', namespace='expenses')),
+    path('api/suppliers/', include('suppliers.urls', namespace='suppliers')),
+    path('api/enquiries/', include('enquiries.urls', namespace='enquiries')),
+    path('api/marketing/', include('marketing.urls', namespace='marketing')),
 ]
 
 # Serve media files in development

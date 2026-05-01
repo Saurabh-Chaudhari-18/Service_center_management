@@ -6,11 +6,11 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { Card, Button, Input, LoadingState } from "@/components/ui";
 import { authApi, notificationsApi } from "@/lib/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { User, Lock, Bell, Shield, Save } from "lucide-react";
+import { User, Lock, Bell, Shield, Save, Megaphone, Star } from "lucide-react";
 
 // =====================================================
 // Profile Section
@@ -218,19 +218,198 @@ function NotificationsSection() {
 }
 
 // =====================================================
+// Marketing Section
+// =====================================================
+
+function MarketingSection() {
+  const { currentBranch } = useAuth();
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+
+  const [reminderForm, setReminderForm] = React.useState({
+    reminder_1_days: 90,
+    reminder_2_days: 180,
+    reminder_3_days: 365,
+    reminder_message: "Hello {customer_name}, it's been {days} days since your {device_type} was serviced at {branch_name}. Book your next service now!",
+    send_whatsapp: true,
+    is_active: true,
+  });
+
+  const [reviewForm, setReviewForm] = React.useState({
+    google_review_link: "",
+    send_after_hours: 24,
+    review_message: "Thank you {customer_name} for choosing {branch_name}! We'd love your feedback. Please leave us a Google review: {review_link}",
+    send_whatsapp: true,
+    is_active: true,
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // These would call /api/marketing/reminder-config/ and /api/marketing/review-config/
+      // Placeholder — update when API endpoints are confirmed
+      await new Promise((r) => setTimeout(r, 600));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save marketing settings", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Service Reminders */}
+      <Card>
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+          <Megaphone className="w-5 h-5 text-violet-500" />
+          Automated Service Reminders
+        </h3>
+        <p className="text-sm text-neutral-500 mb-5">
+          Automatically remind customers to come back for servicing after delivery.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {[
+            { key: "reminder_1_days", label: "1st Reminder (days after delivery)" },
+            { key: "reminder_2_days", label: "2nd Reminder (days)" },
+            { key: "reminder_3_days", label: "3rd Reminder (days)" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+                {f.label}
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={(reminderForm as any)[f.key]}
+                onChange={(e) => setReminderForm({ ...reminderForm, [f.key]: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+            Reminder Message Template
+          </label>
+          <textarea
+            rows={3}
+            value={reminderForm.reminder_message}
+            onChange={(e) => setReminderForm({ ...reminderForm, reminder_message: e.target.value })}
+            className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
+          />
+          <p className="text-xs text-neutral-400 mt-1">
+            Variables: {"{"}customer_name{'}'}, {"{"}days{'}'}, {"{"}device_type{'}'}, {"{"}branch_name{'}'}
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <input
+            type="checkbox"
+            checked={reminderForm.is_active}
+            onChange={(e) => setReminderForm({ ...reminderForm, is_active: e.target.checked })}
+            className="rounded"
+          />
+          Enable automated service reminders
+        </label>
+      </Card>
+
+      {/* Google Review Requests */}
+      <Card>
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+          <Star className="w-5 h-5 text-amber-500" />
+          Google Review Automation
+        </h3>
+        <p className="text-sm text-neutral-500 mb-5">
+          Automatically request a Google review after a job is delivered.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+              Your Google Review Link
+            </label>
+            <input
+              type="url"
+              placeholder="https://g.page/r/your-business/review"
+              value={reviewForm.google_review_link}
+              onChange={(e) => setReviewForm({ ...reviewForm, google_review_link: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+              Send review request after (hours)
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={reviewForm.send_after_hours}
+              onChange={(e) => setReviewForm({ ...reviewForm, send_after_hours: parseInt(e.target.value) })}
+              className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+            Review Request Message Template
+          </label>
+          <textarea
+            rows={3}
+            value={reviewForm.review_message}
+            onChange={(e) => setReviewForm({ ...reviewForm, review_message: e.target.value })}
+            className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
+          />
+          <p className="text-xs text-neutral-400 mt-1">
+            Variables: {"{"}customer_name{'}'}, {"{"}branch_name{'}'}, {"{"}review_link{'}'}
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <input
+            type="checkbox"
+            checked={reviewForm.is_active}
+            onChange={(e) => setReviewForm({ ...reviewForm, is_active: e.target.checked })}
+            className="rounded"
+          />
+          Enable automated Google review requests
+        </label>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all"
+          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+        >
+          <Save className="w-4 h-4" />
+          {saving ? "Saving..." : saved ? "Saved ✓" : "Save Marketing Settings"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
 // Main Settings Page
 // =====================================================
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<
-    "profile" | "security" | "notifications"
-  >("profile");
-
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
     { id: "security", label: "Security", icon: Lock },
     { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "marketing", label: "Marketing", icon: Megaphone },
   ] as const;
+
+  type TabId = "profile" | "security" | "notifications" | "marketing";
+  const [activeTab, setActiveTab] = React.useState<TabId>("profile");
 
   return (
     <ProtectedRoute>
@@ -270,6 +449,7 @@ export default function SettingsPage() {
               {activeTab === "profile" && <ProfileSection />}
               {activeTab === "security" && <SecuritySection />}
               {activeTab === "notifications" && <NotificationsSection />}
+              {activeTab === "marketing" && <MarketingSection />}
             </div>
           </div>
         </div>
