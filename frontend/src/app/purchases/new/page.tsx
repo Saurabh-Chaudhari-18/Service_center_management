@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, FileType2, Target, PenSquare, Trash2, Plus } from "lucide-react";
-import { purchasesApi, inventoryApi } from "@/lib/api/services";
+import { purchasesApi, inventoryApi, suppliersApi } from "@/lib/api/services";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { Select } from "@/components/ui";
@@ -23,6 +23,7 @@ export default function NewPurchasePage() {
     { inventory_item: "", quantity: 1, unit_price: 0 }
   ]);
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
+  const [supplierList, setSupplierList] = useState<any[]>([]);
 
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +32,18 @@ export default function NewPurchasePage() {
   useEffect(() => {
     if (currentBranch) {
       loadInventory();
+      loadSuppliers();
     }
   }, [currentBranch]);
+
+  const loadSuppliers = async () => {
+    try {
+      const res = await suppliersApi.list({ branch: currentBranch?.id, limit: 1000 });
+      setSupplierList(res.results || res);
+    } catch(e) {
+      console.error("Failed to fetch suppliers", e);
+    }
+  }
 
   const loadInventory = async () => {
     try {
@@ -170,13 +181,14 @@ export default function NewPurchasePage() {
                     <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
                       Vendor Name <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <Select
                       required
                       value={vendorName}
                       onChange={(e) => setVendorName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-900/50 border border-neutral-200 dark:border-slate-700/50 rounded-xl text-neutral-900 dark:text-slate-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all placeholder:text-neutral-400 dark:placeholder:text-slate-500"
-                      placeholder="e.g. Dell Distributors"
+                      options={[
+                        { value: "", label: "Select a Vendor..." },
+                        ...supplierList.map(s => ({ value: s.name, label: s.name }))
+                      ]}
                     />
                   </div>
 
