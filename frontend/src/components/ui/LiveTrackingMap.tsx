@@ -46,6 +46,7 @@ export function LiveTrackingMap({ latitude, longitude, zoom = 15, label = "Techn
     import("leaflet/dist/leaflet.css");
     // @ts-ignore - CSS module without type declarations
     import("leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css");
+    // @ts-ignore - Module without type declarations
     import("leaflet-defaulticon-compatibility");
   }, []);
 
