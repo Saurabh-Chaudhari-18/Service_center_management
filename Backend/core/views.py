@@ -251,7 +251,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ['me', 'change_password', 'set_current_branch', 'my_branches']:
+        if self.action in ['me', 'change_password', 'set_current_branch', 'my_branches', 'update_location']:
             return [IsAuthenticated()]
         return super().get_permissions()
 
@@ -277,6 +277,23 @@ class UserViewSet(viewsets.ModelViewSet):
         
         instance.is_active = False
         instance.save()
+
+    @action(detail=False, methods=['post'])
+    def update_location(self, request):
+        """Update the live location of the technician."""
+        from django.utils import timezone
+        lat = request.data.get('latitude')
+        lng = request.data.get('longitude')
+        
+        if lat is None or lng is None:
+            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        request.user.last_latitude = lat
+        request.user.last_longitude = lng
+        request.user.last_location_updated = timezone.now()
+        request.user.save(update_fields=['last_latitude', 'last_longitude', 'last_location_updated'])
+        
+        return Response({'message': 'Location updated successfully'})
 
     @action(detail=False, methods=['get'])
     def me(self, request):

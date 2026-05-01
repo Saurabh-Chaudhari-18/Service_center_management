@@ -42,9 +42,9 @@ import {
   Settings,
   Receipt,
   Printer,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { format } from "date-fns";
 import type { JobCard, JobStatus, JobStatusHistoryItem } from "@/types";
 import { JOB_STATUS_CONFIG } from "@/types";
@@ -336,6 +336,8 @@ function DiagnosisModal({
       quantity: string;
     }>
   >([]);
+  const [damagePhotos, setDamagePhotos] = useState<File[]>([]);
+  const [photoDescriptions, setPhotoDescriptions] = useState<string[]>([]);
   const prevIsOpenRef = useRef(false);
 
   // Initialize/reset form state when modal opens/closes
@@ -373,6 +375,8 @@ function DiagnosisModal({
         setEstimatedCost("");
         setEstimatedDate("");
         setParts([]);
+        setDamagePhotos([]);
+        setPhotoDescriptions([]);
       });
     }
     prevIsOpenRef.current = isOpen;
@@ -418,7 +422,24 @@ function DiagnosisModal({
           quantity: parseInt(p.quantity) || 1,
         })),
       ),
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Upload any attached damage photos
+      if (damagePhotos.length > 0) {
+        try {
+          for (let i = 0; i < damagePhotos.length; i++) {
+            if (damagePhotos[i]) {
+                await jobsApi.uploadPhoto(
+                  jobId,
+                  damagePhotos[i],
+                  "DAMAGE",
+                  photoDescriptions[i] || "Damage during diagnosis"
+                );
+            }
+          }
+        } catch (e) {
+          console.error("Failed to upload damage photos", e);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       onClose();
     },
@@ -469,6 +490,76 @@ function DiagnosisModal({
             value={estimatedDate}
             onChange={(e) => setEstimatedDate(e.target.value)}
           />
+        </div>
+
+        {/* Diagnosis Photos Section */}
+        <div className="space-y-3 pt-4 border-t border-gray-100">
+          <h4 className="font-medium text-neutral-900 flex items-center gap-2">
+            <Camera className="w-4 h-4" /> Diagnosis Photos
+          </h4>
+          <p className="text-xs text-neutral-500">
+            Upload images of any physical damage found during diagnosis. These may be visible to the customer.
+          </p>
+          <div className="space-y-3">
+            {damagePhotos.map((photo, index) => (
+              <div key={index} className="flex items-start gap-3 bg-neutral-50 p-2 rounded-lg border border-neutral-100">
+                <div className="flex-1 space-y-2">
+                  <div className="text-sm font-medium px-1 truncate">{photo.name}</div>
+                  <Input
+                    placeholder="Description (e.g. Scratched screen)"
+                    value={photoDescriptions[index] || ""}
+                    onChange={(e) => {
+                      const newDesc = [...photoDescriptions];
+                      newDesc[index] = e.target.value;
+                      setPhotoDescriptions(newDesc);
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 mt-7"
+                  type="button"
+                  onClick={() => {
+                    const newPhotos = [...damagePhotos];
+                    const newDesc = [...photoDescriptions];
+                    newPhotos.splice(index, 1);
+                    newDesc.splice(index, 1);
+                    setDamagePhotos(newPhotos);
+                    setPhotoDescriptions(newDesc);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+            
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                id="damage-photo-upload"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setDamagePhotos([...damagePhotos, file]);
+                    setPhotoDescriptions([...photoDescriptions, ""]);
+                    e.target.value = ''; // Reset input
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => document.getElementById("damage-photo-upload")?.click()}
+                leftIcon={<Upload className="w-4 h-4" />}
+                type="button"
+              >
+                Add Photo
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Spare Parts Section */}
@@ -1174,19 +1265,27 @@ export default function JobDetailPage() {
                     <Camera className="w-5 h-5 text-primary-500" />
                     Photos
                   </h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {job.photos.map((photo) => (
-                      <div
+                      <a
                         key={photo.id}
-                        className="aspect-square rounded-lg bg-neutral-100 overflow-hidden relative"
+                        href={photo.photo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group block aspect-square rounded-xl bg-neutral-100 overflow-hidden relative border border-neutral-200 hover:border-primary-300 hover:shadow-md transition-all"
                       >
-                        <Image
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                           src={photo.photo}
                           alt={photo.description || "Job photo"}
-                          fill
-                          className="object-cover"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                      </div>
+                        {photo.description && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                            <p className="text-xs text-white truncate">{photo.description}</p>
+                          </div>
+                        )}
+                      </a>
                     ))}
                   </div>
                 </Card>

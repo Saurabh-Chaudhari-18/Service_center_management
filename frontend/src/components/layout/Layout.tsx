@@ -31,6 +31,7 @@ import {
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
 import { CommandPalette } from "../CommandPalette";
+import { TechnicianLocationTracker } from "./TechnicianLocationTracker";
 
 // =====================================================
 // Navigation Items Configuration
@@ -360,6 +361,9 @@ export function AppLayout({ children }: LayoutProps) {
 
         {/* Global Command Palette */}
         <CommandPalette />
+        
+        {/* Background Technician Tracking */}
+        <TechnicianLocationTracker />
 
         <main className="main-content">{children}</main>
       </div>

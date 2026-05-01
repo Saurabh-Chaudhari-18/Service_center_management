@@ -378,7 +378,7 @@ export const jobsApi = {
     photoType: string,
     description?: string,
   ) => {
-    return apiUpload(`/jobs/jobs/${jobId}/upload_photo/`, file, "photo", {
+    return apiUpload(`/jobs/jobs/${jobId}/add_photo/`, file, "photo", {
       photo_type: photoType,
       description: description || "",
     });
@@ -1101,5 +1101,15 @@ export const pickupsApi = {
     pickup_number: string;
   }> => {
     return apiPost(`/jobs/pickups/${id}/convert_to_job/`, {});
+  },
+
+  track: async (
+    id: string,
+  ): Promise<{
+    latitude: number | null;
+    longitude: number | null;
+    last_updated: string | null;
+  }> => {
+    return apiGet(`/jobs/pickups/${id}/track/`);
   },
 };

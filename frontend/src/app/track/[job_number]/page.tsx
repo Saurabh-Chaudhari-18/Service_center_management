@@ -1,0 +1,252 @@
+"use client";
+
+import React, { useState } from "react";
+import { useParams } from "next/navigation";
+import { Wrench, Phone, AlertCircle, FileText, MapPin, Image as ImageIcon, Camera } from "lucide-react";
+import { Button, Input, Badge } from "@/components/ui";
+import { JOB_STATUS_CONFIG, JobStatus } from "@/types";
+import { format } from "date-fns";
+import { API_BASE_URL } from "@/lib/api";
+
+interface TimelineItem {
+  status: JobStatus;
+  status_display: string;
+  timestamp: string;
+}
+
+interface PhotoItem {
+  url: string;
+  type: string;
+  description: string;
+}
+
+interface TrackingData {
+  job_number: string;
+  device_type: string;
+  brand: string;
+  model: string;
+  customer_complaint: string;
+  current_status: JobStatus;
+  current_status_display: string;
+  estimated_cost: number | null;
+  estimated_completion_date: string | null;
+  timeline: TimelineItem[];
+  photos: PhotoItem[];
+}
+
+export default function TrackJobPage() {
+  const params = useParams();
+  const jobNumber = params.job_number as string;
+
+  const [phone, setPhone] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<TrackingData | null>(null);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone || phone.length < 10) {
+      setError("Please enter a valid phone number.");
+      return;
+    }
+
+    setIsVerifying(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/jobs/public/track/${jobNumber}/?phone=${encodeURIComponent(phone)}`);
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Could not find job with provided details.");
+      }
+      
+      const responseData: TrackingData = await res.json();
+      setData(responseData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const getStatusColor = (status: JobStatus) => {
+    return JOB_STATUS_CONFIG[status]?.color || "bg-neutral-100 text-neutral-800 border-neutral-200";
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4 py-12">
+      {/* Background Pattern */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-primary-500/10 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-accent-500/10 to-transparent rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-3xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg mb-4 text-primary-600">
+            <Wrench className="w-8 h-8" />
+          </div>
+          <h1 className="text-3xl font-bold text-neutral-900">Track Your Service</h1>
+          <p className="text-neutral-600 mt-2">
+            Stay updated on the status of your repair job.
+          </p>
+        </div>
+
+        {!data ? (
+          /* Authentication Card */
+          <div className="bg-white rounded-2xl p-8 shadow-xl max-w-md mx-auto border border-neutral-100">
+            <div className="mb-6 text-center">
+              <h2 className="text-lg font-semibold text-neutral-900 mb-1">Verify Identity</h2>
+              <p className="text-sm text-neutral-500">
+                Job Number: <span className="font-mono font-medium text-neutral-900">{jobNumber}</span>
+              </p>
+            </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleVerify} className="space-y-4">
+              <Input
+                label="Registered Phone Number"
+                type="tel"
+                placeholder="Enter last 10 digits"
+                leftIcon={<Phone className="w-5 h-5" />}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
+
+              <Button
+                type="submit"
+                className="w-full h-12"
+                isLoading={isVerifying}
+              >
+                View Status
+              </Button>
+            </form>
+          </div>
+        ) : (
+          /* Tracking Information */
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-neutral-100">
+              {/* Header Status Bar */}
+              <div className="border-b border-neutral-100 p-6 bg-gradient-to-r from-neutral-50 to-white">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold font-mono text-neutral-900 mb-2">{data.job_number}</h2>
+                    <div className="flex items-center gap-2 text-neutral-600">
+                      <span className="font-medium">{data.brand}</span>
+                      <span>•</span>
+                      <span>{data.model}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm text-neutral-500 block mb-1">Current Status</span>
+                    <span className={`px-4 py-2 rounded-full text-sm font-medium border ${getStatusColor(data.current_status)}`}>
+                      {JOB_STATUS_CONFIG[data.current_status]?.label || data.current_status_display}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Details & Info */}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-neutral-400" /> Device Info
+                  </h3>
+                  <dl className="space-y-3 text-sm">
+                    <div className="grid grid-cols-3 gap-2">
+                      <dt className="text-neutral-500">Device Type:</dt>
+                      <dd className="col-span-2 font-medium text-neutral-900">{data.device_type}</dd>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <dt className="text-neutral-500">Complaint:</dt>
+                      <dd className="col-span-2 font-medium text-neutral-900">{data.customer_complaint}</dd>
+                    </div>
+                    {data.estimated_cost && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <dt className="text-neutral-500">Est. Cost:</dt>
+                        <dd className="col-span-2 font-medium text-green-600">₹{data.estimated_cost}</dd>
+                      </div>
+                    )}
+                    {data.estimated_completion_date && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <dt className="text-neutral-500">Est. Ready by:</dt>
+                        <dd className="col-span-2 font-medium text-neutral-900">
+                          {format(new Date(data.estimated_completion_date), "MMM dd, yyyy")}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-neutral-400" /> Status Timeline
+                  </h3>
+                  <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-neutral-200 before:to-transparent">
+                    {data.timeline.map((item, idx) => (
+                      <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full border border-white bg-primary-100 text-primary-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                           <div className="w-2 h-2 rounded-full bg-primary-500"></div>
+                        </div>
+                        <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-neutral-100 bg-neutral-50/50 shadow-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm text-neutral-900">{JOB_STATUS_CONFIG[item.status]?.label || item.status_display}</span>
+                            <span className="text-xs text-neutral-500 mt-1">{format(new Date(item.timestamp), "MMM dd, h:mm a")}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {data.timeline.length === 0 && (
+                      <p className="text-sm text-neutral-500 text-center relative z-10 w-full py-4">
+                        No recent updates
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Photos Section */}
+            {data.photos && data.photos.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-neutral-100 p-6">
+                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-neutral-400" /> Diagnosis Evidence
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {data.photos.map((photo, idx) => (
+                    <div key={idx} className="group relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 block">
+                       <div className="aspect-[4/3] bg-neutral-100 relative">
+                         {/* eslint-disable-next-line @next/next/no-img-element */}
+                         <img src={photo.url} alt={photo.description || "Diagnosis photo"} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                       </div>
+                       {photo.description && (
+                         <div className="p-3 bg-white border-t border-neutral-100">
+                           <p className="text-sm text-neutral-700 clamp-2">
+                             {photo.description}
+                           </p>
+                         </div>
+                       )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-8 text-center">
+            <p className="text-sm text-neutral-500 mb-2">Powered by ServiceHub</p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -7,12 +7,16 @@ const nextConfig: NextConfig = {
       {
         protocol: "http",
         hostname: "localhost",
-        port: "8001",
+        pathname: "/media/**",
+      },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
         pathname: "/media/**",
       },
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "servicehub-backend.onrender.com",
         pathname: "/media/**",
       },
     ],

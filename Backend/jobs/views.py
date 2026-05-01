@@ -452,15 +452,24 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def add_photo(self, request, pk=None):
         """Add a photo to the job."""
         job = self.get_object()
-        
-        serializer = JobPhotoSerializer(data={
-            **request.data,
+
+        # Build mutable data dict from the multipart request.
+        # We cannot spread `request.data` directly because it is a QueryDict
+        # and ** unpacking turns multi-value keys into lists, which breaks
+        # single-value fields like photo_type and description.
+        # The actual file lives in request.FILES, not request.data.
+        data = {
+            'photo': request.FILES.get('photo'),
+            'photo_type': request.data.get('photo_type', ''),
+            'description': request.data.get('description', ''),
             'job': str(job.id),
-            'uploaded_by': str(request.user.id)
-        })
+            'uploaded_by': str(request.user.id),
+        }
+
+        serializer = JobPhotoSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -887,3 +896,72 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'job_number': job.job_number,
             'pickup_number': pickup.pickup_number,
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def track(self, request, pk=None):
+        """Get live location of the assigned technician."""
+        pickup = self.get_object()
+        
+        if not pickup.assigned_technician:
+            return Response({'error': 'No technician assigned yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        technician = pickup.assigned_technician
+        return Response({
+            'latitude': technician.last_latitude,
+            'longitude': technician.last_longitude,
+            'updated_at': technician.last_location_updated,
+        })
+
+
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+
+class PublicTrackingView(APIView):
+    """
+    Public View for tracking job card status without authentication.
+    Requires Job Number and Phone Number for security.
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, job_number):
+        phone = request.query_params.get('phone')
+        
+        if not phone:
+            return Response({'error': 'Phone number is required for verification.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            # We strip non-digits to compare or rely on the mobile field
+            job = JobCard.objects.get(job_number=job_number, customer__mobile__endswith=phone[-10:])
+        except JobCard.DoesNotExist:
+            return Response({'error': 'No matching job found with this Number and Phone combination.'}, status=status.HTTP_404_NOT_FOUND)
+            
+        timeline = []
+        for history in job.status_history.all():
+            timeline.append({
+                'status': history.to_status,
+                'status_display': JobStatus(history.to_status).label if history.to_status in JobStatus.values else history.to_status,
+                'timestamp': history.created_at,
+            })
+            
+        photos = []
+        # We can expose 'DAMAGE' and 'COMPLETED' photos to the public
+        for photo in job.photos.filter(photo_type__in=['DAMAGE', 'COMPLETED']):
+            photos.append({
+                'url': request.build_absolute_uri(photo.photo.url) if photo.photo else None,
+                'type': photo.photo_type,
+                'description': photo.description,
+            })
+            
+        return Response({
+            'job_number': job.job_number,
+            'device_type': job.get_device_type_display(),
+            'brand': job.brand,
+            'model': job.model,
+            'customer_complaint': job.customer_complaint,
+            'current_status': job.status,
+            'current_status_display': job.get_status_display(),
+            'estimated_cost': job.estimated_cost,
+            'estimated_completion_date': job.estimated_completion_date,
+            'timeline': timeline,
+            'photos': photos
+        })

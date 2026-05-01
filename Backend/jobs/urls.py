@@ -4,7 +4,7 @@ Jobs URL configuration.
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from jobs.views import JobCardViewSet, PartRequestViewSet, JobEnumsView, PickupRequestViewSet, DropdownOptionViewSet
+from jobs.views import JobCardViewSet, PartRequestViewSet, JobEnumsView, PickupRequestViewSet, DropdownOptionViewSet, PublicTrackingView
 
 app_name = 'jobs'
 
@@ -16,5 +16,6 @@ router.register(r'pickups', PickupRequestViewSet, basename='pickup')
 router.register(r'dropdown-options', DropdownOptionViewSet, basename='dropdown-option')
 
 urlpatterns = [
+    path('public/track/<str:job_number>/', PublicTrackingView.as_view(), name='public-track'),
     path('', include(router.urls)),
 ]

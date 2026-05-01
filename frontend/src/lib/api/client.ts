@@ -273,7 +273,11 @@ export async function apiDelete<T = void>(url: string): Promise<T> {
   return response.data;
 }
 
-// For file uploads
+// For file uploads — uses native fetch, NOT the axios instance.
+// Axios's global "Content-Type: application/json" header fights FormData
+// boundary generation no matter how we try to override it. Native fetch
+// simply omits Content-Type when given a FormData body, letting the browser
+// set the correct "multipart/form-data; boundary=..." automatically.
 export async function apiUpload<T>(
   url: string,
   file: File,
@@ -285,17 +289,34 @@ export async function apiUpload<T>(
 
   if (additionalData) {
     Object.entries(additionalData).forEach(([key, value]) => {
-      formData.append(key, value);
+      formData.append(key, String(value));
     });
   }
 
-  const response = await apiClient.post<T>(url, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
+  const token = tokenManager.getAccessToken();
+  const branchId = tokenManager.getCurrentBranchId();
+
+  const headers: HeadersInit = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (branchId) headers["X-Branch-ID"] = branchId;
+  // Do NOT set Content-Type. Browser sets it with the correct boundary.
+
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: "POST",
+    headers,
+    body: formData,
   });
-  return response.data;
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      `Invalid request: ${JSON.stringify(errorData)}`
+    );
+  }
+
+  return response.json() as Promise<T>;
 }
+
 
 // For file downloads
 export async function apiDownload(

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, LoadingState } from "@/components/ui";
+import { Card, Button, LoadingState, LiveTrackingMap } from "@/components/ui";
 import { pickupsApi, usersApi } from "@/lib/api";
 import {
   ArrowLeft,
@@ -418,6 +418,17 @@ export default function PickupDetailPage() {
             </Card>
           </div>
 
+          {/* Technician Live Tracking Map */}
+          {pickup.status === "EN_ROUTE" && (
+            <Card>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary-500" />
+                Live Technician Tracking
+              </h3>
+              <TechnicianTrackingView pickupId={pickup.id} technicianName={pickup.assigned_technician_name} />
+            </Card>
+          )}
+
           {/* Linked Job Card */}
           {pickup.job && (
             <Card>
@@ -587,6 +598,54 @@ function InfoRow({
         <span className="text-sm font-medium text-neutral-500">{label}</span>
         <p className="text-neutral-900">{value}</p>
       </div>
+    </div>
+  );
+}
+
+// =====================================================
+// Technician Tracking View Component
+// =====================================================
+
+function TechnicianTrackingView({ pickupId, technicianName }: { pickupId: string; technicianName?: string }) {
+  const { data: locationData, isLoading } = useQuery({
+    queryKey: ["pickup-tracking", pickupId],
+    queryFn: () => pickupsApi.track(pickupId),
+    refetchInterval: 10000, // Poll every 10 seconds while En Route
+  });
+
+  if (isLoading) {
+    return (
+      <div className="h-48 flex items-center justify-center bg-neutral-50 rounded-xl border border-neutral-100">
+        <div className="text-center">
+          <LoadingState />
+          <p className="text-xs text-neutral-500 mt-2">Locating technician...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!locationData || locationData.latitude === null || locationData.longitude === null) {
+    return (
+      <div className="h-48 flex items-center justify-center bg-neutral-50 rounded-xl border border-neutral-100 text-center p-4">
+        <div>
+          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+          <p className="text-sm font-medium text-neutral-800">Location Unavailable</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            Waiting for technician&apos;s device to transmit coordinates.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden shadow-sm border border-neutral-200">
+      <LiveTrackingMap 
+        latitude={locationData.latitude} 
+        longitude={locationData.longitude} 
+        label={technicianName || "Technician"}
+        updateTime={locationData.last_updated || undefined}
+      />
     </div>
   );
 }
