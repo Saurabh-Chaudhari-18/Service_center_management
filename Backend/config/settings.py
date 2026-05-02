@@ -235,11 +235,28 @@ GST_RATES = {
     'EXEMPT': 0,     # Exempt items
 }
 
-# SMS/WhatsApp Configuration (Twilio)
+# -----------------------------------------------------------------------
+# SMS Configuration — TextBee.dev (Android SMS Gateway, Free)
+# How to get these:
+#   1. Register at https://textbee.dev
+#   2. Install the TextBee app on your Android device
+#   3. Grant SMS permissions and sync with the dashboard
+#   4. Copy DEVICE_ID and API_KEY from the TextBee dashboard
+# -----------------------------------------------------------------------
+TEXTBEE_API_KEY = env('TEXTBEE_API_KEY', default='')
+TEXTBEE_DEVICE_ID = env('TEXTBEE_DEVICE_ID', default='')
+
+# -----------------------------------------------------------------------
+# WhatsApp Configuration — Twilio (Paid, disabled by default)
+# Uncomment and configure these when/if you upgrade to Twilio WhatsApp.
+# -----------------------------------------------------------------------
+# TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
+# TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
+# TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='')
 TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
-TWILIO_SMS_FROM = env('TWILIO_SMS_FROM', default='')
 TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='')
+
 
 # Low stock alert threshold (default)
 LOW_STOCK_THRESHOLD = env.int('LOW_STOCK_THRESHOLD', default=5)

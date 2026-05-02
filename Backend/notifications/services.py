@@ -1,10 +1,12 @@
 """
 Notification services for sending SMS, WhatsApp, and internal alerts.
+
+SMS  → TextBee.dev  (free, uses your Android phone's SIM card)
+WA   → Twilio       (paid, configured separately via TWILIO_* env vars)
 """
 
 import logging
 from django.conf import settings
-from twilio.rest import Client
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from notifications.models import (
@@ -328,35 +330,79 @@ class NotificationService:
 
     @staticmethod
     def _send_sms(mobile, message, log):
-        """Send SMS via Twilio."""
-        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
-        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
-        from_number = getattr(settings, 'TWILIO_SMS_FROM', '')
-        
-        if not all([account_sid, auth_token, from_number]):
-            logger.warning("Twilio SMS credentials not configured. Message logged but not sent.")
-            log.mark_failed("Twilio SMS credentials not configured")
-            return
-        
-        try:
-            client = Client(account_sid, auth_token)
-            
-            # Ensure mobile number has +91 prefix if it doesn't have a country code
-            formatted_mobile = mobile if mobile.startswith('+') else f"+91{mobile}"
-            
-            logger.info(f"Sending SMS to {formatted_mobile} via Twilio...")
-            
-            response = client.messages.create(
-                body=message,
-                from_=from_number,
-                to=formatted_mobile
+        """
+        Send SMS via TextBee.dev Android SMS Gateway (Free).
+
+        TextBee routes the SMS through an Android phone you own,
+        using your local SIM card — so no per-message charges.
+
+        Prerequisites:
+          - Set TEXTBEE_API_KEY and TEXTBEE_DEVICE_ID in your .env file.
+          - Install the TextBee app on your Android device and register it
+            at https://textbee.dev.
+        """
+        import requests as http_client
+
+        api_key   = getattr(settings, 'TEXTBEE_API_KEY', '')
+        device_id = getattr(settings, 'TEXTBEE_DEVICE_ID', '')
+
+        if not api_key or not device_id:
+            logger.warning(
+                "TextBee SMS credentials not configured "
+                "(TEXTBEE_API_KEY or TEXTBEE_DEVICE_ID missing). "
+                "Message logged but not sent."
             )
-            
-            log.mark_sent({'provider': 'twilio', 'status': response.status, 'sid': response.sid})
-            
+            log.mark_failed("TextBee credentials not configured")
+            return
+
+        # Ensure mobile has +91 India country code
+        formatted_mobile = mobile if str(mobile).startswith('+') else f"+91{mobile}"
+
+        url = f"https://api.textbee.dev/api/v1/gateway/devices/{device_id}/send-sms"
+        headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "recipients": [formatted_mobile],
+            "message": message,
+        }
+
+        logger.info(
+            f"[TextBee] Sending SMS to {formatted_mobile} | "
+            f"Notification type: {log.notification_type}"
+        )
+
+        try:
+            response = http_client.post(url, json=payload, headers=headers, timeout=15)
+            response.raise_for_status()          # raises for 4xx / 5xx
+            result = response.json()
+
+            log.mark_sent({
+                'provider': 'textbee',
+                'status': 'sent',
+                'response': result,
+            })
+            logger.info(
+                f"[TextBee] SMS delivered to {formatted_mobile}. "
+                f"Response: {result}"
+            )
+
+        except http_client.exceptions.Timeout:
+            msg = "TextBee API request timed out after 15 seconds"
+            logger.error(f"[TextBee] {msg}")
+            log.mark_failed(msg)
+
+        except http_client.exceptions.HTTPError as e:
+            msg = f"TextBee API returned error: {e.response.status_code} — {e.response.text}"
+            logger.error(f"[TextBee] {msg}")
+            log.mark_failed(msg)
+
         except Exception as e:
-            logger.error(f"SMS sending failed: {str(e)}")
-            log.mark_failed(str(e))
+            msg = f"Unexpected error sending SMS via TextBee: {str(e)}"
+            logger.error(f"[TextBee] {msg}")
+            log.mark_failed(msg)
+
 
     @staticmethod
     def _send_whatsapp(mobile, message, log):
@@ -371,6 +417,7 @@ class NotificationService:
             return
         
         try:
+            from twilio.rest import Client   # lazy import — only needed if WhatsApp is used
             client = Client(account_sid, auth_token)
             
             # Ensure mobile number is formatted for Twilio WhatsApp (e.g., whatsapp:+919876543210)
