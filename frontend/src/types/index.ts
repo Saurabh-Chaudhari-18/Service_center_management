@@ -448,9 +448,14 @@ export interface PurchaseItem extends BaseEntity {
 export interface Purchase extends BaseEntity {
   branch: string;
   vendor_name: string;
+  vendor_gstin?: string;
   invoice_number: string;
   purchase_date: string;
   total_amount: number;
+  taxable_amount?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  total_gst?: number;
   notes: string;
   items: PurchaseItem[];
 }
@@ -890,6 +895,13 @@ export interface Expense extends BaseEntity {
   receipt: string | null;
   is_recurring: boolean;
   vendor_name: string;
+  is_itc_eligible?: boolean;
+  vendor_gstin?: string;
+  vendor_invoice_number?: string;
+  gst_rate?: number;
+  taxable_amount?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
   created_by: string;
   created_by_name?: string;
 }
