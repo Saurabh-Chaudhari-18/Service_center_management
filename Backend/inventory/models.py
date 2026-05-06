@@ -478,6 +478,7 @@ class StockTransferItem(models.Model):
 class Purchase(TimeStampedModel):
     """
     Record of a bulk purchase of inventory from a vendor.
+    GST fields allow tracking Input Tax Credit (ITC) on purchases.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     branch = models.ForeignKey(
@@ -488,21 +489,44 @@ class Purchase(TimeStampedModel):
         blank=True
     )
     vendor_name = models.CharField(max_length=255)
+    vendor_gstin = models.CharField(
+        max_length=15,
+        blank=True,
+        help_text="Vendor GSTIN (needed for ITC claim)"
+    )
     invoice_number = models.CharField(max_length=100, blank=True)
     purchase_date = models.DateField()
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    cgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    sgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    total_gst = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     notes = models.TextField(blank=True)
-    
+
     class Meta:
         ordering = ['-purchase_date', '-created_at']
 
     def __str__(self):
         return f"Purchase {self.invoice_number} from {self.vendor_name}"
 
+    def calculate_gst_totals(self):
+        """Recalculate GST totals from line items."""
+        from django.db.models import Sum
+        totals = self.items.aggregate(
+            taxable=Sum('taxable_amount'),
+            cgst=Sum('cgst_amount'),
+            sgst=Sum('sgst_amount'),
+        )
+        self.taxable_amount = totals['taxable'] or Decimal('0.00')
+        self.cgst_amount = totals['cgst'] or Decimal('0.00')
+        self.sgst_amount = totals['sgst'] or Decimal('0.00')
+        self.total_gst = self.cgst_amount + self.sgst_amount
+
 
 class PurchaseItem(TimeStampedModel):
     """
     Items included in a specific purchase.
+    Tracks GST per line for ITC calculation.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     purchase = models.ForeignKey(
@@ -517,16 +541,39 @@ class PurchaseItem(TimeStampedModel):
     )
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
         help_text="Cost per unit at the time of purchase"
     )
     total_price = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
         help_text="Total cost for this quantity"
     )
-    
+    # GST per line item
+    gst_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('18.00'),
+        help_text="GST rate % on this item"
+    )
+    taxable_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Taxable amount (total_price excluding GST)"
+    )
+    cgst_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00')
+    )
+    sgst_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00')
+    )
+
     class Meta:
         ordering = ['-created_at']
 

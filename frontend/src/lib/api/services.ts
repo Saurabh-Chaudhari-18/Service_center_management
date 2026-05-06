@@ -177,6 +177,13 @@ export const usersApi = {
   getRoles: async (): Promise<Array<{ value: string; label: string }>> => {
     return apiGet("/core/roles/");
   },
+
+  updateLocation: async (
+    latitude: number,
+    longitude: number,
+  ): Promise<{ message: string }> => {
+    return apiPost("/core/users/update_location/", { latitude, longitude });
+  },
 };
 
 // =====================================================
@@ -1307,3 +1314,49 @@ export const ledgerApi = {
     return apiGet("/marketing/ledger/outstanding/");
   },
 };
+
+// =====================================================
+// GST Module API
+// =====================================================
+
+export const gstApi = {
+  getDashboard: (params: { from_date?: string; to_date?: string; branch?: string }) =>
+    apiGet("/gst/dashboard/", params),
+
+  getITCRegister: (params: { from_date?: string; to_date?: string; source?: string; branch?: string }) =>
+    apiGet("/gst/itc_register/", params),
+
+  getOutputRegister: (params: { from_date?: string; to_date?: string; branch?: string }) =>
+    apiGet("/gst/output_register/", params),
+
+  getGSTR1Data: (params: { from_date?: string; to_date?: string; branch?: string }) =>
+    apiGet("/gst/gstr1_data/", params),
+
+  downloadGSTR1JSON: async (params: { from_date: string; to_date: string; branch?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const url = `/gst/gstr1_json/?${query}`;
+    return apiDownload(url, `GSTR1_${params.from_date}_${params.to_date}.json`);
+  },
+
+  getGSTR3BSummary: (params: { from_date?: string; to_date?: string; branch?: string }) =>
+    apiGet("/gst/gstr3b_summary/", params),
+
+  getPayments: (params?: { branch?: string }) =>
+    apiGet("/gst/payments/", params),
+
+  addPayment: (data: Record<string, unknown>) =>
+    apiPost("/gst/payments/", data),
+
+  getHSNCodes: (params?: { q?: string }) =>
+    apiGet("/gst/hsn_codes/", params),
+
+  addHSNCode: (data: Record<string, unknown>) =>
+    apiPost("/gst/hsn_codes/", data),
+
+  updateHSNCode: (id: string, data: Record<string, unknown>) =>
+    apiPatch(`/gst/${id}/hsn/`, data),
+
+  markFiled: (data: { period_month: string; return_type: "gstr1" | "gstr3b" }) =>
+    apiPost("/gst/mark_filed/", data),
+};
+

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, FileType2, Target, PenSquare, Trash2, Plus } from "lucide-react";
+import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, FileType2, Target, PenSquare, Trash2, Plus, BadgePercent } from "lucide-react";
 import { purchasesApi, inventoryApi, suppliersApi } from "@/lib/api/services";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -14,8 +14,11 @@ export default function NewPurchasePage() {
   const { currentBranch } = useAuth();
   
   const [vendorName, setVendorName] = useState("");
+  const [vendorGstin, setVendorGstin] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [gstRate, setGstRate] = useState("18");
+  const [taxableAmount, setTaxableAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
   
   const [entryMode, setEntryMode] = useState<"excel" | "manual">("excel");
@@ -117,8 +120,11 @@ export default function NewPurchasePage() {
         
         const res = await purchasesApi.create({
           vendor_name: vendorName,
+          vendor_gstin: vendorGstin,
           invoice_number: invoiceNumber,
           purchase_date: purchaseDate,
+          taxable_amount: taxableAmount ? parseFloat(taxableAmount) : undefined,
+          gst_rate: gstRate,
           items: validItems as any
         });
         if (res && res.id) {
@@ -194,6 +200,20 @@ export default function NewPurchasePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
+                      Vendor GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      value={vendorGstin}
+                      onChange={(e) => setVendorGstin(e.target.value.toUpperCase())}
+                      maxLength={15}
+                      placeholder="27XXXXX1234X1Z5"
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-900/50 border border-neutral-200 dark:border-slate-700/50 rounded-xl text-neutral-900 dark:text-slate-200 font-mono text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all placeholder:text-neutral-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
                       Invoice Number
                     </label>
                     <input
@@ -205,7 +225,7 @@ export default function NewPurchasePage() {
                     />
                   </div>
 
-                  <div className="md:col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
                       Purchase Date <span className="text-red-500">*</span>
                     </label>
@@ -216,6 +236,47 @@ export default function NewPurchasePage() {
                       onChange={(e) => setPurchaseDate(e.target.value)}
                       className="w-full px-4 py-2.5 bg-white dark:bg-slate-900/50 border border-neutral-200 dark:border-slate-700/50 rounded-xl text-neutral-900 dark:text-slate-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
                     />
+                  </div>
+
+                  {/* GST on purchase */}
+                  <div className="md:col-span-2 rounded-xl border border-dashed border-green-300 bg-green-50/40 p-4">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-neutral-700 mb-3">
+                      <BadgePercent className="w-4 h-4 text-green-600" />
+                      GST on This Purchase (for ITC claim)
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-500 mb-1">GST Rate (%)</label>
+                        <select
+                          value={gstRate}
+                          onChange={(e) => setGstRate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                        >
+                          {["5", "12", "18", "28"].map(r => (
+                            <option key={r} value={r}>{r}%</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-500 mb-1">Taxable Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={taxableAmount}
+                          onChange={(e) => setTaxableAmount(e.target.value)}
+                          placeholder="Amount before GST"
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                        />
+                      </div>
+                    </div>
+                    {taxableAmount && (
+                      <div className="mt-3 flex gap-4 text-sm text-green-700 font-medium">
+                        <span>CGST: ₹{((parseFloat(taxableAmount) * parseFloat(gstRate)) / 100 / 2).toFixed(2)}</span>
+                        <span>SGST: ₹{((parseFloat(taxableAmount) * parseFloat(gstRate)) / 100 / 2).toFixed(2)}</span>
+                        <span className="font-bold">Total GST: ₹{((parseFloat(taxableAmount) * parseFloat(gstRate)) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

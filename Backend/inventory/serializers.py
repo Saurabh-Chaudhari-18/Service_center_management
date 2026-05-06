@@ -186,24 +186,34 @@ class LowStockAlertSerializer(serializers.ModelSerializer):
 from inventory.models import Purchase, PurchaseItem
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
-    """Serializer for items within a purchase."""
+    """Serializer for items within a purchase — includes GST breakdown."""
     item_name = serializers.CharField(source='inventory_item.name', read_only=True)
     sku = serializers.CharField(source='inventory_item.sku', read_only=True)
     
     class Meta:
         model = PurchaseItem
-        fields = ['id', 'inventory_item', 'item_name', 'sku', 'quantity', 'unit_price', 'total_price']
+        fields = [
+            'id', 'inventory_item', 'item_name', 'sku',
+            'quantity', 'unit_price', 'total_price',
+            # GST breakdown
+            'gst_rate', 'taxable_amount', 'cgst_amount', 'sgst_amount',
+        ]
         read_only_fields = ['id', 'total_price']
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
-    """Serializer for tracking inventory purchases."""
+    """Serializer for tracking inventory purchases — includes ITC/GST fields."""
     items = PurchaseItemSerializer(many=True, read_only=True)
     
     class Meta:
         model = Purchase
-        fields = ['id', 'branch', 'vendor_name', 'invoice_number', 'purchase_date', 'total_amount', 'notes', 'items', 'created_at']
-        read_only_fields = ['id', 'created_at', 'total_amount']
+        fields = [
+            'id', 'branch', 'vendor_name', 'invoice_number', 'purchase_date',
+            'total_amount', 'notes', 'items', 'created_at',
+            # GST / ITC fields
+            'vendor_gstin', 'taxable_amount', 'total_gst', 'cgst_amount', 'sgst_amount',
+        ]
+        read_only_fields = ['id', 'created_at', 'total_amount', 'total_gst', 'cgst_amount', 'sgst_amount']
 
 
 class ExcelImportSerializer(serializers.Serializer):

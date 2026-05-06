@@ -490,7 +490,21 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             total_amount += total_price
             
         purchase.total_amount = total_amount
+
+        # Auto-calculate GST totals if taxable_amount was provided at header level
+        if purchase.taxable_amount:
+            try:
+                gst_rate = float(self.request.data.get('gst_rate', 18))
+            except (ValueError, TypeError):
+                gst_rate = 18
+            from decimal import Decimal
+            half = (purchase.taxable_amount * Decimal(str(gst_rate)) / 100 / 2).quantize(Decimal('0.01'))
+            purchase.cgst_amount = half
+            purchase.sgst_amount = half
+            purchase.total_gst = half * 2
+
         purchase.save()
+
 
     @extend_schema(request=ExcelImportSerializer)
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])

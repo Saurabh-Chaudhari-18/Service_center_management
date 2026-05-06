@@ -46,6 +46,7 @@ urlpatterns = [
     path('api/suppliers/', include('suppliers.urls', namespace='suppliers')),
     path('api/enquiries/', include('enquiries.urls', namespace='enquiries')),
     path('api/marketing/', include('marketing.urls', namespace='marketing')),
+    path('api/gst/', include('gst.urls')),
 ]
 
 # Serve media files in development

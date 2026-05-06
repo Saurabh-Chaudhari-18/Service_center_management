@@ -31,6 +31,7 @@ import {
   UserSearch,
   Contact,
   BookOpen,
+  BadgePercent,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -63,6 +64,7 @@ const navigationItems: NavItem[] = [
   { name: "Expenses",      href: "/expenses",      icon: IndianRupee,     roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Ledger (Khata)",href: "/ledger",        icon: BookOpen,        roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
+  { name: "GST",           href: "/gst",           icon: BadgePercent,    roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },

@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { expensesApi } from "@/lib/api/services";
 import {
   Plus, IndianRupee, Calendar, Filter, Trash2, Search,
-  TrendingDown, Receipt, RefreshCw, X
+  TrendingDown, Receipt, RefreshCw, X, BadgePercent, ChevronDown,
 } from "lucide-react";
 import type { Expense } from "@/types";
 
@@ -54,8 +54,34 @@ export default function ExpensesPage() {
     description: "",
     reference: "",
     is_recurring: false,
+    // ITC fields
+    is_itc_eligible: false,
+    vendor_gstin: "",
+    vendor_invoice_number: "",
+    gst_rate: "18",
+    taxable_amount: "",
+    cgst_amount: "0",
+    sgst_amount: "0",
   });
   const [saving, setSaving] = useState(false);
+
+  // Auto-calculate CGST/SGST when taxable or rate changes
+  const handleITCChange = (field: string, value: string | boolean) => {
+    setForm(prev => {
+      const updated = { ...prev, [field]: value };
+      if (updated.is_itc_eligible) {
+        const taxable = parseFloat(updated.taxable_amount) || 0;
+        const rate = parseFloat(updated.gst_rate) || 0;
+        const half = ((taxable * rate) / 100 / 2).toFixed(2);
+        updated.cgst_amount = half;
+        updated.sgst_amount = half;
+      } else {
+        updated.cgst_amount = "0";
+        updated.sgst_amount = "0";
+      }
+      return updated;
+    });
+  };
 
   const fetchExpenses = useCallback(async () => {
     try {
@@ -89,6 +115,15 @@ export default function ExpensesPage() {
     fetchStats();
   }, [fetchExpenses, fetchStats]);
 
+  const EMPTY_FORM = {
+    title: "", category: "MISCELLANEOUS", amount: "",
+    expense_date: new Date().toISOString().split("T")[0],
+    payment_method: "CASH", vendor_name: "", description: "",
+    reference: "", is_recurring: false,
+    is_itc_eligible: false, vendor_gstin: "", vendor_invoice_number: "",
+    gst_rate: "18", taxable_amount: "", cgst_amount: "0", sgst_amount: "0",
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -96,20 +131,14 @@ export default function ExpensesPage() {
       await expensesApi.create({
         ...form,
         amount: parseFloat(form.amount),
+        taxable_amount: form.is_itc_eligible ? parseFloat(form.taxable_amount) || 0 : 0,
+        cgst_amount: parseFloat(form.cgst_amount) || 0,
+        sgst_amount: parseFloat(form.sgst_amount) || 0,
+        gst_rate: parseFloat(form.gst_rate) || 0,
         branch: currentBranch?.id,
       });
       setShowForm(false);
-      setForm({
-        title: "",
-        category: "MISCELLANEOUS",
-        amount: "",
-        expense_date: new Date().toISOString().split("T")[0],
-        payment_method: "CASH",
-        vendor_name: "",
-        description: "",
-        reference: "",
-        is_recurring: false,
-      });
+      setForm(EMPTY_FORM);
       fetchExpenses();
       fetchStats();
     } catch (err) {
@@ -232,6 +261,7 @@ export default function ExpensesPage() {
                   <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Title</th>
                   <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Category</th>
                   <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Vendor</th>
+                  <th className="text-center p-3 font-semibold text-neutral-600 dark:text-neutral-300">ITC</th>
                   <th className="text-right p-3 font-semibold text-neutral-600 dark:text-neutral-300">Amount</th>
                   <th className="text-center p-3 font-semibold text-neutral-600 dark:text-neutral-300">Actions</th>
                 </tr>
@@ -261,6 +291,15 @@ export default function ExpensesPage() {
                         </span>
                       </td>
                       <td className="p-3 text-neutral-600 dark:text-neutral-400">{exp.vendor_name || "—"}</td>
+                      <td className="p-3 text-center">
+                        {(exp as any).is_itc_eligible ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                            <BadgePercent className="w-3 h-3" /> ITC
+                          </span>
+                        ) : (
+                          <span className="text-neutral-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="p-3 text-right font-semibold text-red-600 dark:text-red-400">
                         ₹{Number(exp.amount).toLocaleString("en-IN")}
                       </td>
@@ -389,6 +428,99 @@ export default function ExpensesPage() {
                 />
                 Mark as recurring monthly expense
               </label>
+
+              {/* ── ITC Section ──────────────────────────────────── */}
+              <div className="rounded-xl border border-dashed border-green-300 bg-green-50/50 p-4 space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                    <BadgePercent className="w-4 h-4 text-green-600" />
+                    Claim ITC on this expense
+                  </span>
+                  {/* Toggle switch */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.is_itc_eligible}
+                    onClick={() => handleITCChange("is_itc_eligible", !form.is_itc_eligible)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      form.is_itc_eligible ? "bg-green-500" : "bg-neutral-300"
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      form.is_itc_eligible ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                  </button>
+                </label>
+
+                {form.is_itc_eligible && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor GSTIN</label>
+                        <input
+                          type="text"
+                          value={form.vendor_gstin}
+                          onChange={(e) => setForm({ ...form, vendor_gstin: e.target.value.toUpperCase() })}
+                          placeholder="e.g. 27XXXXX1234X1Z5"
+                          maxLength={15}
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor Invoice #</label>
+                        <input
+                          type="text"
+                          value={form.vendor_invoice_number}
+                          onChange={(e) => setForm({ ...form, vendor_invoice_number: e.target.value })}
+                          placeholder="Vendor's bill number"
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">GST Rate (%)</label>
+                        <select
+                          value={form.gst_rate}
+                          onChange={(e) => handleITCChange("gst_rate", e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                        >
+                          {["5", "12", "18", "28"].map(r => (
+                            <option key={r} value={r}>{r}%</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Taxable Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={form.taxable_amount}
+                          onChange={(e) => handleITCChange("taxable_amount", e.target.value)}
+                          placeholder="Amount before GST"
+                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Auto-calculated preview */}
+                    <div className="grid grid-cols-2 gap-3 bg-white rounded-lg border border-green-200 p-3">
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">CGST (auto)</p>
+                        <p className="text-lg font-bold text-green-700">₹{form.cgst_amount}</p>
+                      </div>
+                      <div className="text-center border-l border-green-100">
+                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">SGST (auto)</p>
+                        <p className="text-lg font-bold text-green-700">₹{form.sgst_amount}</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-green-600">* CGST and SGST are auto-calculated from taxable amount and GST rate.</p>
+                  </div>
+                )}
+              </div>
+              {/* ─────────────────────────────────────────────────── */}
 
               <div className="flex gap-3 pt-2">
                 <button

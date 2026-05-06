@@ -17,7 +17,19 @@ import {
   Activity,
   FileSpreadsheet,
 } from "lucide-react";
-import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import {
+  format,
+  subDays,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  subQuarters,
+  subYears,
+} from "date-fns";
 import {
   BarChart,
   Bar,
@@ -36,7 +48,16 @@ import {
 // Date Range Presets
 // =====================================================
 
-type DatePreset = "today" | "week" | "month" | "custom";
+type DatePreset =
+  | "today"
+  | "week"
+  | "month"
+  | "last3months"
+  | "quarter"
+  | "lastquarter"
+  | "year"
+  | "lastyear"
+  | "custom";
 
 function getDateRange(preset: DatePreset): { from: string; to: string } {
   const today = new Date();
@@ -57,6 +78,35 @@ function getDateRange(preset: DatePreset): { from: string; to: string } {
         from: format(startOfMonth(today), "yyyy-MM-dd"),
         to: format(endOfMonth(today), "yyyy-MM-dd"),
       };
+    case "last3months":
+      return {
+        from: format(subMonths(today, 3), "yyyy-MM-dd"),
+        to: format(today, "yyyy-MM-dd"),
+      };
+    case "quarter":
+      return {
+        from: format(startOfQuarter(today), "yyyy-MM-dd"),
+        to: format(endOfQuarter(today), "yyyy-MM-dd"),
+      };
+    case "lastquarter": {
+      const lastQ = subQuarters(today, 1);
+      return {
+        from: format(startOfQuarter(lastQ), "yyyy-MM-dd"),
+        to: format(endOfQuarter(lastQ), "yyyy-MM-dd"),
+      };
+    }
+    case "year":
+      return {
+        from: format(startOfYear(today), "yyyy-MM-dd"),
+        to: format(endOfYear(today), "yyyy-MM-dd"),
+      };
+    case "lastyear": {
+      const lastY = subYears(today, 1);
+      return {
+        from: format(startOfYear(lastY), "yyyy-MM-dd"),
+        to: format(endOfYear(lastY), "yyyy-MM-dd"),
+      };
+    }
     default:
       return {
         from: format(subDays(today, 30), "yyyy-MM-dd"),
@@ -589,51 +639,56 @@ function GstSummary({ fromDate, toDate }: GstSummaryProps) {
   if (!data) return null;
 
   const summary = data.summary || {};
-  const taxable = summary.total_taxable || 0;
-  const cgst = summary.total_cgst || 0;
-  const sgst = summary.total_sgst || 0;
-  const igst = summary.total_igst || 0;
-  const totalTax = summary.total_tax || 0;
+  const invoiceCount = Number(summary.invoice_count) || 0;
+  const taxable = Number(summary.total_taxable) || 0;
+  const cgst = Number(summary.total_cgst) || 0;
+  const sgst = Number(summary.total_sgst) || 0;
+  const igst = Number(summary.total_igst) || 0;
+  const totalTax = Number(summary.total_tax) || 0;
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <DollarSign className="w-5 h-5 text-green-500" />
-        GST Summary
-      </h3>
-
-      <div className="space-y-4">
-        <div className="flex justify-between items-center py-2 border-b border-neutral-100">
-          <span className="text-neutral-600">Taxable Amount</span>
-          <span className="font-medium">
-            ₹{taxable.toLocaleString("en-IN")}
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-green-500" />
+          GST Summary
+        </h3>
+        {invoiceCount > 0 && (
+          <span className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded-full">
+            {invoiceCount} invoice{invoiceCount !== 1 ? "s" : ""}
           </span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b border-neutral-100">
-          <span className="text-neutral-600">CGST</span>
-          <span className="font-medium text-neutral-900">
-            ₹{cgst.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b border-neutral-100">
-          <span className="text-neutral-600">SGST</span>
-          <span className="font-medium text-neutral-900">
-            ₹{sgst.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b border-neutral-100">
-          <span className="text-neutral-600">IGST</span>
-          <span className="font-medium text-neutral-900">
-            ₹{igst.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <div className="flex justify-between items-center pt-2 font-bold text-lg">
-          <span className="text-neutral-900">Total Tax</span>
-          <span className="text-green-600">
-            ₹{totalTax.toLocaleString("en-IN")}
-          </span>
-        </div>
+        )}
       </div>
+
+      {invoiceCount === 0 ? (
+        <div className="py-8 text-center">
+          <p className="text-neutral-400 text-sm">No finalized invoices in this period.</p>
+          <p className="text-neutral-400 text-xs mt-1">Try selecting a wider date range.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center py-2 border-b border-neutral-100">
+            <span className="text-neutral-600">Taxable Amount</span>
+            <span className="font-medium">₹{taxable.toLocaleString("en-IN")}</span>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-neutral-100">
+            <span className="text-neutral-600">CGST</span>
+            <span className="font-medium text-neutral-900">₹{cgst.toLocaleString("en-IN")}</span>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-neutral-100">
+            <span className="text-neutral-600">SGST</span>
+            <span className="font-medium text-neutral-900">₹{sgst.toLocaleString("en-IN")}</span>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-neutral-100">
+            <span className="text-neutral-600">IGST</span>
+            <span className="font-medium text-neutral-900">₹{igst.toLocaleString("en-IN")}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 font-bold text-lg">
+            <span className="text-neutral-900">Total Tax</span>
+            <span className="text-green-600">₹{totalTax.toLocaleString("en-IN")}</span>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -650,7 +705,10 @@ function LowStockList() {
 
   if (isLoading) return <LoadingState />;
 
-  const items: InventoryItem[] = Array.isArray(data) ? data : [];
+  // Backend returns { total_items, items } — extract the items array
+  const items: InventoryItem[] = Array.isArray(data)
+    ? data
+    : (data as any)?.items ?? [];
   if (items.length === 0) return null;
 
   return (
@@ -773,19 +831,24 @@ export default function ReportsContent() {
               <span className="text-sm font-medium text-neutral-700">
                 Period:
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
-                  { value: "today", label: "Today" },
-                  { value: "week", label: "Last 7 Days" },
-                  { value: "month", label: "This Month" },
-                  { value: "custom", label: "Custom" },
+                  { value: "today",       label: "Today" },
+                  { value: "week",        label: "Last 7 Days" },
+                  { value: "month",       label: "This Month" },
+                  { value: "last3months", label: "Last 3 Months" },
+                  { value: "quarter",     label: "This Quarter" },
+                  { value: "lastquarter", label: "Last Quarter" },
+                  { value: "year",        label: "This Year" },
+                  { value: "lastyear",    label: "Last Year" },
+                  { value: "custom",      label: "Custom" },
                 ].map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setDatePreset(opt.value as DatePreset)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       datePreset === opt.value
-                        ? "bg-primary-500 text-white"
+                        ? "bg-primary-500 text-white shadow-sm"
                         : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
                     }`}
                   >
@@ -834,15 +897,16 @@ export default function ReportsContent() {
             <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
           </div>
 
+          {/* Inventory Overview - full width */}
+          <InventoryOverview
+            fromDate={dateRange.from}
+            toDate={dateRange.to}
+          />
+
+          {/* GST Summary + Low Stock side-by-side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <InventoryOverview
-              fromDate={dateRange.from}
-              toDate={dateRange.to}
-            />
-            <div className="space-y-6">
-              <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
-              <LowStockList />
-            </div>
+            <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
+            <LowStockList />
           </div>
         </div>
       </AppLayout>

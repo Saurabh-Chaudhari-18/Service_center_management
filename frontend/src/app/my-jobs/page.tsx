@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -16,7 +16,7 @@ import {
   Badge,
   Alert,
 } from "@/components/ui";
-import { jobsApi } from "@/lib/api";
+import { jobsApi, usersApi } from "@/lib/api";
 import {
   Wrench,
   Clock,
@@ -27,6 +27,9 @@ import {
   Phone,
   Laptop,
   FileText,
+  MapPin,
+  Navigation,
+  WifiOff,
 } from "lucide-react";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
@@ -396,6 +399,125 @@ function AddNoteModal({ isOpen, onClose, job }: AddNoteModalProps) {
 }
 
 // =====================================================
+// Live Location Banner
+// =====================================================
+
+function LiveLocationBanner() {
+  const [sharing, setSharing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pushLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await usersApi.updateLocation(pos.coords.latitude, pos.coords.longitude);
+          setLastUpdate(new Date());
+          setLocationError(null);
+        } catch {
+          setLocationError("Failed to send location to server.");
+        }
+      },
+      (err) => {
+        setLocationError(`Location error: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const startSharing = () => {
+    setSharing(true);
+    pushLocation(); // Push immediately
+    intervalRef.current = setInterval(pushLocation, 30000); // then every 30s
+  };
+
+  const stopSharing = () => {
+    setSharing(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  return (
+    <div
+      className={`rounded-xl border p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+        sharing
+          ? "bg-green-50 border-green-200"
+          : "bg-blue-50 border-blue-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+            sharing ? "bg-green-100" : "bg-blue-100"
+          }`}
+        >
+          {sharing ? (
+            <Navigation className="w-5 h-5 text-green-600 animate-pulse" />
+          ) : (
+            <MapPin className="w-5 h-5 text-blue-600" />
+          )}
+        </div>
+        <div>
+          <p
+            className={`font-semibold text-sm ${
+              sharing ? "text-green-800" : "text-blue-800"
+            }`}
+          >
+            {sharing ? "📡 Sharing Live Location" : "Share Your Location"}
+          </p>
+          <p
+            className={`text-xs mt-0.5 ${
+              sharing ? "text-green-600" : "text-blue-600"
+            }`}
+          >
+            {sharing
+              ? lastUpdate
+                ? `Last sent: ${formatDistanceToNow(lastUpdate, { addSuffix: true })} · Updates every 30s`
+                : "Sending first update..."
+              : "Enable so managers can track you on the pickup map when EN_ROUTE"}
+          </p>
+          {locationError && (
+            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+              <WifiOff className="w-3 h-3" />
+              {locationError}
+            </p>
+          )}
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant={sharing ? "danger" : "primary"}
+        onClick={sharing ? stopSharing : startSharing}
+        leftIcon={
+          sharing ? (
+            <WifiOff className="w-4 h-4" />
+          ) : (
+            <Navigation className="w-4 h-4" />
+          )
+        }
+        className="shrink-0"
+      >
+        {sharing ? "Stop Sharing" : "Start Sharing"}
+      </Button>
+    </div>
+  );
+}
+
+// =====================================================
 // Main My Jobs Page
 // =====================================================
 
@@ -430,6 +552,9 @@ export default function MyJobsPage() {
         />
 
         <div className="p-6 space-y-6">
+          {/* Live Location Sharing Banner */}
+          <LiveLocationBanner />
+
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card padding="md" className="stats-card stats-card-accent">

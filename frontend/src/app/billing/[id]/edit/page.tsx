@@ -260,7 +260,7 @@ function InvoiceTemplate({
                 {item.gst_rate}%
               </td>
               <td className="px-4 py-3 text-right font-medium">
-                ₹{(item.quantity * item.unit_price).toFixed(2)}
+                ₹{(item.quantity * item.unit_price * (1 + (item.gst_rate || 0) / 100)).toFixed(2)}
               </td>
             </tr>
           ))}
@@ -590,8 +590,10 @@ function EditInvoiceContent() {
   const { mutate, isPending } = useMutation({
     mutationFn: (data: Parameters<typeof billingApi.updateInvoice>[1]) =>
       billingApi.updateInvoice(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
+    onSuccess: async () => {
+      // Force an immediate refetch so the detail page always gets the
+      // newly-recalculated totals, not stale cached data.
+      await queryClient.refetchQueries({ queryKey: ["invoice", id] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       router.push(`/billing/${id}`);
     },

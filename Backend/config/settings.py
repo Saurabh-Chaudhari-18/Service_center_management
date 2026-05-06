@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'suppliers.apps.SuppliersConfig',
     'enquiries.apps.EnquiriesConfig',
     'marketing.apps.MarketingConfig',
+    'gst.apps.GstConfig',
 ]
 
 MIDDLEWARE = [

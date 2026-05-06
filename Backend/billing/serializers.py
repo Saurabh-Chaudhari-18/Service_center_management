@@ -442,6 +442,12 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
         # Snapshot old totals for edit history
         old_total = str(instance.total_amount)
         
+        # Clear Django's prefetch cache so calculate_totals() queries the DB
+        # for the current line items instead of using the stale prefetch data
+        # (the viewset queryset uses prefetch_related('line_items')).
+        if hasattr(instance, '_prefetched_objects_cache'):
+            instance._prefetched_objects_cache.pop('line_items', None)
+        
         # Recalculate totals
         instance.calculate_totals()
         instance.save()

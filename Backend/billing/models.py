@@ -448,6 +448,10 @@ class InvoiceLineItem(TimeStampedModel):
         
         super().save(*args, **kwargs)
         
+        # Clear prefetch cache so calculate_totals() queries fresh line items
+        if hasattr(self.invoice, '_prefetched_objects_cache'):
+            self.invoice._prefetched_objects_cache.pop('line_items', None)
+        
         # Recalculate invoice totals
         self.invoice.calculate_totals()
         self.invoice.save()

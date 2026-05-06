@@ -244,13 +244,14 @@ class ReportsViewSet(viewsets.ViewSet):
             productivity_data.append({
                 'technician_id': str(tech.id),
                 'technician_name': tech.get_full_name(),
-                'jobs_completed': completed.count(),
-                'jobs_in_progress': current.count(),
-                'total_assigned': assigned_jobs.count(),
+                'assigned_jobs': assigned_jobs.count(),
+                'completed_jobs': completed.count(),
+                'pending_jobs': current.count(),
+                'avg_completion_days': 0,
             })
         
-        # Sort by jobs completed
-        productivity_data.sort(key=lambda x: x['jobs_completed'], reverse=True)
+        # Sort by completed jobs
+        productivity_data.sort(key=lambda x: x['completed_jobs'], reverse=True)
         
         return Response({
             'from_date': str(from_date),

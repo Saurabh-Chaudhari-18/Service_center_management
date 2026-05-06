@@ -108,6 +108,48 @@ class Expense(TimeStampedModel):
         help_text="Name of vendor/payee"
     )
 
+    # ─── ITC (Input Tax Credit) ────────────────────────────────────────────────
+    # Toggle: when False all GST fields below are ignored in ITC calculations
+    is_itc_eligible = models.BooleanField(
+        default=False,
+        help_text="Claim Input Tax Credit on this expense?"
+    )
+    vendor_gstin = models.CharField(
+        max_length=15,
+        blank=True,
+        help_text="Vendor GSTIN (required to claim ITC)"
+    )
+    vendor_invoice_number = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Vendor's invoice/bill number"
+    )
+    gst_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="GST rate applied on this expense (%)"
+    )
+    taxable_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Taxable amount (before GST)"
+    )
+    cgst_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="CGST paid (auto-calculated)"
+    )
+    sgst_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="SGST paid (auto-calculated)"
+    )
+    # ──────────────────────────────────────────────────────────────────────────
+
     # Tracking
     created_by = models.ForeignKey(
         User,
