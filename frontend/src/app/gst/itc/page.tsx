@@ -22,7 +22,7 @@ export default function ITCRegisterPage() {
   });
   const [source, setSource] = useState("all");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["gst-itc", range.from, range.to, source, currentBranch?.id],
     queryFn: () => gstApi.getITCRegister({ from_date: range.from, to_date: range.to, source, branch: currentBranch?.id }),
   });

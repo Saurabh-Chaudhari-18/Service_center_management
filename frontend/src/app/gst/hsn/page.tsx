@@ -13,7 +13,7 @@ export default function HSNPage() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<any>({
     queryKey: ["hsn-codes", search],
     queryFn: () => gstApi.getHSNCodes(search ? { q: search } : undefined),
   });

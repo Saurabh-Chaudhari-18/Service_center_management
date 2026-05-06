@@ -33,7 +33,7 @@ export default function GSTDashboardPage() {
     to: format(endOfMonth(today), "yyyy-MM-dd"),
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["gst-dashboard", range.from, range.to, currentBranch?.id],
     queryFn: () => gstApi.getDashboard({ from_date: range.from, to_date: range.to, branch: currentBranch?.id }),
   });

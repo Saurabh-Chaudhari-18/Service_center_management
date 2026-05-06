@@ -16,7 +16,7 @@ export default function GSTR1Page() {
   });
   const [downloading, setDownloading] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["gstr1", range.from, range.to, currentBranch?.id],
     queryFn: () => gstApi.getGSTR1Data({ from_date: range.from, to_date: range.to, branch: currentBranch?.id }),
   });

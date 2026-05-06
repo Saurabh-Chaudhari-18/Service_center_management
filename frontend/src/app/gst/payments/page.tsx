@@ -19,7 +19,7 @@ export default function GSTPaymentsPage() {
     branch: currentBranch?.id,
   });
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<any>({
     queryKey: ["gst-payments", currentBranch?.id],
     queryFn: () => gstApi.getPayments({ branch: currentBranch?.id }),
   });
