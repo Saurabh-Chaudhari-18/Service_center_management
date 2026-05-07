@@ -453,6 +453,7 @@ export interface Purchase extends BaseEntity {
   purchase_date: string;
   total_amount: number;
   taxable_amount?: number;
+  gst_rate?: number;
   cgst_amount?: number;
   sgst_amount?: number;
   total_gst?: number;

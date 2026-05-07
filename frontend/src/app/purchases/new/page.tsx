@@ -124,7 +124,7 @@ export default function NewPurchasePage() {
           invoice_number: invoiceNumber,
           purchase_date: purchaseDate,
           taxable_amount: taxableAmount ? parseFloat(taxableAmount) : undefined,
-          gst_rate: gstRate,
+          gst_rate: gstRate ? parseFloat(gstRate) : undefined,
           items: validItems as any
         });
         if (res && res.id) {
