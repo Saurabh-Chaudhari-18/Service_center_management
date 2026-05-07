@@ -188,16 +188,16 @@ export default function LedgerPage() {
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {outstanding.map((c: any) => (
                   <button
-                    key={c.customer_id}
-                    onClick={() => setSelectedCustomer({ id: c.customer_id, name: c.customer_name })}
+                    key={c.id}
+                    onClick={() => setSelectedCustomer({ id: c.id, name: c.name })}
                     className={`w-full text-left flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      selectedCustomer?.id === c.customer_id
+                      selectedCustomer?.id === c.id
                         ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20"
                         : "border-neutral-100 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800"
                     }`}
                   >
                     <div>
-                      <p className="text-sm font-medium text-neutral-900 dark:text-white">{c.customer_name}</p>
+                      <p className="text-sm font-medium text-neutral-900 dark:text-white">{c.name}</p>
                       <p className="text-xs text-neutral-500">{c.mobile || ""}</p>
                     </div>
                     <div className="flex items-center gap-1">
