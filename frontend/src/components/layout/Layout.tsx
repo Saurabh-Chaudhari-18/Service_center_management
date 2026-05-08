@@ -44,10 +44,11 @@ import { TechnicianLocationTracker } from "./TechnicianLocationTracker";
 
 interface NavItem {
   name: string;
-  href: string;
+  href?: string;
   icon: React.ElementType;
   permission?: keyof (typeof ROLE_PERMISSIONS)[UserRole];
   roles?: UserRole[];
+  children?: NavItem[];
 }
 
 const navigationItems: NavItem[] = [
@@ -58,13 +59,24 @@ const navigationItems: NavItem[] = [
   { name: "Customers",     href: "/customers",     icon: Users,           roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Enquiries",     href: "/enquiries",     icon: UserSearch,      roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Inventory",     href: "/inventory",     icon: Package,         permission: "canViewInventory" },
-  { name: "Purchases",     href: "/purchases",     icon: ShoppingCart,    permission: "canManageInventory" },
   { name: "Suppliers",     href: "/suppliers",     icon: Contact,         roles: ["OWNER", "MANAGER"] },
-  { name: "Billing",       href: "/billing",       icon: Receipt,         permission: "canViewBilling" },
-  { name: "Expenses",      href: "/expenses",      icon: IndianRupee,     roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
-  { name: "Ledger (Khata)",href: "/ledger",        icon: BookOpen,        roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
+  {
+    name: "Accounts & Finance",
+    icon: BookOpen,
+    roles: ["OWNER", "MANAGER", "ACCOUNTANT"],
+    children: [
+      { name: "Billing / Sales", href: "/billing/new", icon: Receipt },
+      { name: "Purchase",        href: "/purchases/new", icon: ShoppingCart },
+      { name: "Payment",         href: "/payments",      icon: IndianRupee },
+      { name: "Receipt",         href: "/receipts",      icon: IndianRupee },
+      { name: "Sales Register",  href: "/billing",       icon: FileText },
+      { name: "Purchase Register",href: "/purchases",    icon: FileText },
+      { name: "GST Dashboard",   href: "/gst",           icon: BadgePercent },
+      { name: "Khata (Ledger)",  href: "/ledger",        icon: BookOpen },
+      { name: "Expenses",        href: "/expenses",      icon: IndianRupee },
+    ]
+  },
   { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
-  { name: "GST",           href: "/gst",           icon: BadgePercent,    roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },
@@ -94,6 +106,14 @@ export function Sidebar() {
   const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole } = useAuth();
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
   const { close: closeMobile } = useMobileSidebar();
+
+  const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>({
+    "Accounts & Finance": true // default open for convenience
+  });
+
+  const toggleExpanded = (name: string) => {
+    setExpandedItems(prev => ({ ...prev, [name]: !prev[name] }));
+  };
 
   const visibleNavItems = navigationItems.filter((item) => {
     if (item.permission) return hasPermission(item.permission);
@@ -177,14 +197,59 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-1 space-y-0.5 overflow-y-auto">
         {visibleNavItems.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+          const isActive = item.href ? (pathname === item.href || pathname?.startsWith(`${item.href}/`)) : false;
           const Icon = item.icon;
+          
+          if (item.children) {
+            const isExpanded = expandedItems[item.name];
+            return (
+              <div key={item.name} className="space-y-0.5">
+                <button
+                  onClick={() => toggleExpanded(item.name)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-sm font-medium ${
+                    isExpanded ? "bg-white/5 text-white" : "text-violet-200 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-4.5 h-4.5 shrink-0 text-violet-300" style={{ width: "1.1rem", height: "1.1rem" }} />
+                    <span>{item.name}</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                </button>
+                
+                {isExpanded && (
+                  <div className="pl-9 pr-2 space-y-0.5 py-1">
+                    {item.children.map((child) => {
+                      const isChildActive = child.href ? (pathname === child.href || pathname?.startsWith(`${child.href}/`)) : false;
+                      const ChildIcon = child.icon;
+                      return (
+                        <Link
+                          key={child.name}
+                          href={child.href || "#"}
+                          onClick={closeMobile}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                            isChildActive
+                              ? "bg-violet-500/20 text-white font-medium"
+                              : "text-violet-200/80 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <ChildIcon className="w-4 h-4 shrink-0" />
+                          <span>{child.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.name}
-              href={item.href}
+              href={item.href || "#"}
               className={`sidebar-item ${isActive ? "active" : ""}`}
-              onClick={closeMobile} // close sidebar on nav click (mobile)
+              onClick={closeMobile}
             >
               <Icon className="w-4.5 h-4.5 shrink-0" style={{ width: "1.1rem", height: "1.1rem" }} />
               <span>{item.name}</span>

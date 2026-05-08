@@ -616,12 +616,21 @@ export const purchasesApi = {
     return apiPatch<Purchase>(`/inventory/purchases/${id}/`, data);
   },
 
-  importExcel: async (file: File, vendorName: string, invoiceNumber: string, purchaseDate: string) => {
+  importExcel: async (file: File, vendorName: string, invoiceNumber: string, purchaseDate: string, paidAmount?: string, paymentMethod?: string) => {
     return apiUpload<{ message: string; purchase_id: string; total_amount: number }>("/inventory/purchases/import_excel/", file, "file", {
       vendor_name: vendorName,
       invoice_number: invoiceNumber || "",
       purchase_date: purchaseDate,
+      paid_amount: paidAmount || "0",
+      payment_method: paymentMethod || "CASH"
     });
+  },
+
+  recordPayment: async (id: string, amount: number, payment_method: string, notes: string = "") => {
+    return apiPost<{ message: string; paid_amount: string; balance_due: string; status: string }>(
+      `/inventory/purchases/${id}/record_payment/`,
+      { amount, payment_method, notes }
+    );
   },
 };
 

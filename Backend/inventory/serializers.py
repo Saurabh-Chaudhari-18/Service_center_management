@@ -183,7 +183,20 @@ class LowStockAlertSerializer(serializers.ModelSerializer):
         return max(0, obj.low_stock_threshold - obj.quantity)
 
 
-from inventory.models import Purchase, PurchaseItem
+from inventory.models import Purchase, PurchaseItem, PurchasePayment
+
+class PurchasePaymentSerializer(serializers.ModelSerializer):
+    """Serializer for purchase payments."""
+    paid_by_name = serializers.CharField(source='paid_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = PurchasePayment
+        fields = [
+            'id', 'purchase', 'amount', 'payment_method',
+            'reference', 'notes', 'paid_by', 'paid_by_name',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'paid_by']
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
     """Serializer for items within a purchase — includes GST breakdown."""
@@ -204,6 +217,8 @@ class PurchaseItemSerializer(serializers.ModelSerializer):
 class PurchaseSerializer(serializers.ModelSerializer):
     """Serializer for tracking inventory purchases — includes ITC/GST fields."""
     items = PurchaseItemSerializer(many=True, read_only=True)
+    payments = PurchasePaymentSerializer(many=True, read_only=True)
+    balance_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     
     class Meta:
         model = Purchase
@@ -212,8 +227,19 @@ class PurchaseSerializer(serializers.ModelSerializer):
             'total_amount', 'notes', 'items', 'created_at',
             # GST / ITC fields
             'vendor_gstin', 'taxable_amount', 'total_gst', 'cgst_amount', 'sgst_amount',
+            # Financials
+            'paid_amount', 'balance_due', 'status', 'payments',
         ]
-        read_only_fields = ['id', 'created_at', 'total_amount', 'total_gst', 'cgst_amount', 'sgst_amount']
+        read_only_fields = ['id', 'created_at', 'total_amount', 'total_gst', 'cgst_amount', 'sgst_amount', 'balance_due', 'status']
+
+class RecordPurchasePaymentSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = serializers.ChoiceField(choices=[
+        ('CASH', 'Cash'), ('UPI', 'UPI'), 
+        ('CARD', 'Credit/Debit Card'), ('BANK_TRANSFER', 'Bank Transfer')
+    ])
+    reference = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
 
 
 class ExcelImportSerializer(serializers.Serializer):

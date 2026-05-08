@@ -475,6 +475,12 @@ class StockTransferItem(models.Model):
         return f"{self.inventory_item.name} x{self.quantity}"
 
 
+class PurchaseStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    PARTIAL = 'PARTIAL', 'Partial'
+    PAID = 'PAID', 'Paid'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
 class Purchase(TimeStampedModel):
     """
     Record of a bulk purchase of inventory from a vendor.
@@ -496,12 +502,61 @@ class Purchase(TimeStampedModel):
     )
     invoice_number = models.CharField(max_length=100, blank=True)
     purchase_date = models.DateField()
+    
+    # Financial fields
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    status = models.CharField(
+        max_length=20,
+        choices=PurchaseStatus.choices,
+        default=PurchaseStatus.PENDING
+    )
+    
+    # GST fields
     taxable_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     cgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     sgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     total_gst = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     notes = models.TextField(blank=True)
+
+    @property
+    def balance_due(self):
+        """Calculate outstanding balance."""
+        from decimal import Decimal
+        try:
+            return Decimal(str(self.total_amount)) - Decimal(str(self.paid_amount))
+        except (ValueError, TypeError, Exception):
+            return Decimal('0')
+
+    @property
+    def is_fully_paid(self):
+        """Check if purchase is fully paid."""
+        return self.balance_due <= Decimal('0')
+
+    def _update_payment_status(self):
+        """Update status based on paid amount."""
+        if self.status == PurchaseStatus.CANCELLED:
+            return
+            
+        from decimal import Decimal
+        
+        try:
+            paid_dec = Decimal(str(self.paid_amount))
+            total_dec = Decimal(str(self.total_amount))
+        except (ValueError, TypeError, Exception):
+            paid_dec = Decimal('0')
+            total_dec = Decimal('0')
+        
+        if paid_dec >= total_dec and total_dec > 0:
+            self.status = PurchaseStatus.PAID
+        elif paid_dec > 0:
+            self.status = PurchaseStatus.PARTIAL
+        else:
+            self.status = PurchaseStatus.PENDING
+
+    def save(self, *args, **kwargs):
+        self._update_payment_status()
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-purchase_date', '-created_at']
@@ -521,6 +576,44 @@ class Purchase(TimeStampedModel):
         self.cgst_amount = totals['cgst'] or Decimal('0.00')
         self.sgst_amount = totals['sgst'] or Decimal('0.00')
         self.total_gst = self.cgst_amount + self.sgst_amount
+        self._update_payment_status()
+
+
+class PurchasePayment(TimeStampedModel):
+    """
+    Record of a payment made towards a purchase.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purchase = models.ForeignKey(
+        Purchase,
+        on_delete=models.CASCADE,
+        related_name='payments'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(
+        max_length=50,
+        choices=[
+            ('CASH', 'Cash'),
+            ('UPI', 'UPI'),
+            ('CARD', 'Credit/Debit Card'),
+            ('BANK_TRANSFER', 'Bank Transfer'),
+        ],
+        default='CASH'
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    paid_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='purchase_payments_made'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.payment_method} payment of {self.amount} for {self.purchase}"
 
 
 class PurchaseItem(TimeStampedModel):

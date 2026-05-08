@@ -117,22 +117,40 @@ export default function PurchasesPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-slate-400">
+                        <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-slate-400 mt-2">
                           <span className="flex items-center gap-1">
                             <Calculator className="w-4 h-4" />
                             {formatDate(purchase.purchase_date)}
                           </span>
+                          
+                          {/* Status Badge */}
+                          <div className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                            purchase.status === 'PAID' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                            purchase.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                            purchase.status === 'CANCELLED' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' :
+                            'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400'
+                          }`}>
+                            {purchase.status || 'UNPAID'}
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between md:justify-end gap-6">
+                      <div className="flex flex-col md:flex-row items-end md:items-center justify-between md:justify-end gap-6">
                         <div className="text-right">
                           <p className="text-sm text-neutral-500 dark:text-slate-400 mb-1">Total Amount</p>
-                          <p className="text-xl font-bold text-primary-600 dark:text-emerald-400">
+                          <p className="text-xl font-bold text-neutral-900 dark:text-white">
                             {formatCurrency(purchase.total_amount)}
                           </p>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-neutral-50 dark:bg-slate-700/50 border border-neutral-100 dark:border-transparent flex items-center justify-center group-hover:bg-primary-50 dark:group-hover:bg-emerald-500/20 group-hover:border-primary-100 transition-colors">
+                        {parseFloat(String(purchase.balance_due)) > 0 && (
+                          <div className="text-right">
+                            <p className="text-xs font-medium text-rose-500 uppercase tracking-wide mb-1">Balance Due</p>
+                            <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                              {formatCurrency(purchase.balance_due)}
+                            </p>
+                          </div>
+                        )}
+                        <div className="w-10 h-10 rounded-full bg-neutral-50 dark:bg-slate-700/50 border border-neutral-100 dark:border-transparent flex items-center justify-center group-hover:bg-primary-50 dark:group-hover:bg-emerald-500/20 group-hover:border-primary-100 transition-colors self-center">
                           <ChevronRight className="w-5 h-5 text-neutral-400 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-emerald-400 transition-colors" />
                         </div>
                       </div>

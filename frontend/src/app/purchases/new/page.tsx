@@ -21,6 +21,9 @@ export default function NewPurchasePage() {
   const [taxableAmount, setTaxableAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
   
+  const [paidAmount, setPaidAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  
   const [entryMode, setEntryMode] = useState<"excel" | "manual">("excel");
   const [manualItems, setManualItems] = useState<{ inventory_item: string; quantity: number; unit_price: number }[]>([
     { inventory_item: "", quantity: 1, unit_price: 0 }
@@ -108,7 +111,7 @@ export default function NewPurchasePage() {
           setIsUploading(false);
           return;
         }
-        const res = await purchasesApi.importExcel(file, vendorName, invoiceNumber, purchaseDate);
+        const res = await purchasesApi.importExcel(file, vendorName, invoiceNumber, purchaseDate, paidAmount, paymentMethod);
         router.push(`/purchases/${res.purchase_id}`);
       } else {
         const validItems = manualItems.filter(i => i.inventory_item && i.quantity > 0 && i.unit_price >= 0);
@@ -125,8 +128,10 @@ export default function NewPurchasePage() {
           purchase_date: purchaseDate,
           taxable_amount: taxableAmount ? parseFloat(taxableAmount) : undefined,
           gst_rate: gstRate ? parseFloat(gstRate) : undefined,
+          paid_amount: paidAmount ? parseFloat(paidAmount) : undefined,
+          payment_method: paymentMethod,
           items: validItems as any
-        });
+        } as any);
         if (res && res.id) {
           router.push(`/purchases/${res.id}`);
         } else {
@@ -441,6 +446,49 @@ export default function NewPurchasePage() {
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Initial Payment Section */}
+              <div className="bg-white/90 dark:bg-slate-800/60 backdrop-blur-xl border border-neutral-200 dark:border-slate-700/50 shadow-sm rounded-2xl p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-neutral-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm font-bold">₹</span>
+                  Initial Payment
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
+                      Amount Paid (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={paidAmount}
+                      onChange={(e) => setPaidAmount(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-900/50 border border-neutral-200 dark:border-slate-700/50 rounded-xl text-neutral-900 dark:text-slate-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all placeholder:text-neutral-400"
+                      placeholder="e.g. 5000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-600 dark:text-slate-400 mb-1">
+                      Payment Method
+                    </label>
+                    <Select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      options={[
+                        { value: "CASH", label: "Cash" },
+                        { value: "UPI", label: "UPI" },
+                        { value: "CARD", label: "Credit/Debit Card" },
+                        { value: "BANK_TRANSFER", label: "Bank Transfer" }
+                      ]}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-500 mt-2">
+                  If you paid the vendor immediately upon purchase, enter the amount here to automatically update their Ledger/Balance.
+                </p>
               </div>
 
               <div className="flex justify-end pt-4">

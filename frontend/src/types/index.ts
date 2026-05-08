@@ -459,6 +459,11 @@ export interface Purchase extends BaseEntity {
   total_gst?: number;
   notes: string;
   items: PurchaseItem[];
+  // Financial fields
+  paid_amount?: number;
+  balance_due?: number;
+  status?: "PENDING" | "PARTIAL" | "PAID" | "CANCELLED";
+  payments?: any[];
 }
 
 // =====================================================

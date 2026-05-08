@@ -426,6 +426,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['vendor_name', 'invoice_number']
     ordering_fields = ['purchase_date', 'total_amount', 'created_at']
+    filterset_fields = ['status']
     ordering = ['-purchase_date']
     branch_field = 'branch'
     queryset = Purchase.objects.all()
@@ -435,7 +436,43 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return queryset
-        return queryset.prefetch_related('items__inventory_item')
+        return queryset.prefetch_related('items__inventory_item', 'payments')
+
+    @action(detail=True, methods=['post'])
+    def record_payment(self, request, pk=None):
+        """Record a payment against a purchase."""
+        purchase = self.get_object()
+        from inventory.serializers import RecordPurchasePaymentSerializer
+        from inventory.models import PurchasePayment
+        from decimal import Decimal
+        
+        serializer = RecordPurchasePaymentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        amount = serializer.validated_data['amount']
+        if purchase.status == 'CANCELLED':
+            return Response({'error': 'Cannot pay cancelled purchase'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        with transaction.atomic():
+            payment = PurchasePayment.objects.create(
+                purchase=purchase,
+                amount=amount,
+                payment_method=serializer.validated_data['payment_method'],
+                reference=serializer.validated_data.get('reference', ''),
+                notes=serializer.validated_data.get('notes', ''),
+                paid_by=request.user
+            )
+            purchase.paid_amount += Decimal(str(amount))
+            purchase.save() # will trigger _update_payment_status
+            
+        # Refetch to get updated status
+        purchase.refresh_from_db()
+        return Response({
+            'message': 'Payment recorded successfully',
+            'paid_amount': str(purchase.paid_amount),
+            'balance_due': str(purchase.balance_due),
+            'status': purchase.status
+        })
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -502,6 +539,30 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             purchase.cgst_amount = half
             purchase.sgst_amount = half
             purchase.total_gst = half * 2
+
+        # Record Initial Payment
+        from decimal import Decimal, InvalidOperation
+        paid_amount_raw = self.request.data.get('paid_amount', 0)
+        try:
+            if not paid_amount_raw:
+                paid_amount = Decimal('0')
+            else:
+                paid_amount = Decimal(str(paid_amount_raw))
+        except (ValueError, TypeError, InvalidOperation):
+            paid_amount = Decimal('0')
+
+
+        if paid_amount > 0:
+            payment_method = self.request.data.get('payment_method', 'CASH')
+            from inventory.models import PurchasePayment
+            PurchasePayment.objects.create(
+                purchase=purchase,
+                amount=paid_amount,
+                payment_method=payment_method,
+                paid_by=self.request.user,
+                notes="Initial payment upon purchase"
+            )
+            purchase.paid_amount = paid_amount
 
         purchase.save()
 

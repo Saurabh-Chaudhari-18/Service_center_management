@@ -277,6 +277,35 @@ class Invoice(TimeStampedModel):
                 'total_amount': str(self.total_amount),
             }
         )
+
+        # Automate Khata Credit Entry if there's a balance due
+        if self.balance_due > Decimal('0'):
+            try:
+                from marketing.models import CustomerLedgerEntry
+                
+                last_entry = CustomerLedgerEntry.objects.filter(
+                    customer=self.customer
+                ).order_by('-entry_date', '-created_at').first()
+                
+                current_balance = last_entry.running_balance if last_entry else Decimal('0.00')
+                new_balance = current_balance + self.balance_due
+
+                CustomerLedgerEntry.objects.create(
+                    branch=self.branch,
+                    customer=self.customer,
+                    entry_type='CREDIT',
+                    amount=self.balance_due,
+                    description=f"Invoice generated - {self.invoice_number}",
+                    reference_type='INVOICE',
+                    reference_id=str(self.pk),
+                    entry_date=self.invoice_date,
+                    running_balance=new_balance,
+                    created_by=user,
+                    notes=f"Auto-generated from Invoice {self.invoice_number}"
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to auto-generate Khata credit entry: {str(e)}")
         
         # Send Notification (Email/SMS) that invoice is generated
         try:
@@ -330,6 +359,35 @@ class Invoice(TimeStampedModel):
                     'new_balance': str(self.balance_due),
                 }
             )
+
+            # Automate Khata Debit Entry
+            try:
+                from marketing.models import CustomerLedgerEntry
+                from django.utils import timezone
+                
+                last_entry = CustomerLedgerEntry.objects.filter(
+                    customer=self.customer
+                ).order_by('-entry_date', '-created_at').first()
+                
+                current_balance = last_entry.running_balance if last_entry else Decimal('0.00')
+                new_balance = current_balance - amount
+                
+                CustomerLedgerEntry.objects.create(
+                    branch=self.branch,
+                    customer=self.customer,
+                    entry_type='DEBIT',
+                    amount=amount,
+                    description=f"Payment received - {payment_method}",
+                    reference_type='PAYMENT',
+                    reference_id=str(payment.pk),
+                    entry_date=timezone.now().date(),
+                    running_balance=new_balance,
+                    created_by=user,
+                    notes=f"Auto-generated payment against Invoice {self.invoice_number}"
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to auto-generate Khata debit entry: {str(e)}")
             
             return payment
 
