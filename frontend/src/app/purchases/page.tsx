@@ -146,7 +146,7 @@ export default function PurchasesPage() {
                           <div className="text-right">
                             <p className="text-xs font-medium text-rose-500 uppercase tracking-wide mb-1">Balance Due</p>
                             <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
-                              {formatCurrency(purchase.balance_due)}
+                              {formatCurrency(purchase.balance_due || 0)}
                             </p>
                           </div>
                         )}
