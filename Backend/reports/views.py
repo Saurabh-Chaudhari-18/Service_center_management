@@ -454,203 +454,80 @@ class ReportsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def export_excel(self, request):
         """
-        Export report data to Excel.
+        Kick off an async Excel export. Returns a task_id immediately.
+        Poll GET /api/reports/export_status/?task_id=<id> for the download URL.
         """
         report_type = request.query_params.get('report', 'revenue')
-        
-        # Log export
+        from_date, to_date = self.get_date_range()
+        branch_ids = [str(b.id) for b in self.get_accessible_branches()]
+
         from audit.services import AuditLogService
         AuditLogService.log_export(
             user=request.user,
             export_type='EXCEL',
             report_name=report_type,
-            parameters=dict(request.query_params)
+            parameters=dict(request.query_params),
         )
-        
-        try:
-            import openpyxl
-            from openpyxl.styles import Font, Alignment, Border, Side
-            from django.http import HttpResponse
-            
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = report_type.capitalize()
-            
-            # Get report data based on type
-            if report_type == 'revenue':
-                data = self.revenue(request).data
-                headers = ['Branch', 'Total Revenue', 'Collected', 'Outstanding', 'Invoices']
-                ws.append(headers)
-                for branch in data.get('branches', []):
-                    ws.append([
-                        branch.get('branch__name', ''),
-                        branch.get('total_revenue', 0),
-                        branch.get('total_collected', 0),
-                        float(branch.get('total_revenue', 0) or 0) - float(branch.get('total_collected', 0) or 0),
-                        branch.get('invoice_count', 0),
-                    ])
-            
-            elif report_type == 'pending_jobs':
-                data = self.pending_jobs(request).data
-                headers = ['Status', 'Count']
-                ws.append(headers)
-                for status in data.get('by_status', []):
-                    ws.append([status.get('status', ''), status.get('count', 0)])
-            
-            elif report_type == 'inventory':
-                data = self.inventory_consumption(request).data
-                headers = ['Item', 'SKU', 'Quantity Used', 'Total Value']
-                ws.append(headers)
-                for item in data.get('top_items', []):
-                    ws.append([
-                        item.get('inventory_item__name', ''),
-                        item.get('inventory_item__sku', ''),
-                        item.get('total_quantity', 0),
-                        item.get('total_value', 0),
-                    ])
-            
-            # Style header row
-            header_font = Font(bold=True)
-            for cell in ws[1]:
-                cell.font = header_font
-            
-            # Auto-adjust column widths
-            for column in ws.columns:
-                max_length = max(len(str(cell.value or '')) for cell in column)
-                ws.column_dimensions[column[0].column_letter].width = max_length + 2
-            
-            # Save to response
-            response = HttpResponse(
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = f'attachment; filename="{report_type}_report.xlsx"'
-            wb.save(response)
-            
-            return response
-            
-        except ImportError:
-            return Response(
-                {'error': 'Excel export requires openpyxl library.'},
-                status=status.HTTP_501_NOT_IMPLEMENTED
-            )
+
+        from reports.tasks import generate_excel_report
+        task = generate_excel_report.delay(report_type, branch_ids, str(from_date), str(to_date))
+
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'status_url': f'/api/reports/export_status/?task_id={task.id}',
+        })
+
+    @action(detail=False, methods=['get'])
+    def export_status(self, request):
+        """
+        Poll the status of an async export task.
+        Returns {status, download_url} when complete.
+        """
+        task_id = request.query_params.get('task_id')
+        if not task_id:
+            return Response({'error': 'task_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from celery.result import AsyncResult
+        result = AsyncResult(task_id)
+
+        if result.state == 'PENDING':
+            return Response({'status': 'pending'})
+        if result.state == 'STARTED' or result.state == 'RETRY':
+            return Response({'status': 'processing'})
+        if result.state == 'SUCCESS':
+            return Response({'status': 'complete', 'download_url': result.get()})
+        # FAILURE
+        return Response(
+            {'status': 'failed', 'error': str(result.result)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     @action(detail=False, methods=['get'])
     def gstr1_export(self, request):
         """
-        CA-Ready GSTR-1 format export.
-        Exports finalized invoices in the standard GSTR-1 format with:
-        - GSTIN, Invoice Number, Invoice Date, Invoice Value
-        - Place of Supply, Taxable Value, CGST, SGST, IGST
+        Kick off an async CA-ready GSTR-1 Excel export.
+        Poll /api/reports/export_status/?task_id=<id> for the download URL.
         """
-        from billing.models import Invoice, InvoiceStatus
-        
-        branches = self.get_accessible_branches()
         from_date, to_date = self.get_date_range()
-        
-        invoices = Invoice.objects.filter(
-            branch__in=branches,
-            is_finalized=True,
-            invoice_date__gte=from_date,
-            invoice_date__lte=to_date
-        ).exclude(
-            status=InvoiceStatus.CANCELLED
-        ).select_related('branch').order_by('invoice_date')
+        branch_ids = [str(b.id) for b in self.get_accessible_branches()]
 
-        try:
-            import openpyxl
-            from openpyxl.styles import Font, Alignment, PatternFill
-            from django.http import HttpResponse
+        from audit.services import AuditLogService
+        AuditLogService.log_export(
+            user=request.user,
+            export_type='EXCEL',
+            report_name='GSTR-1',
+            parameters=dict(request.query_params),
+        )
 
-            wb = openpyxl.Workbook()
+        from reports.tasks import generate_gstr1_report
+        task = generate_gstr1_report.delay(branch_ids, str(from_date), str(to_date))
 
-            # --- B2B Sheet (Business to Business) ---
-            ws_b2b = wb.active
-            ws_b2b.title = "B2B"
-            b2b_headers = [
-                'GSTIN of Recipient', 'Invoice Number', 'Invoice Date',
-                'Invoice Value', 'Place of Supply', 'Reverse Charge',
-                'Invoice Type', 'E-Commerce GSTIN', 'Rate',
-                'Taxable Value', 'CGST Amount', 'SGST Amount', 'IGST Amount',
-                'Cess Amount'
-            ]
-            ws_b2b.append(b2b_headers)
-
-            # --- B2C Sheet (Business to Consumer) ---
-            ws_b2c = wb.create_sheet("B2CL")
-            b2c_headers = [
-                'Invoice Number', 'Invoice Date', 'Invoice Value',
-                'Place of Supply', 'Rate', 'Taxable Value',
-                'CGST Amount', 'SGST Amount', 'IGST Amount', 'Cess Amount'
-            ]
-            ws_b2c.append(b2c_headers)
-
-            for inv in invoices:
-                state_code = inv.customer_state_code or (inv.branch.state_code if inv.branch else '')
-                place_of_supply = f"{state_code}-{inv.branch.state if inv.branch else ''}"
-                
-                row_data = [
-                    inv.invoice_number,
-                    inv.invoice_date.strftime('%d-%m-%Y') if inv.invoice_date else '',
-                    float(inv.total_amount),
-                    place_of_supply,
-                    float(inv.line_items.first().gst_rate if inv.line_items.exists() else 18),
-                    float(inv.subtotal),
-                    float(inv.cgst_total),
-                    float(inv.sgst_total),
-                    float(inv.igst_total),
-                    0  # Cess
-                ]
-
-                if inv.customer_gstin:
-                    # B2B
-                    ws_b2b.append([
-                        inv.customer_gstin,
-                        *row_data[:3],
-                        place_of_supply,
-                        'N',  # Reverse Charge
-                        'Regular',
-                        '',  # E-Commerce GSTIN
-                        *row_data[4:]
-                    ])
-                else:
-                    # B2C
-                    ws_b2c.append(row_data)
-
-            # Style headers
-            header_font = Font(bold=True, color="FFFFFF")
-            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-            
-            for ws in [ws_b2b, ws_b2c]:
-                for cell in ws[1]:
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = Alignment(horizontal="center")
-                # Auto-width
-                for col in ws.columns:
-                    max_len = max(len(str(cell.value or '')) for cell in col)
-                    ws.column_dimensions[col[0].column_letter].width = max_len + 3
-
-            # Log export
-            from audit.services import AuditLogService
-            AuditLogService.log_export(
-                user=request.user,
-                export_type='EXCEL',
-                report_name='GSTR-1',
-                parameters=dict(request.query_params)
-            )
-
-            response = HttpResponse(
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = f'attachment; filename="GSTR1_{from_date}_{to_date}.xlsx"'
-            wb.save(response)
-            return response
-
-        except ImportError:
-            return Response(
-                {'error': 'Excel export requires openpyxl library.'},
-                status=status.HTTP_501_NOT_IMPLEMENTED
-            )
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'status_url': f'/api/reports/export_status/?task_id={task.id}',
+        })
 
     @action(detail=False, methods=['get'])
     def net_profit(self, request):

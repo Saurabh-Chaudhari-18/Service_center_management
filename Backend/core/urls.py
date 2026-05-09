@@ -5,7 +5,7 @@ Core URL configuration.
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from core.views import (
-    OrganizationViewSet, BranchViewSet, UserViewSet, RoleListView
+    OrganizationViewSet, BranchViewSet, UserViewSet, RoleListView, HealthCheckView
 )
 
 app_name = 'core'
@@ -18,4 +18,5 @@ router.register(r'users', UserViewSet, basename='user')
 urlpatterns = [
     path('', include(router.urls)),
     path('roles/', RoleListView.as_view(), name='role-list'),
+    path('healthz/', HealthCheckView.as_view(), name='healthz'),
 ]

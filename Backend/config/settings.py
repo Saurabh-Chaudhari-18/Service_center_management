@@ -108,7 +108,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': env.db(
         'DATABASE_URL',
-        default='postgres://postgres:postgres@localhost:5432/service_center_db'
+        default='postgres://postgres:postgres@localhost:5432/service_center_db',
+        engine='django.db.backends.postgresql',  # psycopg3 — set ENGINE explicitly
     )
 }
 
@@ -248,12 +249,18 @@ TEXTBEE_API_KEY = env('TEXTBEE_API_KEY', default='')
 TEXTBEE_DEVICE_ID = env('TEXTBEE_DEVICE_ID', default='')
 
 # -----------------------------------------------------------------------
-# WhatsApp Configuration — Twilio (Paid, disabled by default)
-# Uncomment and configure these when/if you upgrade to Twilio WhatsApp.
+# WhatsApp Configuration
+# WHATSAPP_PROVIDER = 'cloud'   → Meta WhatsApp Cloud API (free 1k conv/mo)
+# WHATSAPP_PROVIDER = 'twilio'  → Twilio (paid)
+# Leave blank to disable WhatsApp.
 # -----------------------------------------------------------------------
-# TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
-# TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
-# TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='')
+WHATSAPP_PROVIDER = env('WHATSAPP_PROVIDER', default='cloud')
+
+# Meta WhatsApp Cloud API (free tier — recommended)
+WHATSAPP_CLOUD_TOKEN = env('WHATSAPP_CLOUD_TOKEN', default='')
+WHATSAPP_PHONE_NUMBER_ID = env('WHATSAPP_PHONE_NUMBER_ID', default='')
+
+# Twilio (fallback / paid)
 TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
 TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='')
@@ -278,8 +285,10 @@ LOGGING = {
     'handlers': {
         'file': {
             'level': 'INFO',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'service_center.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 10,
             'formatter': 'verbose',
         },
         'console': {
@@ -311,4 +320,101 @@ EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER', default='noreply@servicecenter.com')
+
+# -----------------------------------------------------------------------
+# Database connection persistence — reuse connections instead of opening
+# a new PG connection on every request (saves ~5 ms TLS handshake).
+# -----------------------------------------------------------------------
+DATABASES['default']['CONN_MAX_AGE'] = env.int('CONN_MAX_AGE', default=60)
+
+# -----------------------------------------------------------------------
+# Cache — Redis (shared across all gunicorn workers / Celery workers).
+# Falls back to LocMemCache in development when REDIS_URL is not set.
+# -----------------------------------------------------------------------
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'IGNORE_EXCEPTIONS': True,  # degrade gracefully if Redis is down
+        },
+        'KEY_PREFIX': 'scm',
+        'TIMEOUT': 300,
+    }
+}
+
+# -----------------------------------------------------------------------
+# Celery — async task queue backed by Redis.
+# Workers are started separately: celery -A config worker -l info
+# -----------------------------------------------------------------------
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=REDIS_URL)
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=REDIS_URL)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ACKS_LATE = True           # re-queue if worker dies mid-task
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_TASK_SOFT_TIME_LIMIT = 120      # SoftTimeLimitExceeded after 2 min
+CELERY_TASK_TIME_LIMIT = 180           # SIGKILL after 3 min (safety net)
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # fair dispatch for long-running tasks
+CELERY_RESULT_EXPIRES = 60 * 60 * 24  # keep results for 24 h
+
+# -----------------------------------------------------------------------
+# HTTP Security Headers
+# Only active when DEBUG=False (i.e. behind an HTTPS-terminating proxy).
+# -----------------------------------------------------------------------
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+X_FRAME_OPTIONS = 'DENY'
+
+# -----------------------------------------------------------------------
+# DRF Rate Limiting / Throttling
+# -----------------------------------------------------------------------
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+    'rest_framework.throttling.AnonRateThrottle',
+    'rest_framework.throttling.UserRateThrottle',
+    'rest_framework.throttling.ScopedRateThrottle',
+]
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'anon': '60/min',
+    'user': '1000/min',
+    'login': '10/min',
+    'token_refresh': '30/min',
+    'otp': '5/min',
+    'public_track': '30/min',
+}
+
+# -----------------------------------------------------------------------
+# Sentry Error Tracking (backend)
+# Set SENTRY_DSN in .env to enable. Free tier: 5k events/month.
+# Get DSN from https://sentry.io (free account → New Project → Django).
+# -----------------------------------------------------------------------
+SENTRY_DSN = env('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration(), CeleryIntegration(), RedisIntegration()],
+        traces_sample_rate=0.1,   # 10 % of requests → performance data
+        send_default_pii=False,   # don't send user email/IP to Sentry
+        environment='production' if not DEBUG else 'development',
+    )
 

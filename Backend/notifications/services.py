@@ -223,7 +223,9 @@ class NotificationService:
                 else:
                     message = template.render(context)
                 
-                # Create log entry
+                # Persist the log row first — this is the durability record.
+                # The actual send is dispatched to a Celery worker so it never
+                # blocks the request thread.
                 log = NotificationLog.objects.create(
                     branch=branch,
                     notification_type=notification_type,
@@ -235,40 +237,35 @@ class NotificationService:
                     invoice=invoice,
                     status='PENDING'
                 )
-                
-                # Send via appropriate provider
+
+                # Dispatch to background worker
+                from notifications.tasks import deliver_sms, deliver_whatsapp, deliver_email
+
                 if channel == NotificationChannel.WHATSAPP:
-                    NotificationService._send_whatsapp(
-                        customer.mobile, message, log
-                    )
+                    deliver_whatsapp.delay(str(log.id))
+
                 elif channel == NotificationChannel.SMS:
-                    NotificationService._send_sms(
-                        customer.mobile, message, log
-                    )
+                    deliver_sms.delay(str(log.id))
+
                 elif channel == NotificationChannel.EMAIL:
-                    default_subject = f"Job Card {job.job_number} — Device Received" if notification_type == NotificationType.JOB_CREATED else f"Update on Job {job.job_number}"
-                    
-                    # Prepare the rich HTML version
+                    default_subject = (
+                        f"Job Card {job.job_number} — Device Received"
+                        if notification_type == NotificationType.JOB_CREATED
+                        else f"Update on Job {job.job_number}"
+                    )
+                    subject = template.subject if template and template.subject else default_subject
+
                     html_context = {
                         'branch': branch,
                         'message': message,
                         'job_number': context.get('job_number'),
                         'device': context.get('device'),
                         'invoice_number': context.get('invoice_number'),
-                        'amount': context.get('amount')
+                        'amount': context.get('amount'),
                     }
                     html_message = render_to_string('emails/job_notification.html', html_context)
 
-                    NotificationService._send_email(
-                        customer.email,
-                        template.subject if template and template.subject else default_subject,
-                        message,
-                        log,
-                        html_message=html_message,
-                        invoice=invoice,
-                        job_pdf=job_pdf,
-                        job_pdf_filename=job_pdf_filename,
-                    )
+                    deliver_email.delay(str(log.id), customer.email, subject, html_message)
                 
                 # Only break if we successfully sent a mobile notification (SMS/WA). 
                 # We still want the loop to continue to send the EMAIL (which is the last channel in the list).
@@ -406,40 +403,94 @@ class NotificationService:
 
     @staticmethod
     def _send_whatsapp(mobile, message, log):
-        """Send WhatsApp message via Twilio."""
+        """
+        Send WhatsApp message via the configured provider.
+
+        WHATSAPP_PROVIDER=cloud  → Meta WhatsApp Cloud API (free 1k conv/month)
+        WHATSAPP_PROVIDER=twilio → Twilio (paid)
+        """
+        provider = getattr(settings, 'WHATSAPP_PROVIDER', 'cloud')
+        clean_mobile = str(mobile).strip()
+        formatted_mobile = clean_mobile if clean_mobile.startswith('+') else f"+91{clean_mobile}"
+
+        if provider == 'cloud':
+            NotificationService._send_whatsapp_cloud(formatted_mobile, message, log)
+        else:
+            NotificationService._send_whatsapp_twilio(formatted_mobile, message, log)
+
+    @staticmethod
+    def _send_whatsapp_cloud(formatted_mobile, message, log):
+        """Send via Meta WhatsApp Cloud API — free 1k conversations/month."""
+        import requests as http_client
+
+        token = getattr(settings, 'WHATSAPP_CLOUD_TOKEN', '')
+        phone_number_id = getattr(settings, 'WHATSAPP_PHONE_NUMBER_ID', '')
+
+        if not (token and phone_number_id):
+            logger.warning("WhatsApp Cloud credentials not configured (WHATSAPP_CLOUD_TOKEN / WHATSAPP_PHONE_NUMBER_ID missing).")
+            log.mark_failed("WhatsApp Cloud credentials not configured")
+            return
+
+        url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": formatted_mobile,
+            "type": "text",
+            "text": {"body": str(message)},
+        }
+
+        try:
+            resp = http_client.post(
+                url,
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            msg_id = (result.get("messages") or [{}])[0].get("id", "")
+            log.mark_sent({"provider": "wa_cloud", "id": msg_id})
+            logger.info(f"[WA Cloud] Sent to {formatted_mobile} id={msg_id}")
+
+        except http_client.exceptions.Timeout:
+            msg = "WhatsApp Cloud API timed out after 15 s"
+            logger.error(f"[WA Cloud] {msg}")
+            log.mark_failed(msg)
+
+        except http_client.exceptions.HTTPError as e:
+            msg = f"WhatsApp Cloud API error {e.response.status_code}: {e.response.text[:200]}"
+            logger.error(f"[WA Cloud] {msg}")
+            log.mark_failed(msg)
+
+        except Exception as e:
+            logger.error(f"[WA Cloud] Unexpected error: {e}")
+            log.mark_failed(str(e))
+
+    @staticmethod
+    def _send_whatsapp_twilio(formatted_mobile, message, log):
+        """Send via Twilio WhatsApp (paid fallback)."""
         account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
         auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
         from_number = getattr(settings, 'TWILIO_WHATSAPP_FROM', '')
-        
+
         if not all([account_sid, auth_token, from_number]):
-            logger.warning("Twilio WhatsApp credentials not configured. Message logged but not sent.")
+            logger.warning("Twilio WhatsApp credentials not configured.")
             log.mark_failed("Twilio WhatsApp credentials not configured")
             return
-        
+
         try:
-            from twilio.rest import Client   # lazy import — only needed if WhatsApp is used
+            from twilio.rest import Client
             client = Client(account_sid, auth_token)
-            
-            # Ensure mobile number is formatted for Twilio WhatsApp (e.g., whatsapp:+919876543210)
-            clean_mobile = str(mobile).strip()
-            formatted_mobile = clean_mobile if clean_mobile.startswith('+') else f"+91{clean_mobile}"
             whatsapp_to = f"whatsapp:{formatted_mobile}"
-            
             clean_from = str(from_number).strip()
             whatsapp_from = clean_from if clean_from.startswith('whatsapp:') else f"whatsapp:{clean_from}"
-            
-            logger.info(f"Sending WhatsApp to {whatsapp_to} via Twilio from {whatsapp_from}...")
-            
-            response = client.messages.create(
-                body=str(message),
-                from_=whatsapp_from,
-                to=whatsapp_to
-            )
-            
+
+            response = client.messages.create(body=str(message), from_=whatsapp_from, to=whatsapp_to)
             log.mark_sent({'provider': 'twilio', 'status': response.status, 'sid': response.sid})
-            
+            logger.info(f"[Twilio WA] Sent to {formatted_mobile} sid={response.sid}")
+
         except Exception as e:
-            logger.error(f"WhatsApp sending failed: {str(e)}")
+            logger.error(f"[Twilio WA] Failed: {e}")
             log.mark_failed(str(e))
 
     @staticmethod

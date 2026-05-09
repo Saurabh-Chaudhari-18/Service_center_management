@@ -16,10 +16,14 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from core.views import HealthCheckView
 
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
+
+    # Health check — no auth, used by load balancers / Docker HEALTHCHECK
+    path('api/healthz/', HealthCheckView.as_view(), name='healthz'),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -4,18 +4,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# Non-root user — never run production containers as root
+RUN adduser --disabled-password --gecos '' appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p logs staticfiles media
+RUN mkdir -p logs staticfiles media/exports \
+    && chown -R appuser:appuser /app
 
-# Gunicorn binds 0.0.0.0 when running in Docker
+USER appuser
+
 ENV GUNICORN_BIND=0.0.0.0:8001
 
 EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/healthz/')" || exit 1
 
 CMD python manage.py migrate --noinput && \
     python manage.py collectstatic --noinput && \

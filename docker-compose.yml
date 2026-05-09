@@ -1,4 +1,30 @@
 services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: scm
+      POSTGRES_USER: scm
+      POSTGRES_PASSWORD: scm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scm -d scm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./Backend
@@ -6,11 +32,44 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://scm:scm@postgres:5432/scm
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
       GUNICORN_BIND: "0.0.0.0:8001"
     volumes:
       - scm_static:/app/staticfiles
       - scm_media:/app/media
-    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/healthz/')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  celery-worker:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    command: celery -A config worker -l info --concurrency=4 --without-gossip --without-mingle
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://scm:scm@postgres:5432/scm
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - scm_media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
@@ -21,7 +80,8 @@ services:
       NODE_ENV: production
       PORT: 3000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -37,5 +97,6 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   scm_static:
   scm_media:
