@@ -311,6 +311,7 @@ export const jobsApi = {
     return apiPost<JobCard>(`/jobs/jobs/${jobId}/update_status/`, {
       new_status: newStatus,
       notes,
+      is_override: true,
     });
   },
 

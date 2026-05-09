@@ -208,34 +208,98 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def outstanding(self, request):
-        """Get all customers with outstanding balance."""
+        """
+        Get all customers with outstanding receivables.
+        Combines pending billing invoices + Khata ledger balance.
+        """
+        from billing.models import Invoice, InvoiceStatus
         from customers.models import Customer
-        from django.db.models import Subquery, OuterRef
+        from django.db.models import Sum, Q
 
-        # Get latest running_balance for each customer
+        user = request.user
+        branches = user.get_accessible_branches()
+
+        # --- 1. Get pending/partial invoices grouped by customer mobile ---
+        unpaid_invoices = (
+            Invoice.objects.filter(
+                branch__in=branches,
+                status__in=[InvoiceStatus.PENDING, InvoiceStatus.PARTIAL],
+                is_finalized=True,
+            )
+            .values('customer_name', 'customer_mobile')
+            .annotate(
+                total_due=Sum('total_amount') - Sum('paid_amount'),
+                invoice_count=models.Count('id'),
+            )
+            .filter(total_due__gt=0)
+            .order_by('-total_due')
+        )
+
+        # Build map: mobile -> {name, total_due, invoices}
+        invoice_data: dict = {}
+        for row in unpaid_invoices:
+            mobile = row['customer_mobile']
+            if mobile not in invoice_data:
+                invoice_data[mobile] = {
+                    'name': row['customer_name'],
+                    'mobile': mobile,
+                    'balance': Decimal('0.00'),
+                    'invoice_count': 0,
+                    'source': 'invoice',
+                }
+            invoice_data[mobile]['balance'] += Decimal(str(row['total_due'] or 0))
+            invoice_data[mobile]['invoice_count'] += row['invoice_count']
+
+        # --- 2. Also include Khata (ledger) balances ---
+        from django.db.models import Subquery, OuterRef
+        from customers.models import Customer
+
         latest_entries = CustomerLedgerEntry.objects.filter(
             customer=OuterRef('pk')
         ).order_by('-entry_date', '-created_at').values('running_balance')[:1]
 
         queryset = self.get_queryset()
         customer_ids = queryset.values_list('customer', flat=True).distinct()
-
         customers = Customer.objects.filter(
             id__in=customer_ids
         ).annotate(
-            balance=Subquery(latest_entries)
-        ).filter(
-            balance__gt=0
-        ).order_by('-balance')
+            khata_balance=Subquery(latest_entries)
+        ).filter(khata_balance__gt=0)
 
-        data = [
-            {
-                'id': str(c.id),
-                'name': c.get_full_name(),
-                'mobile': c.mobile,
-                'balance': c.balance
-            }
-            for c in customers if c.balance
-        ]
+        for c in customers:
+            if c.khata_balance:
+                mobile = c.mobile
+                if mobile in invoice_data:
+                    # Already tracked from invoices – don't double-count
+                    pass
+                else:
+                    invoice_data[mobile] = {
+                        'id': str(c.id),
+                        'name': c.get_full_name(),
+                        'mobile': mobile,
+                        'balance': c.khata_balance,
+                        'invoice_count': 0,
+                        'source': 'khata',
+                    }
 
-        return Response(data)
+        # --- 3. Attach real customer IDs where possible ---
+        all_mobiles = list(invoice_data.keys())
+        mobile_to_customer = {
+            c.mobile: c
+            for c in Customer.objects.filter(mobile__in=all_mobiles)
+        }
+
+        result = []
+        for mobile, row in invoice_data.items():
+            cust = mobile_to_customer.get(mobile)
+            result.append({
+                'id': str(cust.id) if cust else mobile,
+                'name': row['name'],
+                'mobile': mobile,
+                'balance': row['balance'],
+                'invoice_count': row.get('invoice_count', 0),
+                'source': row.get('source', 'invoice'),
+            })
+
+        result.sort(key=lambda x: -float(x['balance']))
+        return Response(result)

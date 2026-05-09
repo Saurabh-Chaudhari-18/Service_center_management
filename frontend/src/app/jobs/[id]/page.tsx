@@ -240,23 +240,13 @@ function UpdateStatusModal({
     },
   });
 
-  // Define allowed transitions based on current status
-  const allowedTransitions: Record<string, string[]> = {
-    RECEIVED: ["DIAGNOSIS"],
-    DIAGNOSIS: ["ESTIMATE_SHARED"],
-    ESTIMATE_SHARED: ["APPROVED", "REJECTED"],
-    APPROVED: ["WAITING_FOR_PARTS", "REPAIR_IN_PROGRESS"],
-    WAITING_FOR_PARTS: ["REPAIR_IN_PROGRESS"],
-    REPAIR_IN_PROGRESS: ["WAITING_FOR_PARTS", "READY_FOR_DELIVERY"],
-    READY_FOR_DELIVERY: ["DELIVERED", "REPAIR_IN_PROGRESS"],
-  };
-
-  const availableStatuses = (allowedTransitions[currentStatus] || []).map(
-    (status) => ({
+  // Allow any status transition as requested by user
+  const availableStatuses = Object.keys(JOB_STATUS_CONFIG)
+    .filter((status) => status !== currentStatus)
+    .map((status) => ({
       value: status,
       label: JOB_STATUS_CONFIG[status as JobStatus]?.label || status,
-    }),
-  );
+    }));
 
   return (
     <Modal

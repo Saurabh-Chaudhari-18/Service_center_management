@@ -186,6 +186,14 @@ export default function ReceiptsPage() {
                     <div>
                       <p className="text-sm font-medium text-neutral-900 dark:text-white truncate max-w-[150px]">{c.name}</p>
                       <p className="text-xs text-neutral-500">{c.mobile || ""}</p>
+                      {c.invoice_count > 0 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                          {c.invoice_count} pending invoice{c.invoice_count > 1 ? "s" : ""}
+                        </p>
+                      )}
+                      {c.source === "khata" && (
+                        <p className="text-xs text-violet-500 mt-0.5">Khata balance</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-sm font-bold text-red-600 dark:text-red-400">

@@ -432,12 +432,13 @@ class JobStatusUpdateSerializer(serializers.Serializer):
                 )
             return value
         
-        if not job.can_transition_to(value):
-            allowed = [s.label for s in ALLOWED_STATUS_TRANSITIONS.get(job.status, [])]
-            raise serializers.ValidationError(
-                f"Cannot transition from {job.get_status_display()} to this status. "
-                f"Allowed: {', '.join(allowed)}"
-            )
+        # User requested to allow all status transitions, removing strict validation
+        # if not job.can_transition_to(value):
+        #     allowed = [s.label for s in ALLOWED_STATUS_TRANSITIONS.get(job.status, [])]
+        #     raise serializers.ValidationError(
+        #         f"Cannot transition from {job.get_status_display()} to this status. "
+        #         f"Allowed: {', '.join(allowed)}"
+        #     )
         
         return value
 
