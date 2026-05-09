@@ -124,5 +124,14 @@ jobs:
       - name: Build backend image
         run: docker build -t scm-backend:ci ./Backend
 
+      - name: Docker backend smoke test
+        run: |
+          docker run --rm \
+            -e DATABASE_URL=sqlite:///app_data.db \
+            -e SECRET_KEY=ci-test-key \
+            -e DEBUG=True \
+            --entrypoint="" \
+            scm-backend:ci python manage.py check --deploy 2>&1 | grep -v "WARNINGS:"
+
       - name: Build frontend image
         run: docker build -t scm-frontend:ci ./frontend

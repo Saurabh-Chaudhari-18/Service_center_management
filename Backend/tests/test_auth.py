@@ -77,6 +77,12 @@ class TestTokenRefresh:
         resp = api_client.post(REFRESH_URL, {}, format='json')
         assert resp.status_code == 400
 
+    def test_refresh_for_deleted_user_returns_401(self, api_client, owner):
+        _, refresh = self._get_tokens(api_client, owner)
+        owner.delete()
+        resp = api_client.post(REFRESH_URL, {'refresh': refresh}, format='json')
+        assert resp.status_code == 401
+
 
 @pytest.mark.django_db
 class TestBearerTokenAccess:

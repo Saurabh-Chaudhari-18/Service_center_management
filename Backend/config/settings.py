@@ -106,11 +106,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
+# Let django-environ pick ENGINE from DATABASE_URL scheme (postgresql vs sqlite).
+# Do not force the PostgreSQL engine: CI Docker smoke tests use sqlite:/// URLs.
 DATABASES = {
     'default': env.db(
         'DATABASE_URL',
         default='postgres://postgres:postgres@localhost:5432/service_center_db',
-        engine='django.db.backends.postgresql',  # psycopg3 — set ENGINE explicitly
     )
 }
 
@@ -164,6 +165,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
+    'TOKEN_REFRESH_SERIALIZER': 'core.simplejwt_serializers.TokenRefreshSerializer',
 }
 
 # DRF Spectacular (OpenAPI)

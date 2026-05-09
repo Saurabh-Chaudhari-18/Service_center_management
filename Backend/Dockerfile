@@ -13,7 +13,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p logs staticfiles media/exports \
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh \
+    && mkdir -p logs staticfiles media/exports \
+    && chmod +x /app/docker-entrypoint.sh \
     && chown -R appuser:appuser /app
 
 USER appuser
@@ -25,6 +27,5 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/healthz/')" || exit 1
 
-CMD python manage.py migrate --noinput && \
-    python manage.py collectstatic --noinput && \
-    gunicorn config.wsgi:application -c gunicorn.conf.py
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["gunicorn", "config.wsgi:application", "-c", "gunicorn.conf.py"]
