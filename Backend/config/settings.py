@@ -76,6 +76,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'core.middleware.RequestIDMiddleware',  # must be early so request_id is available to all later middleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -198,8 +199,10 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-    'x-branch-id',  # Custom header for branch context
+    'x-branch-id',    # Custom header for branch context
+    'x-request-id',  # Correlation ID for log tracing
 ]
+CORS_EXPOSE_HEADERS = ['X-Request-ID']  # Allow frontend JS to read it from responses
 
 # Internationalization - India specific
 LANGUAGE_CODE = 'en-in'

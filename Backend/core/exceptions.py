@@ -82,3 +82,13 @@ class OrganizationMismatch(APIException):
     status_code = status.HTTP_403_FORBIDDEN
     default_detail = _('Resource belongs to a different organization.')
     default_code = 'organization_mismatch'
+
+
+class ProtectedResourceError(APIException):
+    """Raised when a delete is blocked by a PROTECT FK constraint."""
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = _(
+        'Cannot delete: this record is referenced by other data. '
+        'Archive or cancel it instead.'
+    )
+    default_code = 'protected_resource'

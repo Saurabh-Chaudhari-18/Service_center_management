@@ -128,9 +128,10 @@ export default function LoginPage() {
           {/* Demo Credentials Info */}
           <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
             <p className="text-xs text-neutral-500 text-center">
-              Demo credentials:
+              Seeded demo login (run{" "}
+              <span className="font-mono">setup_initial_data</span> once):
               <br />
-              <span className="font-mono">admin@example.com / password123</span>
+              <span className="font-mono">owner@techfix.com / password123</span>
             </p>
           </div>
         </div>

@@ -27,7 +27,7 @@ from core.permissions import (
     IsOwnerOrManager
 )
 from core.models import Role
-from core.exceptions import InsufficientInventory
+from core.exceptions import InsufficientInventory, ProtectedResourceError
 
 
 class InventoryCategoryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -86,6 +86,16 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if self.action == 'list':
             return InventoryItemListSerializer
         return InventoryItemSerializer
+
+    def perform_destroy(self, instance):
+        from django.db.models.deletion import ProtectedError
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ProtectedResourceError(
+                "Cannot delete item: it is referenced by job part usage records. "
+                "Deactivate it instead."
+            )
 
     @action(detail=True, methods=['post'])
     def add_stock(self, request, pk=None):

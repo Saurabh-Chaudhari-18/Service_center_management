@@ -9,6 +9,7 @@ Features:
 """
 
 from django.db import models
+from django.db.models import Sum
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from core.models import TimeStampedModel, Branch, User
@@ -159,6 +160,7 @@ class Invoice(TimeStampedModel):
         indexes = [
             models.Index(fields=['branch', 'invoice_number']),
             models.Index(fields=['branch', 'status']),
+            models.Index(fields=['branch', 'invoice_date']),  # monthly report range scans
             models.Index(fields=['job']),
             models.Index(fields=['invoice_date']),
         ]
@@ -211,27 +213,26 @@ class Invoice(TimeStampedModel):
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
-        """Recalculate all totals from line items."""
-        
+        """Recalculate all totals from line items (single aggregate query)."""
         two_places = Decimal('0.01')
-        
-        self.subtotal = Decimal('0.00')
-        self.cgst_total = Decimal('0.00')
-        self.sgst_total = Decimal('0.00')
-        self.igst_total = Decimal('0.00')
-        
-        for item in self.line_items.all():
-            self.subtotal += item.amount
-            self.cgst_total += item.cgst_amount
-            self.sgst_total += item.sgst_amount
-            self.igst_total += item.igst_amount
-        
+
+        totals = self.line_items.aggregate(
+            subtotal=Sum('amount'),
+            cgst_total=Sum('cgst_amount'),
+            sgst_total=Sum('sgst_amount'),
+            igst_total=Sum('igst_amount'),
+        )
+
+        self.subtotal = (totals['subtotal'] or Decimal('0')).quantize(two_places)
+        self.cgst_total = (totals['cgst_total'] or Decimal('0')).quantize(two_places)
+        self.sgst_total = (totals['sgst_total'] or Decimal('0')).quantize(two_places)
+        self.igst_total = (totals['igst_total'] or Decimal('0')).quantize(two_places)
+
         self.total_tax = self.cgst_total + self.sgst_total + self.igst_total
         self.total_amount = (
             self.subtotal + self.total_tax - self.discount_amount
         ).quantize(two_places)
-        
-        # Update status based on payments
+
         self._update_payment_status()
 
     def _update_payment_status(self):

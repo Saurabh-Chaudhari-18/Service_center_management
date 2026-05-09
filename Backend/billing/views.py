@@ -28,6 +28,7 @@ from core.permissions import (
     IsOwnerOrManager
 )
 from core.models import Role
+from core.exceptions import ProtectedResourceError
 
 
 class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -84,6 +85,19 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if self.action in ['update', 'partial_update']:
             return InvoiceUpdateSerializer
         return InvoiceSerializer
+
+    def perform_destroy(self, instance):
+        from django.db.models.deletion import ProtectedError
+        if instance.is_finalized:
+            raise ProtectedResourceError(
+                "Cannot delete a finalized invoice. Cancel it instead."
+            )
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ProtectedResourceError(
+                "Cannot delete invoice: it has linked payments or credit notes."
+            )
 
     @action(detail=True, methods=['post'])
     def finalize(self, request, pk=None):

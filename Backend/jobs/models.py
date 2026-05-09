@@ -266,6 +266,7 @@ class JobCard(TimeStampedModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['branch', 'status']),
+            models.Index(fields=['branch', 'status', 'created_at']),  # pending-jobs dashboard
             models.Index(fields=['branch', 'job_number']),
             models.Index(fields=['customer']),
             models.Index(fields=['assigned_technician', 'status']),

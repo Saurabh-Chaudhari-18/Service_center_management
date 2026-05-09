@@ -217,36 +217,75 @@ class Branch(TimeStampedModel):
         Generate next invoice number for this branch.
         Format: PREFIX/FY/BRANCH_CODE/SEQUENCE
         Example: INV/2025-26/MUM/00001
+
+        Uses a dedicated BranchSequence row so only the (branch, invoice) counter
+        row is locked — not the entire Branch row — eliminating contention with
+        concurrent Branch reads/writes on other fields.
         """
         from django.db import transaction
-        
+
         with transaction.atomic():
-            # Lock the row for update
-            branch = Branch.objects.select_for_update().get(pk=self.pk)
-            branch.invoice_current_number += 1
-            branch.save(update_fields=['invoice_current_number', 'updated_at'])
-            
+            seq, _ = BranchSequence.objects.select_for_update().get_or_create(
+                branch=self,
+                kind=BranchSequence.Kind.INVOICE,
+                defaults={'last_value': self.invoice_current_number},
+            )
+            seq.last_value += 1
+            seq.save(update_fields=['last_value'])
+
             fy = self.get_current_financial_year()
-            sequence = str(branch.invoice_current_number).zfill(5)
-            return f"{self.invoice_prefix}/{fy}/{self.code}/{sequence}"
+            return f"{self.invoice_prefix}/{fy}/{self.code}/{str(seq.last_value).zfill(5)}"
 
     def get_next_jobcard_number(self):
         """
         Generate next job card number for this branch.
         Format: PREFIX/FY/BRANCH_CODE/SEQUENCE
         Example: JC/2025-26/MUM/00001
+
+        Uses a dedicated BranchSequence row (same rationale as get_next_invoice_number).
         """
         from django.db import transaction
-        
+
         with transaction.atomic():
-            # Lock the row for update
-            branch = Branch.objects.select_for_update().get(pk=self.pk)
-            branch.jobcard_current_number += 1
-            branch.save(update_fields=['jobcard_current_number', 'updated_at'])
-            
+            seq, _ = BranchSequence.objects.select_for_update().get_or_create(
+                branch=self,
+                kind=BranchSequence.Kind.JOBCARD,
+                defaults={'last_value': self.jobcard_current_number},
+            )
+            seq.last_value += 1
+            seq.save(update_fields=['last_value'])
+
             fy = self.get_current_financial_year()
-            sequence = str(branch.jobcard_current_number).zfill(5)
-            return f"{self.jobcard_prefix}/{fy}/{self.code}/{sequence}"
+            return f"{self.jobcard_prefix}/{fy}/{self.code}/{str(seq.last_value).zfill(5)}"
+
+
+class BranchSequence(models.Model):
+    """
+    Per-branch, per-kind auto-incrementing counter.
+
+    Replaces invoice_current_number / jobcard_current_number on Branch.
+    Each (branch, kind) pair gets its own row, so SELECT FOR UPDATE locks
+    only that narrow row instead of the entire Branch record, removing the
+    contention bottleneck at high invoice/job-card creation throughput.
+    """
+
+    class Kind(models.TextChoices):
+        INVOICE = 'invoice', 'Invoice'
+        JOBCARD = 'jobcard', 'Job Card'
+
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.CASCADE,
+        related_name='sequences',
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    last_value = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [['branch', 'kind']]
+
+    def __str__(self):
+        return f"{self.branch.code} / {self.kind} → {self.last_value}"
 
 
 class Role(models.TextChoices):

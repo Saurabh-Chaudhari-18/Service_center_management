@@ -36,7 +36,7 @@ from core.permissions import (
     CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin
 )
 from core.models import Role, User, Branch
-from core.exceptions import JobReadOnlyError, InvalidStatusTransition
+from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
 
 
 class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -89,6 +89,16 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if self.action == 'list':
             return JobCardListSerializer
         return JobCardSerializer
+
+    def perform_destroy(self, instance):
+        from django.db.models.deletion import ProtectedError
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ProtectedResourceError(
+                "Cannot delete job: it has parts usage or other linked records. "
+                "Cancel the job instead."
+            )
 
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):

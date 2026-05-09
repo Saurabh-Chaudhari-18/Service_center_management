@@ -32,6 +32,9 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.SENTRY_AUTH_TOKEN,
   widenClientFileUpload: true,
-  hideSourceMaps: true,
+  // hideSourceMaps was renamed to sourcemaps.deleteFilesAfterUpload in @sentry/nextjs v10
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
   disableLogger: true,
 });
