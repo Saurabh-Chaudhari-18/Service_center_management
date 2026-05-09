@@ -259,14 +259,14 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobCard
         fields = [
-            'id', 'job_number', 'branch', 'customer_id', 'device_type', 'brand', 'model',
+            'id', 'job_number', 'status', 'branch', 'customer_id', 'device_type', 'brand', 'model',
             'serial_number', 'device_password', 'bios_password',
             'customer_complaint', 'physical_condition', 'engineer_diagnosis',
             'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
             'accessories', 'additional_comments', 'estimated_cost'
         ]
-        read_only_fields = ['id', 'job_number']
+        read_only_fields = ['id', 'job_number', 'status']
 
     def validate_customer_id(self, value):
         """Validate customer exists and belongs to branch."""

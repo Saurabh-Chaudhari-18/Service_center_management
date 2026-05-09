@@ -95,7 +95,7 @@ class CustomerSerializer(serializers.ModelSerializer):
 
 class CustomerCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating customers."""
-    
+
     class Meta:
         model = Customer
         fields = [
@@ -117,14 +117,26 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Check for duplicate mobile in same branch."""
         branch = data.get('branch')
+
+        # Branch is often injected via X-Branch-ID header rather than request body.
+        if not branch:
+            request = self.context.get('request')
+            if request:
+                branch_id = request.headers.get('X-Branch-ID')
+                if branch_id:
+                    try:
+                        branch = Branch.objects.get(pk=branch_id)
+                    except Branch.DoesNotExist:
+                        pass
+
         mobile = data.get('mobile')
-        
+
         if branch and mobile:
             if Customer.objects.filter(branch=branch, mobile=mobile).exists():
                 raise serializers.ValidationError({
                     'mobile': 'A customer with this mobile already exists in this branch.'
                 })
-        
+
         return data
 
 

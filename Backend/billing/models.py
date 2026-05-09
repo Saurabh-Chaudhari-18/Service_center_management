@@ -487,7 +487,7 @@ class InvoiceLineItem(TimeStampedModel):
         two_places = Decimal('0.01')
         
         self.amount = (
-            Decimal(str(self.quantity)) * self.unit_price
+            Decimal(str(self.quantity)) * Decimal(str(self.unit_price))
         ).quantize(two_places)
         
         # Apply discount

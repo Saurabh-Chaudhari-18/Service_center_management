@@ -50,16 +50,22 @@ class IsBranchMember(permissions.BasePermission):
             return False
 
     def has_object_permission(self, request, view, obj):
-        # Get branch from the object
+        # Get branch from the object directly
         branch = getattr(obj, 'branch', None)
+
+        # Traverse one-hop relationships (e.g. PartRequest → job → branch)
         if branch is None:
-            # Object might be a Branch itself
-            if hasattr(obj, 'organization'):
-                branch = obj
-        
+            job = getattr(obj, 'job', None)
+            if job:
+                branch = getattr(job, 'branch', None)
+
+        # Object might be a Branch itself
+        if branch is None and hasattr(obj, 'organization'):
+            branch = obj
+
         if branch is None:
             return False
-        
+
         return request.user.has_branch_access(branch)
 
 

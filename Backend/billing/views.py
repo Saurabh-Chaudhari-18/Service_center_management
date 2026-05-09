@@ -87,17 +87,11 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return InvoiceSerializer
 
     def perform_destroy(self, instance):
-        from django.db.models.deletion import ProtectedError
-        if instance.is_finalized:
-            raise ProtectedResourceError(
-                "Cannot delete a finalized invoice. Cancel it instead."
-            )
-        try:
-            instance.delete()
-        except ProtectedError:
-            raise ProtectedResourceError(
-                "Cannot delete invoice: it has linked payments or credit notes."
-            )
+        # GST records must be retained for 8 years — deletion is never permitted.
+        raise ProtectedResourceError(
+            "Invoices cannot be deleted. GST records must be retained for 8 years. "
+            "Cancel the invoice instead."
+        )
 
     @action(detail=True, methods=['post'])
     def finalize(self, request, pk=None):
@@ -124,15 +118,24 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def add_line_item(self, request, pk=None):
         """Add a line item to an invoice."""
         invoice = self.get_object()
-        
+
+        if invoice.is_finalized:
+            return Response(
+                {'error': 'Cannot modify a finalized invoice.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = AddLineItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         line_item = InvoiceLineItem.objects.create(
             invoice=invoice,
             **serializer.validated_data
         )
-        
+
+        invoice.calculate_totals()
+        invoice.save()
+
         # Log edit history
         InvoiceEditHistory.objects.create(
             invoice=invoice,
@@ -145,7 +148,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 'quantity': line_item.quantity,
             }
         )
-        
+
         return Response(
             InvoiceLineItemSerializer(line_item).data,
             status=status.HTTP_201_CREATED

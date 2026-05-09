@@ -217,6 +217,43 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'message': f'Customer {source_customer.get_full_name()} merged into {target_customer.get_full_name()}'
         })
 
+    @action(detail=True, methods=['post'])
+    def request_deletion(self, request, pk=None):
+        """
+        Anonymise a customer's PII (GDPR/data-retention compliance).
+        Blocked if the customer has any open (non-terminal) jobs.
+        """
+        from jobs.models import JobStatus
+        customer = self.get_object()
+
+        open_jobs = customer.job_cards.exclude(
+            status__in=[
+                JobStatus.DELIVERED,
+                JobStatus.CANCELLED,
+                JobStatus.REJECTED,
+            ]
+        )
+        if open_jobs.exists():
+            return Response(
+                {'error': 'Customer has open jobs. Close all jobs before requesting deletion.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        import uuid as _uuid
+        anon_tag = _uuid.uuid4().hex[:8]
+        customer.first_name = f'deleted_{anon_tag}'
+        customer.last_name = ''
+        customer.email = ''
+        customer.mobile = f'+000{anon_tag}'
+        customer.alternate_mobile = ''
+        customer.address_line1 = ''
+        customer.address_line2 = ''
+        customer.notes = ''
+        customer.is_active = False
+        customer.save()
+
+        return Response({'message': 'Customer data anonymised successfully.'})
+
 
 class CustomerDocumentViewSet(viewsets.ModelViewSet):
     """ViewSet for customer documents."""

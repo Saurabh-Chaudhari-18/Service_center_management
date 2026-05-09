@@ -112,177 +112,107 @@ class InvoiceListSerializer(serializers.ModelSerializer):
 
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating invoices."""
+    """Serializer for creating DRAFT invoices."""
     job_id = serializers.UUIDField(required=False, allow_null=True)
     customer_id = serializers.UUIDField(required=False, allow_null=True)
-    line_items = serializers.ListField(
-        child=serializers.DictField(),
-        required=False,
-        write_only=True
-    )
-    
+
     class Meta:
         model = Invoice
         fields = [
-            'branch', 'job_id', 'customer_id', 'invoice_date', 'due_date',
+            'id', 'branch', 'invoice_number', 'status', 'is_finalized',
+            'job_id', 'customer_id',
+            'customer_name', 'customer_mobile', 'customer_email',
+            'customer_address', 'customer_gstin', 'customer_state_code',
+            'invoice_date', 'due_date', 'is_interstate',
             'discount_amount', 'notes', 'terms_and_conditions',
-            'line_items'
+            'created_at',
         ]
+        read_only_fields = ['id', 'invoice_number', 'status', 'is_finalized', 'created_at']
+        extra_kwargs = {
+            'customer_name': {'required': False},
+            'customer_mobile': {'required': False},
+            'customer_address': {'required': False, 'allow_blank': True},
+        }
 
     def validate(self, data):
-        """Ensure at least one of job_id or customer_id is provided."""
         job_id = data.get('job_id')
         customer_id = data.get('customer_id')
-        
-        if not job_id and not customer_id:
+        customer_name = data.get('customer_name')
+
+        if not job_id and not customer_id and not customer_name:
             raise serializers.ValidationError(
-                "Either job_id or customer_id must be provided."
+                "Provide job_id, customer_id, or customer_name to identify the customer."
             )
         return data
 
     def validate_job_id(self, value):
-        """Validate job exists and belongs to branch."""
         if not value:
             return value
         from jobs.models import JobCard
-        
         try:
-            job = JobCard.objects.get(pk=value)
+            JobCard.objects.get(pk=value)
         except JobCard.DoesNotExist:
             raise serializers.ValidationError("Job not found.")
-        
         return value
 
     def validate_customer_id(self, value):
-        """Validate customer exists."""
         if not value:
             return value
         from customers.models import Customer
-        
         try:
-            customer = Customer.objects.get(pk=value)
+            Customer.objects.get(pk=value)
         except Customer.DoesNotExist:
             raise serializers.ValidationError("Customer not found.")
-        
         return value
 
     @transaction.atomic
     def create(self, validated_data):
-        line_items_data = validated_data.pop('line_items', [])
         job_id = validated_data.pop('job_id', None)
         customer_id = validated_data.pop('customer_id', None)
-        
-        job = None
-        customer = None
-        
-        # Path 1: Job-based invoice (get customer from job)
+
         if job_id:
             from jobs.models import JobCard
             job = JobCard.objects.select_related('customer').get(pk=job_id)
             customer = job.customer
-        
-        # Path 2: Direct customer invoice (no job)
-        if not customer and customer_id:
+            validated_data.setdefault('customer_name', customer.get_full_name())
+            validated_data.setdefault('customer_mobile', customer.mobile)
+            validated_data.setdefault('customer_email', customer.email or '')
+            validated_data.setdefault('customer_gstin', customer.gstin or '')
+            validated_data.setdefault('customer_state_code', customer.state_code or '')
+            validated_data.setdefault('customer_address', ', '.join(filter(None, [
+                customer.address_line1, customer.city,
+                customer.state, customer.pincode,
+            ])))
+            validated_data['job'] = job
+        elif customer_id:
             from customers.models import Customer
             customer = Customer.objects.get(pk=customer_id)
-        
-        if not customer:
-            raise serializers.ValidationError("Could not determine customer.")
-        
-        # Determine interstate status
-        from core.utils import is_interstate_supply
-        is_interstate = is_interstate_supply(
-            validated_data['branch'].state_code,
-            customer.state_code
-        )
-        
-        # Set customer details snapshot
-        if job:
-            validated_data['job'] = job
-        validated_data['customer_name'] = customer.get_full_name()
-        validated_data['customer_mobile'] = customer.mobile
-        validated_data['customer_email'] = customer.email
-        validated_data['customer_address'] = (
-            f"{customer.address_line1}, {customer.address_line2}, "
-            f"{customer.city}, {customer.state} - {customer.pincode}"
-        ).strip(', ')
-        validated_data['customer_gstin'] = customer.gstin
-        validated_data['customer_state_code'] = customer.state_code
-        validated_data['is_interstate'] = is_interstate
-        validated_data['created_by'] = self.context['request'].user
-        
-        # Create invoice
-        invoice = Invoice.objects.create(**validated_data)
-        
-        # Create line items
-        for item_data in line_items_data:
-            line_item = InvoiceLineItem.objects.create(
-                invoice=invoice,
-                item_type=item_data.get('item_type', 'SERVICE'),
-                description=item_data.get('description', ''),
-                hsn_sac_code=item_data.get('hsn_sac_code', ''),
-                quantity=item_data.get('quantity', 1),
-                unit=item_data.get('unit', 'NOS'),
-                unit_price=Decimal(str(item_data.get('unit_price', 0))),
-                gst_rate=Decimal(str(item_data.get('gst_rate', 18))),
-                discount_percent=Decimal(str(item_data.get('discount_percent', 0))),
-                inventory_item_id=item_data.get('inventory_item'),
-                job_part_usage_id=item_data.get('job_part_usage'),
-            )
-            
-            # Direct sales deduction
-            if line_item.inventory_item and not line_item.job_part_usage:
-                try:
-                    line_item.inventory_item.deduct_stock(
-                        quantity=line_item.quantity,
-                        reason=f"Direct sale on Invoice {invoice.invoice_number}",
-                        user=self.context['request'].user
-                    )
-                except Exception as e:
-                    # Reraise as validation error so the transaction rolls back
-                    from rest_framework.exceptions import ValidationError
-                    raise ValidationError(f"Insufficient stock for {line_item.inventory_item.name}. {str(e)}")
-        
-        # Auto-add parts used in job (only if job exists)
-        if job and hasattr(job, 'part_usages'):
-            for part_usage in job.part_usages.all():
-                # Check if already added
-                if not invoice.line_items.filter(job_part_usage=part_usage).exists():
-                    InvoiceLineItem.objects.create(
-                        invoice=invoice,
-                        item_type='PART',
-                        description=part_usage.inventory_item.name,
-                        hsn_sac_code=part_usage.inventory_item.hsn_code,
-                        quantity=part_usage.quantity,
-                        unit=part_usage.inventory_item.unit,
-                        unit_price=part_usage.unit_price,
-                        gst_rate=part_usage.inventory_item.gst_rate,
-                        inventory_item=part_usage.inventory_item,
-                        job_part_usage=part_usage,
-                    )
+            validated_data.setdefault('customer_name', customer.get_full_name())
+            validated_data.setdefault('customer_mobile', customer.mobile)
+            validated_data.setdefault('customer_email', customer.email or '')
+            validated_data.setdefault('customer_gstin', customer.gstin or '')
+            validated_data.setdefault('customer_state_code', customer.state_code or '')
+            validated_data.setdefault('customer_address', ', '.join(filter(None, [
+                customer.address_line1, customer.city,
+                customer.state, customer.pincode,
+            ])))
 
-        # Calculate totals
-        invoice.calculate_totals()
-        invoice.is_finalized = True
-        invoice.status = InvoiceStatus.PENDING
-        invoice.save()
-        
-        # Log creation in edit history
+        validated_data.setdefault('customer_mobile', '')
+        validated_data.setdefault('customer_address', '')
+        validated_data['created_by'] = self.context['request'].user
+
+        invoice = Invoice.objects.create(**validated_data)
+
         InvoiceEditHistory.objects.create(
             invoice=invoice,
             edited_by=self.context['request'].user,
             edit_type=InvoiceEditType.CREATED,
-            summary=f'Invoice {invoice.invoice_number} created with {len(line_items_data)} line item(s). Total: \u20b9{invoice.total_amount}',
-            new_values={
-                'total_amount': str(invoice.total_amount),
-                'subtotal': str(invoice.subtotal),
-                'line_items_count': invoice.line_items.count(),
-            }
+            summary=f'Invoice {invoice.invoice_number} created as draft.',
+            new_values={'status': invoice.status},
         )
-        
-        # Refresh to ensure date fields are legitimate date objects
+
+        # Refresh so DateField values are proper date objects (not datetime)
         invoice.refresh_from_db()
-        
         return invoice
 
 
