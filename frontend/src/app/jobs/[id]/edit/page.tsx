@@ -18,10 +18,10 @@ import {
   Alert,
   LoadingState,
 } from "@/components/ui";
-import { jobsApi, customersApi, branchesApi } from "@/lib/api";
+import { jobsApi, branchesApi } from "@/lib/api";
 import { ArrowLeft, Check, Save, Printer } from "lucide-react";
 import Link from "next/link";
-import type { Customer, AccessoryType, JobCard } from "@/types";
+import type { AccessoryType } from "@/types";
 
 // Schema - mostly same as create but all optional basically
 const editJobSchema = z.object({
@@ -214,7 +214,7 @@ export default function EditJobPage() {
     mutationFn: async (data: EditJobFormData) => {
       // Format accessories list
       const accessoriesList = Object.entries(accessories)
-        .filter(([_, value]) => value.present)
+        .filter(([, value]) => value.present)
         .map(([type, value]) => ({
           accessory_type: type,
           is_present: true,

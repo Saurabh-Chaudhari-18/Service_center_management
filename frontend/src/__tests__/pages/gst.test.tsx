@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
 
@@ -20,7 +20,7 @@ vi.mock("@/context/ThemeContext", () => ({
 
 // GSTDateFilter is a sibling file — mock it so no real date-range code runs.
 vi.mock("@/app/gst/GSTDateFilter", () => ({
-  GSTDateFilter: ({ onChange }: { onChange: (r: unknown) => void }) => (
+  GSTDateFilter: () => (
     <div data-testid="gst-date-filter" />
   ),
 }));

@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
 import type { JobCard, UserRole } from "@/types";

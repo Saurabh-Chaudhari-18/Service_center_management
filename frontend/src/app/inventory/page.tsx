@@ -43,7 +43,6 @@ import {
   Camera,
   CircuitBoard,
   Box,
-  Clock,
   Wrench,
   ArrowUpDown,
   TrendingUp,
@@ -969,13 +968,13 @@ export default function InventoryPage() {
     enabled: !!currentBranch,
   });
 
-  // Process items
-  let items = data?.results || [];
-  if (filter === "out_of_stock") {
-    items = items.filter((item) => item.quantity === 0);
-  }
+  const items = useMemo(() => {
+    const raw = data?.results || [];
+    return filter === "out_of_stock"
+      ? raw.filter((item) => item.quantity === 0)
+      : raw;
+  }, [data?.results, filter]);
 
-  // Sort items
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
       let aVal: string | number = a[sortKey] ?? "";

@@ -25,7 +25,6 @@ import {
   History,
 } from "lucide-react";
 import { format } from "date-fns";
-import type { Invoice } from "@/types";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 
 // =====================================================

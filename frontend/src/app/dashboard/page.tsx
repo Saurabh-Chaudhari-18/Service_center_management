@@ -7,7 +7,6 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
-  StatsCard,
   JobStatusBadge,
   LoadingState,
   EmptyState,
@@ -32,7 +31,6 @@ import {
   Users,
   Truck,
   Package,
-  IndianRupee,
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";

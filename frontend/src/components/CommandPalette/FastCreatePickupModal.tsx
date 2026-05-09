@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Modal, Button, Input, Select, Card } from "@/components/ui";
+import { Modal, Button, Input, Select } from "@/components/ui";
 import { pickupsApi, customersApi } from "@/lib/api";
-import { Search, User } from "lucide-react";
+import { Search } from "lucide-react";
 
 interface FastCreatePickupModalProps {
   isOpen: boolean;

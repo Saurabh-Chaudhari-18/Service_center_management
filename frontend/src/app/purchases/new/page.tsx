@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, FileType2, Target, PenSquare, Trash2, Plus, BadgePercent } from "lucide-react";
+import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, FileType2, PenSquare, Trash2, Plus, BadgePercent } from "lucide-react";
 import { purchasesApi, inventoryApi, suppliersApi } from "@/lib/api/services";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -35,30 +35,30 @@ export default function NewPurchasePage() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (currentBranch) {
-      loadInventory();
-      loadSuppliers();
-    }
-  }, [currentBranch]);
-
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     try {
       const res = await suppliersApi.list({ branch: currentBranch?.id, limit: 1000 });
       setSupplierList(res.results || res);
     } catch(e) {
       console.error("Failed to fetch suppliers", e);
     }
-  }
+  }, [currentBranch?.id]);
 
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async () => {
     try {
       const res = await inventoryApi.list({ branch: currentBranch?.id, limit: 1000 });
       setInventoryList(res.results);
     } catch(e) {
       console.error("Failed to fetch inventory for manual entry", e);
     }
-  }
+  }, [currentBranch?.id]);
+
+  useEffect(() => {
+    if (currentBranch) {
+      void loadInventory();
+      void loadSuppliers();
+    }
+  }, [currentBranch, loadInventory, loadSuppliers]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

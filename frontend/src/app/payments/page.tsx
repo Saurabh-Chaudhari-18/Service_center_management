@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { IndianRupee, CreditCard, ChevronRight, CheckCircle2, Search, Calendar, FileText, User, ChevronDown, ChevronUp, History } from "lucide-react";
+import { IndianRupee, CreditCard, CheckCircle2, Search, Calendar, FileText, User, ChevronDown, ChevronUp, History } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { useAuth } from "@/context/AuthContext";
 import { Purchase } from "@/types";
@@ -22,13 +22,7 @@ export default function PaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [isPaying, setIsPaying] = useState(false);
 
-  useEffect(() => {
-    if (currentBranch) {
-      loadPurchases();
-    }
-  }, [currentBranch]);
-
-  const loadPurchases = async () => {
+  const loadPurchases = useCallback(async () => {
     setLoading(true);
     try {
       const res = await purchasesApi.list({ branch: currentBranch?.id });
@@ -39,7 +33,13 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranch?.id]);
+
+  useEffect(() => {
+    if (currentBranch) {
+      void loadPurchases();
+    }
+  }, [currentBranch, loadPurchases]);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +148,7 @@ export default function PaymentsPage() {
                 <>
                   <FileText className="w-12 h-12 text-neutral-300 dark:text-slate-600 mb-3" />
                   <h3 className="text-lg font-medium text-neutral-900 dark:text-white">No Purchase History</h3>
-                  <p className="text-neutral-500">You haven't recorded any purchases yet.</p>
+                  <p className="text-neutral-500">You haven&apos;t recorded any purchases yet.</p>
                 </>
               )}
             </div>

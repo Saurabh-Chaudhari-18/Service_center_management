@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import { useParams } from "next/navigation";
-import { Wrench, Phone, AlertCircle, FileText, MapPin, Image as ImageIcon, Camera } from "lucide-react";
-import { Button, Input, Badge } from "@/components/ui";
+import { Wrench, Phone, AlertCircle, FileText, MapPin, Camera } from "lucide-react";
+import { Button, Input } from "@/components/ui";
 import { JOB_STATUS_CONFIG, JobStatus } from "@/types";
 import { format } from "date-fns";
 import { API_BASE_URL } from "@/lib/api";

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 // =====================================================
 // Theme Context Types
@@ -29,19 +29,7 @@ function getInitialTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
-  const initialized = useRef(false);
-
-  // Initialize theme from localStorage on first mount
-  useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      const initial = getInitialTheme();
-      if (initial !== "light") {
-        setTheme(initial);
-      }
-    }
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
 
   // Apply theme class to <html> element whenever theme changes
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
@@ -222,7 +222,6 @@ function NotificationsSection() {
 // =====================================================
 
 function MarketingSection() {
-  const { currentBranch } = useAuth();
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 

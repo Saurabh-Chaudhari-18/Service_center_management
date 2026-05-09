@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
 import type { Invoice, InvoiceStatus } from "@/types";
@@ -43,28 +43,36 @@ vi.mock("@/components/billing/InvoiceTemplate", () => ({
 // native select to prevent the infinite loop from blocking the form from rendering.
 vi.mock("@/components/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/ui")>();
+  const MockSelect = React.forwardRef(
+    (
+      {
+        options,
+        placeholder,
+        value,
+        onChange,
+        ...props
+      }: {
+        label?: string;
+        options?: { value: string; label: string }[];
+        placeholder?: string;
+        value?: string;
+        onChange?: React.ChangeEventHandler<HTMLSelectElement>;
+        [k: string]: unknown;
+      },
+      ref: React.Ref<HTMLSelectElement>,
+    ) => (
+      <select ref={ref} value={value ?? ""} onChange={onChange} {...props}>
+        {placeholder && <option value="">{placeholder}</option>}
+        {options?.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    ),
+  );
+  MockSelect.displayName = "Select";
   return {
     ...actual,
-    Select: React.forwardRef(
-      (
-        { label, options, placeholder, value, onChange, ...props }: {
-          label?: string;
-          options?: { value: string; label: string }[];
-          placeholder?: string;
-          value?: string;
-          onChange?: React.ChangeEventHandler<HTMLSelectElement>;
-          [k: string]: unknown;
-        },
-        ref: React.Ref<HTMLSelectElement>,
-      ) => (
-        <select ref={ref} value={value ?? ""} onChange={onChange} {...props}>
-          {placeholder && <option value="">{placeholder}</option>}
-          {options?.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      ),
-    ),
+    Select: MockSelect,
   };
 });
 

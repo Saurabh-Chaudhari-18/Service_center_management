@@ -6,8 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { enquiriesApi } from "@/lib/api/services";
 import {
   Plus, UserSearch, Phone, Calendar, ArrowRightCircle,
-  XCircle, Search, RefreshCw, X, MessageSquare,
-  TrendingUp, Clock, AlertTriangle, Filter
+  XCircle, Search, RefreshCw, X,
+  TrendingUp, Clock, AlertTriangle,
 } from "lucide-react";
 import { ENQUIRY_STATUS_CONFIG } from "@/types";
 import type { Enquiry, EnquiryStatus } from "@/types";

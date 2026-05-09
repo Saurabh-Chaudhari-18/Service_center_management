@@ -1,12 +1,10 @@
-  "use client";
+"use client";
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
   Input,
   Badge,
@@ -25,7 +23,6 @@ import {
   Mail,
   Globe,
   Shield,
-  ChevronRight,
   Search,
   Eye,
   X,

@@ -445,6 +445,15 @@ export interface PurchaseItem extends BaseEntity {
   total_price: number;
 }
 
+/** Payment rows returned nested on a purchase (vendor bill / GRN). */
+export interface PurchasePaymentEntry {
+  id?: string;
+  amount: number | string;
+  payment_method?: string;
+  reference?: string;
+  created_at?: string;
+}
+
 export interface Purchase extends BaseEntity {
   branch: string;
   vendor_name: string;
@@ -463,7 +472,7 @@ export interface Purchase extends BaseEntity {
   paid_amount?: number;
   balance_due?: number;
   status?: "PENDING" | "PARTIAL" | "PAID" | "CANCELLED";
-  payments?: any[];
+  payments?: PurchasePaymentEntry[];
 }
 
 // =====================================================

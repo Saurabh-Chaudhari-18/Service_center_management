@@ -3,15 +3,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
-import type { JobCard, JobStatus } from "@/types";
+import type { Purchase } from "@/types";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), refresh: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => "/jobs/job-1",
+  usePathname: () => "/purchases/pur-1",
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ id: "job-1" }),
+  useParams: () => ({ id: "pur-1" }),
 }));
 
 vi.mock("@/context/AuthContext", async (importOriginal) => {
@@ -33,92 +33,46 @@ vi.mock("@/components/layout/Layout", () => ({
   ),
   Header: ({
     title,
-    subtitle,
     actions,
   }: {
     title: string;
-    subtitle?: string;
     actions?: React.ReactNode;
   }) => (
     <div>
       <h1>{title}</h1>
-      {subtitle && <p>{subtitle}</p>}
       {actions}
     </div>
   ),
 }));
 
-const mockGetJob = vi.fn(() =>
-  Promise.resolve<JobCard>({
-    id: "job-1",
+// purchases/[id]/page.tsx imports purchasesApi directly from @/lib/api/services
+const mockGetPurchase = vi.fn(() =>
+  Promise.resolve<Purchase>({
+    id: "pur-1",
     branch: "branch-1",
-    branch_name: "Main Branch",
-    job_number: "JOB-TEST-001",
-    customer: {
-      id: "cust-1",
-      first_name: "Alice",
-      last_name: "Smith",
-      mobile: "9876543210",
-      email: "alice@test.com",
-      address: "123 Test St",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400001",
-      gstin: "",
-      pending_jobs_count: 0,
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-01T00:00:00Z",
-    },
-    customer_id: "cust-1",
-    device_type: "LAPTOP",
-    brand: "Dell",
-    model: "XPS 15",
-    serial_number: "SN123",
-    customer_complaint: "Screen flickering",
-    physical_condition: "Good",
-    status: "REPAIR_IN_PROGRESS" as JobStatus,
-    assigned_technician: null,
-    assigned_technician_name: undefined,
-    received_by: "user-owner",
-    received_by_name: "Owner Test",
-    diagnosis_notes: "",
-    estimated_cost: null,
-    estimated_completion_date: null,
-    customer_approval_date: null,
-    is_urgent: false,
-    is_warranty_repair: false,
-    warranty_details: "",
-    diagnosis_parts: [],
-    accessories: {},
-    additional_comments: "",
-    customer_rejection_reason: "",
-    completion_notes: "",
-    actual_completion_date: null,
-    delivery_date: null,
-    delivered_by: null,
-    created_at: "2024-06-01T00:00:00Z",
-    updated_at: "2024-06-01T00:00:00Z",
+    vendor_name: "Tech Supplies Co.",
+    vendor_gstin: "27AABCT1332L1ZV",
+    invoice_number: "VINV-001",
+    purchase_date: "2024-06-10",
+    total_amount: 500,
+    notes: "",
+    items: [],
+    created_at: "2024-06-10T00:00:00Z",
+    updated_at: "2024-06-10T00:00:00Z",
   }),
 );
 
-vi.mock("@/lib/api", () => ({
-  jobsApi: {
-    get: (...args: unknown[]) => mockGetJob(...args),
+vi.mock("@/lib/api/services", () => ({
+  purchasesApi: {
+    get: (...args: unknown[]) => mockGetPurchase(...args),
     list: vi.fn(() => Promise.resolve({ count: 0, results: [] })),
-    assignTechnician: vi.fn(() => Promise.resolve({})),
-    updateStatus: vi.fn(() => Promise.resolve({})),
-    addDiagnosis: vi.fn(() => Promise.resolve({})),
-    uploadPhoto: vi.fn(() => Promise.resolve({})),
-    getStatusHistory: vi.fn(() => Promise.resolve([])),
+    create: vi.fn(() => Promise.resolve({})),
   },
-  API_BASE_URL: "http://test-api.example.com",
-  authApi: { getMe: vi.fn(), getMyBranches: vi.fn() },
-  organizationsApi: { getBranding: vi.fn(() => Promise.reject(new Error())) },
 }));
 
 // ── Import AFTER mocks ────────────────────────────────────────────────────────
 
-import JobDetailPage from "@/app/jobs/[id]/page";
+import PurchaseDetailPage from "@/app/purchases/[id]/page";
 import { useAuth } from "@/context/AuthContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -127,14 +81,14 @@ function renderPage() {
   vi.mocked(useAuth).mockReturnValue(mockAuthValue("OWNER") as ReturnType<typeof useAuth>);
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <JobDetailPage />
+      <PurchaseDetailPage />
     </QueryClientProvider>,
   );
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("Job detail page (jobs/[id]) smoke tests", () => {
+describe("Purchase detail page (purchases/[id]) smoke tests", () => {
   it("renders without crashing", () => {
     expect(() => renderPage()).not.toThrow();
   });
@@ -145,38 +99,34 @@ describe("Job detail page (jobs/[id]) smoke tests", () => {
   });
 });
 
-describe("Job detail page (jobs/[id]) — regression tests", () => {
-  it("shows job number as heading after data loads", async () => {
+describe("Purchase detail page (purchases/[id]) — regression tests", () => {
+  it("shows 'Purchase Details' heading after data loads", async () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "JOB-TEST-001" }),
+        screen.getByRole("heading", { name: "Purchase Details" }),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows brand and model in the page after data loads", async () => {
+  it("shows vendor name after data loads", async () => {
     renderPage();
     await waitFor(() => {
-      // Brand and model appear in multiple places (header subtitle + device section)
-      const matches = screen.getAllByText("Dell XPS 15");
-      expect(matches.length).toBeGreaterThan(0);
+      expect(screen.getByText("Tech Supplies Co.")).toBeInTheDocument();
     });
   });
 
-  it("shows Edit Job button for OWNER after data loads", async () => {
+  it("shows invoice number after data loads", async () => {
     renderPage();
     await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: /edit job/i }),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/VINV-001/)).toBeInTheDocument();
     });
   });
 
-  it("calls jobsApi.get with id from useParams", async () => {
+  it("calls purchasesApi.get with id from useParams", async () => {
     renderPage();
     await waitFor(() => {
-      expect(mockGetJob).toHaveBeenCalledWith("job-1");
+      expect(mockGetPurchase).toHaveBeenCalledWith("pur-1");
     });
   });
 });

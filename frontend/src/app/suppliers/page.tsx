@@ -5,8 +5,8 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { suppliersApi } from "@/lib/api/services";
 import {
-  Plus, Search, RefreshCw, X, Phone, Mail, MapPin,
-  Star, Building2, Trash2
+  Plus, Search, RefreshCw, X, Phone, MapPin,
+  Star, Trash2
 } from "lucide-react";
 import type { Supplier } from "@/types";
 

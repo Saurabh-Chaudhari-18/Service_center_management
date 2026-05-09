@@ -14,7 +14,7 @@ import { AuthProvider, useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { ROLE_PERMISSIONS } from "@/types";
 import type { UserPermissions, UserRole } from "@/types";
 import { mockBranch, mockUser, createTestQueryClient } from "../test-utils";
-import { authApi, organizationsApi } from "@/lib/api/services";
+import { authApi } from "@/lib/api/services";
 import { tokenManager } from "@/lib/api/client";
 
 // ── Mock the API layer so AuthProvider never hits the network ─────────────────

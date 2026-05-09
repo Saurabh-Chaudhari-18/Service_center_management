@@ -679,7 +679,7 @@ function BillingContent() {
     enabled: !!currentBranch,
   });
 
-  const invoices = data?.results || [];
+  const invoices = useMemo(() => data?.results ?? [], [data]);
 
   // Client-side sort
   const sortedInvoices = useMemo(() => {

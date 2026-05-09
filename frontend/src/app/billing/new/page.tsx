@@ -32,7 +32,6 @@ import {
   Save,
   Loader2,
   Package,
-  ChevronDown,
   Search,
   User,
   Phone,
@@ -613,6 +612,15 @@ interface InvoicePreviewModalProps {
   customer: Customer | null | undefined;
 }
 
+/** Portal for print content — must match globals.css #print-portal-root */
+function PrintPortal({ children }: { children: React.ReactNode }) {
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div id="print-portal-root">{children}</div>,
+    document.body,
+  );
+}
+
 function InvoicePreviewModal({
   isOpen,
   onClose,
@@ -625,18 +633,6 @@ function InvoicePreviewModal({
   grandTotal,
   customer,
 }: InvoicePreviewModalProps) {
-  // Portal for print content - MUST match globals.css #print-portal-root
-  const PrintPortal = ({ children }: { children: React.ReactNode }) => {
-    // Client-side only rendering for portal
-    if (typeof window === "undefined") return null;
-
-    // Create portal to document.body with specific ID that is exempted from print hiding in globals.css
-    return createPortal(
-      <div id="print-portal-root">{children}</div>,
-      document.body,
-    );
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -858,7 +854,7 @@ function CreateInvoiceContent() {
         setValue("line_items", items);
       }
     }
-  }, [job, currentBranch, setValue]);
+  }, [job, currentBranch, selectedBranchId, setValue]);
 
   // Handle direct customer selection (no job)
   const handleCustomerSelect = (customer: Customer | null) => {

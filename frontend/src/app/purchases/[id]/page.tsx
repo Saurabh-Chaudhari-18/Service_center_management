@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, PackageCheck, Calendar, FileText, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Calendar, FileText, CheckCircle2 } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -16,13 +16,7 @@ export default function PurchaseDetailPage() {
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (id) {
-      loadPurchase();
-    }
-  }, [id]);
-
-  const loadPurchase = async () => {
+  const loadPurchase = useCallback(async () => {
     try {
       const data = await purchasesApi.get(id);
       setPurchase(data);
@@ -31,7 +25,13 @@ export default function PurchaseDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      void loadPurchase();
+    }
+  }, [id, loadPurchase]);
 
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("en-IN", {

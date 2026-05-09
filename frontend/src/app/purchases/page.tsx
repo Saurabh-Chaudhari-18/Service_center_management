@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, FileText, ChevronRight, Calculator, PackageCheck } from "lucide-react";
+import { Plus, Search, FileText, ChevronRight, Calculator } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -15,17 +15,12 @@ export default function PurchasesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    if (currentBranch) {
-      loadPurchases();
-    }
-  }, [currentBranch, search]);
-
-  const loadPurchases = async () => {
+  const loadPurchases = useCallback(async () => {
+    if (!currentBranch) return;
     setLoading(true);
     try {
       const response = await purchasesApi.list({
-        branch: currentBranch?.id,
+        branch: currentBranch.id,
         search: search.length > 2 ? search : undefined,
       });
       setPurchases(response.results);
@@ -34,7 +29,13 @@ export default function PurchasesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentBranch, search]);
+
+  useEffect(() => {
+    if (currentBranch) {
+      void loadPurchases();
+    }
+  }, [currentBranch, loadPurchases]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

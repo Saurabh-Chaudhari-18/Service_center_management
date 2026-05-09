@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
@@ -21,7 +20,6 @@ import {
   Wrench,
   Clock,
   CheckCircle2,
-  AlertCircle,
   MessageSquare,
   ArrowRight,
   Phone,
@@ -33,8 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
-import type { JobCard, JobStatus } from "@/types";
-import { JOB_STATUS_CONFIG } from "@/types";
+import type { JobCard } from "@/types";
 
 // =====================================================
 // Job Card for Technician View
@@ -51,11 +48,6 @@ function TechnicianJobCard({
   onUpdateStatus,
   onAddNote,
 }: TechnicianJobCardProps) {
-  const daysSinceCreated = Math.floor(
-    (new Date().getTime() - new Date(job.created_at).getTime()) /
-      (1000 * 60 * 60 * 24)
-  );
-
   const isPending = !["DELIVERED", "CANCELLED", "REJECTED"].includes(
     job.status
   );
@@ -522,7 +514,6 @@ function LiveLocationBanner() {
 // =====================================================
 
 export default function MyJobsPage() {
-  const { user } = useAuth();
   const [statusModal, setStatusModal] = useState<JobCard | null>(null);
   const [noteModal, setNoteModal] = useState<JobCard | null>(null);
 

@@ -9,7 +9,7 @@ import type { PickupRequest, PickupRequestStatus } from "@/types";
 
 // next/dynamic is used by LiveTrackingMap (in @/components/ui) — stub it out
 vi.mock("next/dynamic", () => ({
-  default: (_fn: unknown, _opts?: unknown) => () => null,
+  default: () => () => null,
 }));
 
 vi.mock("next/navigation", () => ({

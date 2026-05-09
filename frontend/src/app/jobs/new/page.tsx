@@ -30,8 +30,6 @@ import {
   AlertCircle,
   Phone,
   Printer,
-  ChevronRight,
-  Save
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer, DeviceType, AccessoryType } from "@/types";

@@ -5,8 +5,8 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { expensesApi } from "@/lib/api/services";
 import {
-  Plus, IndianRupee, Calendar, Filter, Trash2, Search,
-  TrendingDown, Receipt, RefreshCw, X, BadgePercent, ChevronDown,
+  Plus, IndianRupee, Trash2, Search,
+  TrendingDown, Receipt, RefreshCw, X, BadgePercent,
 } from "lucide-react";
 import type { Expense } from "@/types";
 

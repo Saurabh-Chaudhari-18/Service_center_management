@@ -11,7 +11,6 @@ import {
   Input,
   Select,
   LoadingState,
-  Badge,
   Modal,
   EmptyState,
 } from "@/components/ui";
@@ -28,7 +27,6 @@ import {
   ToggleLeft,
   ToggleRight,
   X,
-  Check,
   AlertTriangle,
 } from "lucide-react";
 import type { User, UserRole } from "@/types";
@@ -148,15 +146,19 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const branches =
     branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parseApiErrors = (error: any): Record<string, string> => {
+  const parseApiErrors = (error: unknown): Record<string, string> => {
     const apiErrors: Record<string, string> = {};
-    const data = error?.response?.data;
-    if (!data) return apiErrors;
+    const raw = (error as { response?: { data?: unknown } })?.response?.data;
+    if (!raw || typeof raw !== "object") return apiErrors;
+    const data = raw as Record<string, unknown>;
+    const errBlock = data.error as Record<string, unknown> | undefined;
 
     // Backend format: { error: { field_errors: { field: [msgs] } } }
-    const fieldErrors = data?.error?.field_errors || data?.field_errors || data;
-    if (fieldErrors && typeof fieldErrors === "object") {
+    const fieldErrors =
+      (errBlock?.field_errors as Record<string, unknown> | undefined) ||
+      (data.field_errors as Record<string, unknown> | undefined) ||
+      data;
+    if (fieldErrors && typeof fieldErrors === "object" && !Array.isArray(fieldErrors)) {
       Object.entries(fieldErrors).forEach(([key, val]) => {
         apiErrors[key] = Array.isArray(val) ? val.join(", ") : String(val);
       });
@@ -164,8 +166,8 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
 
     // Capture general message if no field errors found
     if (Object.keys(apiErrors).length === 0) {
-      const msg = data?.error?.message || data?.detail || data?.message;
-      if (msg) apiErrors.detail = String(msg);
+      const msg = errBlock?.message ?? data.detail ?? data.message;
+      if (msg != null) apiErrors.detail = String(msg);
     }
 
     return apiErrors;
@@ -179,13 +181,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       onClose();
       alert("Staff member created successfully!");
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       const parsed = parseApiErrors(error);
       if (Object.keys(parsed).length > 0) {
         setErrors(parsed);
       } else {
-        alert("Failed to create user: " + (error.message || "Unknown error"));
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        alert("Failed to create user: " + msg);
       }
     },
   });
@@ -198,13 +200,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       onClose();
       alert("Staff member updated successfully!");
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       const parsed = parseApiErrors(error);
       if (Object.keys(parsed).length > 0) {
         setErrors(parsed);
       } else {
-        alert("Failed to update user: " + (error.message || "Unknown error"));
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        alert("Failed to update user: " + msg);
       }
     },
   });

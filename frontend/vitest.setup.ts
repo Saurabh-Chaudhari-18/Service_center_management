@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { createElement } from "react";
 import { vi, afterEach, beforeEach } from "vitest";
 
 // ── next/navigation ──────────────────────────────────────────────────────────
@@ -22,7 +23,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/image", () => ({
   default: ({ src, alt, width, height }: { src: string; alt: string; width?: number; height?: number }) => {
     // Return a plain object that React can render as <img>
-    const { createElement } = require("react");
     return createElement("img", { src, alt, width, height });
   },
 }));
@@ -36,7 +36,6 @@ vi.mock("next/link", () => ({
     className?: string;
     [k: string]: unknown;
   }) => {
-    const { createElement } = require("react");
     return createElement("a", { href, className, ...props }, children);
   },
 }));

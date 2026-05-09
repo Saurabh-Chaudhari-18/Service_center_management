@@ -129,7 +129,7 @@ export default function GSTR1Page() {
           </section>
 
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm text-indigo-700">
-            <strong>How to use the JSON file:</strong> Click "Download JSON" → go to GST Portal → GSTR-1 → Upload → select the downloaded file. It will pre-fill all B2B and B2CS sections automatically.
+            <strong>How to use the JSON file:</strong> Click &quot;Download JSON&quot; → go to GST Portal → GSTR-1 → Upload → select the downloaded file. It will pre-fill all B2B and B2CS sections automatically.
           </div>
         </>
       ) : null}
