@@ -25,6 +25,9 @@ class InvoiceAdmin(admin.ModelAdmin):
     readonly_fields = ['invoice_number', 'subtotal', 'cgst_total', 'sgst_total', 'igst_total', 'total_tax', 'total_amount']
     inlines = [InvoiceLineItemInline, PaymentInline]
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):

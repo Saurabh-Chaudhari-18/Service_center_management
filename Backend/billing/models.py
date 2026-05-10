@@ -164,6 +164,8 @@ class Invoice(TimeStampedModel):
             models.Index(fields=['job']),
             models.Index(fields=['invoice_date']),
         ]
+        # GST Rule 58: retain tax records ~8 financial years — never hard-delete
+        # invoices (use InvoiceStatus.CANCELLED). See InvoiceViewSet.perform_destroy.
 
     def __str__(self):
         return f"{self.invoice_number} - {self.customer_name}"

@@ -58,9 +58,9 @@ class Command(BaseCommand):
                 )
                 if created:
                     total_created += 1
-                    self.stdout.write(self.style.SUCCESS(f"  ✔ Created: {cat['name']}"))
+                    self.stdout.write(self.style.SUCCESS(f"  + Created: {cat['name']}"))
                 else:
-                    self.stdout.write(f"  — Already exists: {cat['name']}")
+                    self.stdout.write(f"  - Already exists: {cat['name']}")
 
         self.stdout.write(
             self.style.SUCCESS(f"\nDone! Created {total_created} new categories.")

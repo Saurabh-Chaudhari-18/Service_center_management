@@ -3,6 +3,7 @@ from django.test import override_settings
 
 from core.exceptions import InvalidStatusTransition, JobReadOnlyError
 from jobs.models import ALLOWED_STATUS_TRANSITIONS, JobCard, JobStatus
+from jobs.services import apply_diagnosis
 
 
 def _transition_procedure_installed():
@@ -72,6 +73,25 @@ class TestStatusTransitions:
     def test_all_allowed_transitions_exist_in_map(self):
         for status in JobStatus:
             assert status in ALLOWED_STATUS_TRANSITIONS
+
+    def test_apply_diagnosis_transitions_to_diagnosis(self, branch, owner):
+        if not _transition_procedure_installed():
+            pytest.skip(
+                'PostgreSQL procedure transition_job_status is missing; '
+                'run Backend/db_setup_script.sql after migrate.'
+            )
+        job = self._make_job(branch, owner)
+        apply_diagnosis(job, {'diagnosis_notes': 'Screen crack detected'}, owner)
+        job.refresh_from_db()
+        assert job.status == JobStatus.DIAGNOSIS
+        assert job.diagnosis_notes == 'Screen crack detected'
+
+    def test_apply_diagnosis_rejects_terminal_non_owner(self, branch, technician):
+        job = self._make_job(branch, technician)
+        job.status = JobStatus.DELIVERED
+        job.save(update_fields=['status'])
+        with pytest.raises(ValueError, match='completed'):
+            apply_diagnosis(job, {'diagnosis_notes': 'Late fix'}, technician)
 
 
 @pytest.mark.django_db

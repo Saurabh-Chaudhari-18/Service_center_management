@@ -1,36 +1,12 @@
 """
-Custom exception handling for consistent API error responses.
+Domain exceptions and REST API exception subclasses.
+
+Unified HTTP error envelope is implemented in ``core.error_handlers``.
 """
 
-from rest_framework.views import exception_handler
 from rest_framework.exceptions import APIException
 from rest_framework import status
 from django.utils.translation import gettext_lazy as _
-
-
-def custom_exception_handler(exc, context):
-    """
-    Custom exception handler providing consistent error format.
-    """
-    response = exception_handler(exc, context)
-    
-    if response is not None:
-        error_payload = {
-            'success': False,
-            'error': {
-                'code': getattr(exc, 'default_code', 'error'),
-                'message': str(exc.detail) if hasattr(exc, 'detail') else str(exc),
-                'status_code': response.status_code,
-            }
-        }
-        
-        # Include field errors for validation errors
-        if hasattr(exc, 'detail') and isinstance(exc.detail, dict):
-            error_payload['error']['field_errors'] = exc.detail
-        
-        response.data = error_payload
-    
-    return response
 
 
 class BusinessRuleViolation(APIException):

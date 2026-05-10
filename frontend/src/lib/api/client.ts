@@ -183,23 +183,54 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
 
   const { status, data } = error.response;
 
+  if (typeof data === "object" && data !== null) {
+    const d = data as Record<string, unknown>;
+    const err = d.error as Record<string, unknown> | undefined;
+    if (
+      d.success === false &&
+      err &&
+      typeof err.message === "string" &&
+      err.message
+    ) {
+      const fields =
+        (err.field_errors as Record<string, unknown> | undefined) ??
+        (err.fields as Record<string, unknown> | undefined);
+      if (fields && Object.keys(fields).length > 0) {
+        const lines: string[] = [];
+        Object.entries(fields).forEach(([key, value]) => {
+          if (Array.isArray(value)) {
+            lines.push(`${key}: ${value.join(", ")}`);
+          } else if (value != null) {
+            lines.push(`${key}: ${String(value)}`);
+          }
+        });
+        if (lines.length > 0) {
+          return `${err.message}\n${lines.join("\n")}`;
+        }
+      }
+      return err.message;
+    }
+  }
+
   // Handle specific status codes
   switch (status) {
     case 400:
-      // Validation errors
+      // Validation errors (non-envelope or legacy DRF shape)
       if (typeof data === "object" && data !== null) {
         const errors: string[] = [];
-        Object.entries(data).forEach(([key, value]) => {
-          if (Array.isArray(value)) {
-            errors.push(`${key}: ${value.join(", ")}`);
-          } else if (typeof value === "string") {
-            errors.push(`${key}: ${value}`);
-          }
-        });
+        Object.entries(data as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (key === "success" || key === "error") return;
+            if (Array.isArray(value)) {
+              errors.push(`${key}: ${value.join(", ")}`);
+            } else if (typeof value === "string") {
+              errors.push(`${key}: ${value}`);
+            }
+          },
+        );
         if (errors.length > 0) {
           return errors.join("\n");
         }
-        // Fallback: dump the object if we couldn't format it nicely
         return `Invalid request: ${JSON.stringify(data)}`;
       }
       return "Invalid request. Please check your input.";
@@ -213,11 +244,14 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
     case 404:
       return "The requested resource was not found.";
 
-    case 409:
+    case 409: {
+      const d409 = data as { detail?: string; error?: { message?: string } };
       return (
-        (data as { detail?: string })?.detail ||
+        d409?.error?.message ||
+        d409?.detail ||
         "Conflict error. The resource may already exist."
       );
+    }
 
     case 422:
       return (
@@ -230,6 +264,7 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
 
     default:
       return (
+        (data as { error?: { message?: string } })?.error?.message ||
         (data as { detail?: string })?.detail ||
         (data as { message?: string })?.message ||
         "An unexpected error occurred."

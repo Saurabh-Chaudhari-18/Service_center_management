@@ -12,9 +12,11 @@ from django.db import transaction
 from django.db import models as django_models
 from django.utils import timezone
 
+from rest_framework.pagination import PageNumberPagination
+
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
-    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType, DiagnosisPart,
+    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType,
     PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
     DropdownOption, DropdownCategory
 )
@@ -39,6 +41,14 @@ from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
 
 
+class JobCardPagination(PageNumberPagination):
+    """Explicit page size for job lists (my_jobs, pending, etc.)."""
+
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
     ViewSet for Job Card management.
@@ -61,6 +71,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering = ['-is_urgent', '-created_at']
     branch_field = 'branch'
     queryset = JobCard.objects.all()
+    pagination_class = JobCardPagination
 
     def get_queryset(self):
         """Filter jobs based on user's role and branch access."""
@@ -185,57 +196,16 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove])
     def add_diagnosis(self, request, pk=None):
         """Add or update diagnosis notes."""
+        from jobs.services import apply_diagnosis
+
         job = self.get_object()
-        
-        # Allow Owner to add diagnosis even if terminal
-        if job.is_terminal_status() and request.user.role != Role.OWNER:
-            return Response(
-                {'error': 'Cannot modify a completed job.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         serializer = JobDiagnosisSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        with transaction.atomic():
-            job.diagnosis_notes = serializer.validated_data['diagnosis_notes']
-            
-            if 'estimated_cost' in serializer.validated_data:
-                job.estimated_cost = serializer.validated_data['estimated_cost']
-            if 'estimated_completion_date' in serializer.validated_data:
-                job.estimated_completion_date = serializer.validated_data['estimated_completion_date']
-            
-            job.save()
-
-            # Handle diagnosis parts
-            if 'parts' in serializer.validated_data:
-                # Clear existing manual parts for this diagnosis
-                DiagnosisPart.objects.filter(job=job).delete()
-                
-                parts_data = serializer.validated_data['parts']
-                for part in parts_data:
-                    DiagnosisPart.objects.create(
-                        job=job,
-                        name=part['name'],
-                        price=part['price'],
-                        warranty_months=part.get('warranty_months', 0),
-                        quantity=part.get('quantity', 1)
-                    )
-            
-            # Auto-transition to DIAGNOSIS if still in RECEIVED
-            if job.status == JobStatus.RECEIVED:
-                job.transition_status(
-                    JobStatus.DIAGNOSIS,
-                    request.user,
-                    'Diagnosis completed'
-                )
-        
-        return Response({
-            'message': 'Diagnosis updated successfully.',
-            'status': job.status,
-            'status_display': job.get_status_display(),
-            'diagnosis_parts_count': job.diagnosis_parts.count()
-        })
+        try:
+            result = apply_diagnosis(job, serializer.validated_data, request.user)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember])
     def share_estimate(self, request, pk=None):
@@ -569,12 +539,15 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        queryset = JobCard.objects.filter(
-            assigned_technician=request.user,
-            branch__in=request.user.get_accessible_branches()
-        ).exclude(
-            status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED]
-        ).order_by('-is_urgent', '-created_at')
+        queryset = (
+            JobCard.objects.filter(
+                assigned_technician=request.user,
+                branch__in=request.user.get_accessible_branches(),
+            )
+            .exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED])
+            .order_by('-is_urgent', '-created_at')
+            .select_related('customer', 'assigned_technician')
+        )
 
         # Paginate to avoid downloading entire job history in one request
         page = self.paginate_queryset(queryset)

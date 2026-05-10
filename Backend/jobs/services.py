@@ -203,3 +203,55 @@ class JobCardService:
             "=" * 60,
         ]
         return "\n".join(lines).encode("utf-8")
+
+
+def apply_diagnosis(job, validated_data: dict, user) -> dict:
+    """
+    Apply diagnosis data to a job card.
+    Raises ValueError if the job is terminal and the user is not an OWNER.
+    """
+    from django.db import transaction
+
+    from core.models import Role
+    from jobs.models import JobStatus, DiagnosisPart
+
+    if job.is_terminal_status() and user.role != Role.OWNER:
+        raise ValueError('Cannot modify a completed job.')
+
+    with transaction.atomic():
+        job.diagnosis_notes = validated_data['diagnosis_notes']
+
+        if 'estimated_cost' in validated_data:
+            job.estimated_cost = validated_data['estimated_cost']
+        if 'estimated_completion_date' in validated_data:
+            job.estimated_completion_date = validated_data['estimated_completion_date']
+
+        job.save()
+
+        if 'parts' in validated_data:
+            DiagnosisPart.objects.filter(job=job).delete()
+            parts_data = validated_data['parts']
+            DiagnosisPart.objects.bulk_create([
+                DiagnosisPart(
+                    job=job,
+                    name=part['name'],
+                    price=part['price'],
+                    warranty_months=part.get('warranty_months', 0),
+                    quantity=part.get('quantity', 1),
+                )
+                for part in parts_data
+            ])
+
+        if job.status == JobStatus.RECEIVED:
+            job.transition_status(
+                JobStatus.DIAGNOSIS,
+                user,
+                'Diagnosis completed',
+            )
+
+    return {
+        'message': 'Diagnosis updated successfully.',
+        'status': job.status,
+        'status_display': job.get_status_display(),
+        'diagnosis_parts_count': job.diagnosis_parts.count(),
+    }

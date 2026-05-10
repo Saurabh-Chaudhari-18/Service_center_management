@@ -239,18 +239,9 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT
             )
 
-        import uuid as _uuid
-        anon_tag = _uuid.uuid4().hex[:8]
-        customer.first_name = f'deleted_{anon_tag}'
-        customer.last_name = ''
-        customer.email = ''
-        customer.mobile = f'+000{anon_tag}'
-        customer.alternate_mobile = ''
-        customer.address_line1 = ''
-        customer.address_line2 = ''
-        customer.notes = ''
-        customer.is_active = False
-        customer.save()
+        from customers.services import anonymise_customer
+
+        anonymise_customer(customer)
 
         return Response({'message': 'Customer data anonymised successfully.'})
 

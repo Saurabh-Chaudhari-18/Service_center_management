@@ -156,7 +156,9 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
     // Backend format: { error: { field_errors: { field: [msgs] } } }
     const fieldErrors =
       (errBlock?.field_errors as Record<string, unknown> | undefined) ||
+      (errBlock?.fields as Record<string, unknown> | undefined) ||
       (data.field_errors as Record<string, unknown> | undefined) ||
+      (data.fields as Record<string, unknown> | undefined) ||
       data;
     if (fieldErrors && typeof fieldErrors === "object" && !Array.isArray(fieldErrors)) {
       Object.entries(fieldErrors).forEach(([key, val]) => {

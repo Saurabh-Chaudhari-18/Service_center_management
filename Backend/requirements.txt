@@ -42,6 +42,10 @@ django-redis==5.4.0
 # Error tracking
 sentry-sdk[django]==2.22.0
 
+# Object storage (optional production media)
+django-storages[s3]==1.14.4
+boto3==1.35.34
+
 # Development & Testing
 pytest==8.0.0
 pytest-django==4.7.0

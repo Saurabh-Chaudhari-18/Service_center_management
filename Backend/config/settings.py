@@ -151,7 +151,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
+    'EXCEPTION_HANDLER': 'core.error_handlers.custom_exception_handler',
 }
 
 # JWT Settings
@@ -221,6 +221,35 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# -----------------------------------------------------------------------
+# Media storage — S3-compatible (AWS S3, MinIO, Cloudflare R2).
+# -----------------------------------------------------------------------
+USE_S3 = env.bool('USE_S3', default=False)
+
+if USE_S3:
+    INSTALLED_APPS.append('storages')
+    AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='ap-south-1')
+    _custom_domain = env('AWS_S3_CUSTOM_DOMAIN', default='')
+    if _custom_domain:
+        AWS_S3_CUSTOM_DOMAIN = _custom_domain
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_QUERYSTRING_AUTH = True
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -277,11 +306,14 @@ LOW_STOCK_THRESHOLD = env.int('LOW_STOCK_THRESHOLD', default=5)
 # Financial Year Configuration (India: April to March)
 FINANCIAL_YEAR_START_MONTH = 4  # April
 
-# Logging Configuration
+# Logging Configuration (JSON lines for log agents)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
+        'json_fmt': {
+            '()': 'core.log_formatters.JsonFormatter',
+        },
         'verbose': {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
@@ -294,25 +326,38 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'service_center.log',
             'maxBytes': 10 * 1024 * 1024,  # 10 MB
             'backupCount': 10,
-            'formatter': 'verbose',
+            'formatter': 'json_fmt',
         },
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'json_fmt',
         },
     },
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': False,
         },
         'core': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
+            'propagate': False,
         },
         'audit': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'jobs': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'billing': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }

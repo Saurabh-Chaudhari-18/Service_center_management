@@ -1,25 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, useRef, startTransition } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
   Button,
-  Input,
-  Textarea,
-  Select,
   JobStatusBadge,
   LoadingState,
-  Modal,
   Alert,
   Badge,
 } from "@/components/ui";
-import { jobsApi, API_BASE_URL } from "@/lib/api";
+import { jobsApi } from "@/lib/api";
 import {
   ArrowLeft,
   Edit,
@@ -33,637 +29,20 @@ import {
   AlertCircle,
   Camera,
   Package,
-  DollarSign,
   UserCheck,
   Wrench,
   History,
-  Plus,
-  Trash2,
   Settings,
   Receipt,
   Printer,
-  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import type { JobCard, JobStatus, JobStatusHistoryItem } from "@/types";
-import { JOB_STATUS_CONFIG } from "@/types";
-
-// =====================================================
-// Timeline Component
-// =====================================================
-
-interface TimelineProps {
-  history: JobStatusHistoryItem[];
-}
-
-function StatusTimeline({ history }: TimelineProps) {
-  if (!history || history.length === 0) {
-    return (
-      <p className="text-sm text-neutral-500 text-center py-4">
-        No status history available
-      </p>
-    );
-  }
-
-  return (
-    <div className="timeline">
-      {history.map((item) => {
-        const toConfig = JOB_STATUS_CONFIG[item.to_status as JobStatus];
-
-        return (
-          <div key={item.id} className="timeline-item">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-neutral-900">
-                    {toConfig?.label}
-                  </span>
-                  {item.is_override && (
-                    <Badge variant="warning" size="sm">
-                      Override
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-neutral-500 mt-1">
-                  by {item.changed_by_name || "System"}
-                </p>
-                {item.notes && (
-                  <p className="text-sm text-neutral-600 mt-2 italic">
-                    &quot;{item.notes}&quot;
-                  </p>
-                )}
-                <p className="text-xs text-neutral-400 mt-1">
-                  {format(new Date(item.created_at), "MMM dd, yyyy h:mm a")}
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// =====================================================
-// Action Modals
-// =====================================================
-
-interface AssignTechnicianModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  jobId: string;
-  branchId?: string;
-}
-
-function AssignTechnicianModal({
-  isOpen,
-  onClose,
-  jobId,
-  branchId,
-}: AssignTechnicianModalProps) {
-  const queryClient = useQueryClient();
-  const [technicianId, setTechnicianId] = useState("");
-  const [notes, setNotes] = useState("");
-
-  // Fetch real technicians from API
-  const { data: techniciansData } = useQuery({
-    queryKey: ["technicians", branchId],
-    queryFn: () =>
-      jobsApi.list({ branch: branchId }).then(() =>
-        // Fetch users with TECHNICIAN role
-        fetch(
-          `${API_BASE_URL}/core/users/?role=TECHNICIAN${
-            branchId ? `&branch=${branchId}` : ""
-          }`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem(
-                "scm_access_token",
-              )}`,
-              "Content-Type": "application/json",
-            },
-          },
-        ).then((res) => res.json()),
-      ),
-    enabled: isOpen,
-  });
-
-  const technicians =
-    techniciansData?.results?.map(
-      (user: { id: string; first_name: string; last_name: string }) => ({
-        value: user.id,
-        label: `${user.first_name} ${user.last_name}`,
-      }),
-    ) || [];
-
-  const { mutate, isPending, error } = useMutation({
-    mutationFn: () => jobsApi.assignTechnician(jobId, technicianId, notes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
-      setTechnicianId("");
-      setNotes("");
-      onClose();
-    },
-  });
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Assign Technician"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => mutate()}
-            isLoading={isPending}
-            disabled={!technicianId}
-          >
-            Assign
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        {error && <Alert variant="error">{(error as Error).message}</Alert>}
-        {technicians.length === 0 ? (
-          <Alert variant="info">
-            No technicians available. Please add technicians to this branch
-            first.
-          </Alert>
-        ) : (
-          <Select
-            label="Select Technician"
-            options={technicians}
-            value={technicianId}
-            onChange={(e) => setTechnicianId(e.target.value)}
-            placeholder="Choose a technician..."
-            required
-          />
-        )}
-        <Textarea
-          label="Notes (optional)"
-          placeholder="Add any assignment notes..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
-    </Modal>
-  );
-}
-
-interface UpdateStatusModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  jobId: string;
-  currentStatus: JobStatus;
-}
-
-function UpdateStatusModal({
-  isOpen,
-  onClose,
-  jobId,
-  currentStatus,
-}: UpdateStatusModalProps) {
-  const queryClient = useQueryClient();
-  const [newStatus, setNewStatus] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: () => jobsApi.updateStatus(jobId, newStatus, notes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
-      onClose();
-    },
-  });
-
-  // Allow any status transition as requested by user
-  const availableStatuses = Object.keys(JOB_STATUS_CONFIG)
-    .filter((status) => status !== currentStatus)
-    .map((status) => ({
-      value: status,
-      label: JOB_STATUS_CONFIG[status as JobStatus]?.label || status,
-    }));
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Update Status"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => mutate()}
-            isLoading={isPending}
-            disabled={!newStatus}
-          >
-            Update
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 p-3 bg-neutral-50 rounded-lg">
-          <span className="text-sm text-neutral-500">Current Status:</span>
-          <JobStatusBadge status={currentStatus} />
-        </div>
-
-        {availableStatuses.length > 0 ? (
-          <>
-            <Select
-              label="New Status"
-              options={availableStatuses}
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              placeholder="Select new status..."
-              required
-            />
-            <Textarea
-              label="Notes"
-              placeholder="Add transition notes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </>
-        ) : (
-          <Alert variant="info">
-            No further status transitions available for this job.
-          </Alert>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-interface DiagnosisModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  jobId: string;
-  initialData?: JobCard;
-}
-
-function DiagnosisModal({
-  isOpen,
-  onClose,
-  jobId,
-  initialData,
-}: DiagnosisModalProps) {
-  const queryClient = useQueryClient();
-  const [diagnosis, setDiagnosis] = useState("");
-  const [estimatedCost, setEstimatedCost] = useState("");
-  const [estimatedDate, setEstimatedDate] = useState("");
-  const [parts, setParts] = useState<
-    Array<{
-      name: string;
-      price: string;
-      warranty_months: string;
-      quantity: string;
-    }>
-  >([]);
-  const [damagePhotos, setDamagePhotos] = useState<File[]>([]);
-  const [photoDescriptions, setPhotoDescriptions] = useState<string[]>([]);
-  const prevIsOpenRef = useRef(false);
-
-  // Initialize/reset form state when modal opens/closes
-  // This pattern is necessary for modal forms that need to initialize from props
-  useEffect(() => {
-    // Only initialize/reset when modal state changes
-    if (isOpen && !prevIsOpenRef.current) {
-      // Modal just opened - initialize from initialData
-      if (initialData) {
-        // Use startTransition to batch state updates and avoid linter warnings
-        startTransition(() => {
-          setDiagnosis(initialData.diagnosis_notes || "");
-          setEstimatedCost(
-            initialData.estimated_cost
-              ? String(initialData.estimated_cost)
-              : "",
-          );
-          setEstimatedDate(initialData.estimated_completion_date || "");
-          setParts(
-            initialData.diagnosis_parts
-              ? initialData.diagnosis_parts.map((p) => ({
-                  name: p.name,
-                  price: String(p.price),
-                  warranty_months: String(p.warranty_months),
-                  quantity: String(p.quantity),
-                }))
-              : [],
-          );
-        });
-      }
-    } else if (!isOpen && prevIsOpenRef.current) {
-      // Modal just closed - reset state
-      startTransition(() => {
-        setDiagnosis("");
-        setEstimatedCost("");
-        setEstimatedDate("");
-        setParts([]);
-        setDamagePhotos([]);
-        setPhotoDescriptions([]);
-      });
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [isOpen, initialData]);
-
-  // Calculate total from parts
-  const totalPartsPrice = parts.reduce((sum, part) => {
-    return sum + (parseFloat(part.price) || 0) * (parseInt(part.quantity) || 1);
-  }, 0);
-
-  const handleAddPart = () => {
-    setParts([
-      ...parts,
-      { name: "", price: "", warranty_months: "0", quantity: "1" },
-    ]);
-  };
-
-  const handleRemovePart = (index: number) => {
-    setParts(parts.filter((_, i) => i !== index));
-  };
-
-  const handlePartChange = (
-    index: number,
-    field: keyof (typeof parts)[0],
-    value: string,
-  ) => {
-    const newParts = [...parts];
-    newParts[index][field] = value;
-    setParts(newParts);
-  };
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: () =>
-      jobsApi.addDiagnosis(
-        jobId,
-        diagnosis,
-        estimatedCost ? parseFloat(estimatedCost) : undefined,
-        estimatedDate || undefined,
-        parts.map((p) => ({
-          name: p.name,
-          price: parseFloat(p.price) || 0,
-          warranty_months: parseInt(p.warranty_months) || 0,
-          quantity: parseInt(p.quantity) || 1,
-        })),
-      ),
-    onSuccess: async () => {
-      // Upload any attached damage photos
-      if (damagePhotos.length > 0) {
-        try {
-          for (let i = 0; i < damagePhotos.length; i++) {
-            if (damagePhotos[i]) {
-                await jobsApi.uploadPhoto(
-                  jobId,
-                  damagePhotos[i],
-                  "DAMAGE",
-                  photoDescriptions[i] || "Damage during diagnosis"
-                );
-            }
-          }
-        } catch (e) {
-          console.error("Failed to upload damage photos", e);
-        }
-      }
-      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
-      onClose();
-    },
-  });
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Add Diagnosis"
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => mutate()}
-            isLoading={isPending}
-            disabled={!diagnosis}
-          >
-            Save Diagnosis
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Textarea
-          label="Diagnosis Notes"
-          placeholder="Describe the issue found and recommended repairs..."
-          value={diagnosis}
-          onChange={(e) => setDiagnosis(e.target.value)}
-          required
-          rows={4}
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Estimated Cost (₹)"
-            type="number"
-            placeholder="0.00"
-            value={estimatedCost}
-            onChange={(e) => setEstimatedCost(e.target.value)}
-            leftIcon={<DollarSign className="w-4 h-4" />}
-          />
-          <Input
-            label="Estimated Completion Date"
-            type="date"
-            value={estimatedDate}
-            onChange={(e) => setEstimatedDate(e.target.value)}
-          />
-        </div>
-
-        {/* Diagnosis Photos Section */}
-        <div className="space-y-3 pt-4 border-t border-gray-100">
-          <h4 className="font-medium text-neutral-900 flex items-center gap-2">
-            <Camera className="w-4 h-4" /> Diagnosis Photos
-          </h4>
-          <p className="text-xs text-neutral-500">
-            Upload images of any physical damage found during diagnosis. These may be visible to the customer.
-          </p>
-          <div className="space-y-3">
-            {damagePhotos.map((photo, index) => (
-              <div key={index} className="flex items-start gap-3 bg-neutral-50 p-2 rounded-lg border border-neutral-100">
-                <div className="flex-1 space-y-2">
-                  <div className="text-sm font-medium px-1 truncate">{photo.name}</div>
-                  <Input
-                    placeholder="Description (e.g. Scratched screen)"
-                    value={photoDescriptions[index] || ""}
-                    onChange={(e) => {
-                      const newDesc = [...photoDescriptions];
-                      newDesc[index] = e.target.value;
-                      setPhotoDescriptions(newDesc);
-                    }}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 mt-7"
-                  type="button"
-                  onClick={() => {
-                    const newPhotos = [...damagePhotos];
-                    const newDesc = [...photoDescriptions];
-                    newPhotos.splice(index, 1);
-                    newDesc.splice(index, 1);
-                    setDamagePhotos(newPhotos);
-                    setPhotoDescriptions(newDesc);
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-            
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                id="damage-photo-upload"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setDamagePhotos([...damagePhotos, file]);
-                    setPhotoDescriptions([...photoDescriptions, ""]);
-                    e.target.value = ''; // Reset input
-                  }
-                }}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => document.getElementById("damage-photo-upload")?.click()}
-                leftIcon={<Upload className="w-4 h-4" />}
-                type="button"
-              >
-                Add Photo
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Spare Parts Section */}
-        <div className="space-y-3 pt-4 border-t border-gray-100">
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium text-neutral-900">Spare Parts</h4>
-            <Button
-              size="sm"
-              variant="secondary"
-              leftIcon={<Plus className="w-4 h-4" />}
-              onClick={handleAddPart}
-            >
-              Add Part
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {parts.length > 0 && (
-              <div className="grid grid-cols-[1fr_6rem_5rem_8rem_2.5rem] gap-3 text-sm font-medium text-neutral-500 px-1 mb-2">
-                <div>Part Name</div>
-                <div>Price</div>
-                <div>Qty</div>
-                <div>Warranty</div>
-                <div></div>
-              </div>
-            )}
-            {parts.map((part, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-[1fr_6rem_5rem_8rem_2.5rem] gap-3 items-start"
-              >
-                <div>
-                  <Input
-                    placeholder="Part Name"
-                    value={part.name}
-                    onChange={(e) =>
-                      handlePartChange(index, "name", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-                <div>
-                  <Input
-                    type="number"
-                    placeholder="Price"
-                    value={part.price}
-                    onChange={(e) =>
-                      handlePartChange(index, "price", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-                <div>
-                  <Input
-                    type="number"
-                    placeholder="Qty"
-                    value={part.quantity}
-                    onChange={(e) =>
-                      handlePartChange(index, "quantity", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-                <div>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={part.warranty_months}
-                    onChange={(e) =>
-                      handlePartChange(index, "warranty_months", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50"
-                  onClick={() => handleRemovePart(index)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-            {parts.length === 0 && (
-              <p className="text-sm text-neutral-500 text-center py-2 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
-                No parts added. Click &quot;Add Part&quot; to include spares.
-              </p>
-            )}
-
-            {parts.length > 0 && (
-              <div className="flex justify-end pt-2">
-                <p className="text-sm font-medium">
-                  Total Parts Cost:{" "}
-                  <span className="text-green-600">
-                    ₹{totalPartsPrice.toFixed(2)}
-                  </span>
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// =====================================================
-// Job Detail Page
-// =====================================================
-
-// =====================================================
-// Print Portal Component
-// =====================================================
+import { JobStatusTimeline } from "@/components/jobs/JobStatusTimeline";
+import { JobAssignTechnicianModal } from "@/components/jobs/JobAssignTechnicianModal";
+import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
+import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
+import { JobBrandLogo } from "@/components/jobs/JobBrandLogo";
 
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
@@ -672,86 +51,6 @@ const PrintPortal = ({ children }: { children: React.ReactNode }) => {
     document.body,
   );
 };
-
-// Simple Brand Logo Component
-function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
-  switch (brand) {
-    case "HP":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle cx="50" cy="50" r="45" fill="#0096D6" />
-          <text
-            x="50"
-            y="65"
-            fontSize="40"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            style={{ fontStyle: "italic", fontFamily: "serif" }}
-          >
-            hp
-          </text>
-        </svg>
-      );
-    case "DELL":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle
-            cx="50"
-            cy="50"
-            r="48"
-            fill="none"
-            stroke="#007DB8"
-            strokeWidth="4"
-          />
-          <text
-            x="50"
-            y="60"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#007DB8"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            DELL
-          </text>
-        </svg>
-      );
-    case "ASUS":
-      return (
-        <svg viewBox="0 0 100 30" className="w-12 h-6">
-          <text
-            x="50"
-            y="22"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#00539B"
-            textAnchor="middle"
-            style={{ letterSpacing: "2px" }}
-          >
-            ASUS
-          </text>
-        </svg>
-      );
-    case "LENOVO":
-      return (
-        <svg viewBox="0 0 100 40" className="w-16 h-8">
-          <rect width="100" height="40" fill="#E2231A" />
-          <text
-            x="50"
-            y="28"
-            fontSize="20"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            Lenovo
-          </text>
-        </svg>
-      );
-  }
-}
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -1061,7 +360,8 @@ export default function JobDetailPage() {
                       Physical Condition
                     </p>
                     <p className="text-neutral-900 bg-neutral-50 p-3 rounded-lg">
-                      {(job as any).physical_condition_display || "Not documented"}
+                      {(job as any).physical_condition_display ||
+                        "Not documented"}
                     </p>
                   </div>
 
@@ -1245,7 +545,7 @@ export default function JobDetailPage() {
                   <History className="w-5 h-5 text-primary-500" />
                   Status History
                 </h3>
-                <StatusTimeline history={job.status_history || []} />
+                <JobStatusTimeline history={job.status_history || []} />
               </Card>
 
               {/* Intake Photos */}
@@ -1272,7 +572,9 @@ export default function JobDetailPage() {
                         />
                         {photo.description && (
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                            <p className="text-xs text-white truncate">{photo.description}</p>
+                            <p className="text-xs text-white truncate">
+                              {photo.description}
+                            </p>
                           </div>
                         )}
                       </a>
@@ -1285,19 +587,19 @@ export default function JobDetailPage() {
         </div>
 
         {/* Modals */}
-        <AssignTechnicianModal
+        <JobAssignTechnicianModal
           isOpen={showAssignModal}
           onClose={() => setShowAssignModal(false)}
           jobId={jobId}
           branchId={job.branch}
         />
-        <UpdateStatusModal
+        <JobUpdateStatusModal
           isOpen={showStatusModal}
           onClose={() => setShowStatusModal(false)}
           jobId={jobId}
           currentStatus={job.status}
         />
-        <DiagnosisModal
+        <JobDiagnosisModal
           isOpen={showDiagnosisModal}
           onClose={() => setShowDiagnosisModal(false)}
           jobId={jobId}
@@ -1313,10 +615,10 @@ export default function JobDetailPage() {
                 <div className="print-section border-2 border-black p-2 mb-2">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex gap-4 items-center">
-                      <BrandLogo brand="HP" />
-                      <BrandLogo brand="DELL" />
-                      <BrandLogo brand="ASUS" />
-                      <BrandLogo brand="LENOVO" />
+                      <JobBrandLogo brand="HP" />
+                      <JobBrandLogo brand="DELL" />
+                      <JobBrandLogo brand="ASUS" />
+                      <JobBrandLogo brand="LENOVO" />
                     </div>
                     <div className="text-right">
                       <h1 className="text-2xl font-bold uppercase tracking-wider">
@@ -1432,7 +734,8 @@ export default function JobDetailPage() {
                     )}
                     <p>
                       <b>Physical Condition:</b>{" "}
-                      {(job as any).physical_condition_display || "Not documented"}
+                      {(job as any).physical_condition_display ||
+                        "Not documented"}
                     </p>
                   </div>
                 </div>
