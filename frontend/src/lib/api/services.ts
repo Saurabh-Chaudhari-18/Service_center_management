@@ -234,6 +234,8 @@ export const jobsApi = {
     technician?: string;
     search?: string;
     page?: number;
+    page_size?: number;
+    is_urgent?: boolean;
   }): Promise<PaginatedResponse<JobCard>> => {
     return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/", params);
   },
@@ -408,7 +410,11 @@ export const jobsApi = {
    */
   getStats: async (params?: {
     branch?: string;
-  }): Promise<{ total: number; by_status: Record<string, number> }> => {
+  }): Promise<{
+    total: number;
+    by_status: Record<string, number>;
+    urgent?: number;
+  }> => {
     return apiGet("/jobs/jobs/stats/", params);
   },
 
@@ -601,8 +607,20 @@ export const purchasesApi = {
     branch?: string;
     search?: string;
     page?: number;
+    page_size?: number;
+    /** When "true", only purchases with vendor balance outstanding */
+    has_outstanding?: string;
   }): Promise<PaginatedResponse<Purchase>> => {
     return apiGet<PaginatedResponse<Purchase>>("/inventory/purchases/", params);
+  },
+
+  outstandingTotal: async (params?: {
+    branch?: string;
+  }): Promise<{ total_outstanding: string }> => {
+    return apiGet<{ total_outstanding: string }>(
+      "/inventory/purchases/outstanding_total/",
+      params,
+    );
   },
 
   get: async (id: string): Promise<Purchase> => {
@@ -1308,6 +1326,7 @@ export const ledgerApi = {
     customer?: string;
     branch?: string;
     page?: number;
+    page_size?: number;
   }): Promise<PaginatedResponse<any>> => {
     return apiGet("/marketing/ledger/", params);
   },

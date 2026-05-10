@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer, DeviceType, AccessoryType } from "@/types";
+import { formatPhone } from "@/lib/formatters";
 
 // =====================================================
 // Validation Schema
@@ -123,7 +124,7 @@ function CustomerSearch({
     <div className="space-y-3">
       <div className="relative">
         <Input
-          placeholder="Search by name or mobile number..."
+          placeholder="Search by name or mobile..."
           leftIcon={<Search className="w-5 h-5 text-neutral-400" />}
           value={search}
           onChange={(e) => {
@@ -161,7 +162,7 @@ function CustomerSearch({
                       {customer.first_name} {customer.last_name}
                     </p>
                     <p className="text-xs text-neutral-500">
-                      {customer.mobile}
+                      {formatPhone(customer.mobile)} · {customer.city || "—"}
                     </p>
                   </div>
                 </button>

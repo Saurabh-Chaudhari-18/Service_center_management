@@ -20,6 +20,7 @@ import {
   Wrench,
   Clock,
   CheckCircle2,
+  CheckCircle,
   MessageSquare,
   ArrowRight,
   Phone,
@@ -30,8 +31,12 @@ import {
   WifiOff,
 } from "lucide-react";
 import Link from "next/link";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import type { JobCard } from "@/types";
+import { formatPhone, formatDateLong } from "@/lib/formatters";
+
+const TERMINAL_STATUSES = ["DELIVERED", "CANCELLED", "REJECTED"];
+const isTerminalStatus = (status: string) => TERMINAL_STATUSES.includes(status);
 
 // =====================================================
 // Job Card for Technician View
@@ -95,7 +100,7 @@ function TechnicianJobCard({
           </p>
           <p className="text-sm text-neutral-500 flex items-center gap-1 mt-1">
             <Phone className="w-3.5 h-3.5" />
-            {job.customer?.mobile}
+            {formatPhone(job.customer?.mobile)}
           </p>
         </div>
         <div>
@@ -145,7 +150,7 @@ function TechnicianJobCard({
             <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-lg">
               <Clock className="w-4 h-4 text-purple-600" />
               <span className="text-purple-700">
-                Due: {format(new Date(job.estimated_completion_date), "MMM dd")}
+                Due: {formatDateLong(job.estimated_completion_date)}
               </span>
             </div>
           )}
@@ -307,9 +312,21 @@ function TechnicianStatusModal({
         </div>
 
         {actions.length === 0 && (
-          <Alert variant="info">
-            No status updates available for the current status.
-          </Alert>
+          <div className="text-center py-6">
+            <div className="text-gray-400 mb-2">
+              <CheckCircle className="h-8 w-8 mx-auto" />
+            </div>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              {isTerminalStatus(job.status)
+                ? "This job is complete — no further updates needed."
+                : "No actions available for your role at this stage."}
+            </p>
+            {isTerminalStatus(job.status) && (
+              <p className="text-xs text-gray-400 mt-1">
+                Status: <span className="font-mono">{job.status}</span>
+              </p>
+            )}
+          </div>
         )}
       </div>
     </Modal>

@@ -336,6 +336,8 @@ export interface JobCard extends BaseEntity {
   branch: string;
   branch_name?: string;
   job_number: string;
+  /** Public tracking PIN (staff-only in API) */
+  tracking_pin?: string;
   customer?: Customer;
   customer_id?: string;
   device_type: DeviceType;

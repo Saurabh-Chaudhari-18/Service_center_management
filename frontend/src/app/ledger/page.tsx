@@ -7,13 +7,21 @@ import { ledgerApi, customersApi } from "@/lib/api/services";
 import {
   Plus, BookOpen, TrendingUp, TrendingDown, Search,
   RefreshCw, X, ChevronRight, IndianRupee, User, FileText,
+  HelpCircle,
 } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
+import { formatDate, formatPhone } from "@/lib/formatters";
+
+const ENTRIES_PAGE_SIZE = 15;
 
 export default function LedgerPage() {
   const { currentBranch } = useAuth();
+  const { toast } = useToast();
 
   // ---- state ----
   const [entries, setEntries] = useState<any[]>([]);
+  const [entriesPage, setEntriesPage] = useState(1);
+  const [entriesTotalCount, setEntriesTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [outstanding, setOutstanding] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -37,17 +45,22 @@ export default function LedgerPage() {
   const fetchLedger = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = {
+        page: entriesPage,
+        page_size: ENTRIES_PAGE_SIZE,
+      };
       if (currentBranch) params.branch = currentBranch.id;
       if (selectedCustomer) params.customer = selectedCustomer.id;
       const res = await ledgerApi.list(params);
       setEntries(res.results || []);
+      setEntriesTotalCount(typeof res.count === "number" ? res.count : (res.results || []).length);
     } catch (err) {
       console.error("Failed to load ledger:", err);
+      toast.error("Failed to load ledger entries.");
     } finally {
       setLoading(false);
     }
-  }, [currentBranch, selectedCustomer]);
+  }, [currentBranch, selectedCustomer, entriesPage, toast]);
 
   const fetchOutstanding = useCallback(async () => {
     try {
@@ -77,6 +90,10 @@ export default function LedgerPage() {
   }, [currentBranch, customerSearch]);
 
   useEffect(() => { fetchLedger(); }, [fetchLedger]);
+
+  useEffect(() => {
+    setEntriesPage(1);
+  }, [selectedCustomer?.id]);
   useEffect(() => { fetchOutstanding(); }, [fetchOutstanding]);
   useEffect(() => {
     if (customerSearch.length >= 1) fetchCustomers();
@@ -101,11 +118,13 @@ export default function LedgerPage() {
         description: "", reference_type: "ADJUSTMENT",
         entry_date: new Date().toISOString().split("T")[0], notes: "",
       });
+      toast.success("Ledger entry added successfully.");
       fetchLedger();
       fetchOutstanding();
       if (selectedCustomer) fetchStatement(selectedCustomer.id);
     } catch (err) {
       console.error("Failed to create entry:", err);
+      toast.error("Failed to add ledger entry. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -118,7 +137,12 @@ export default function LedgerPage() {
   return (
     <AppLayout>
       <Header
-        title="Customer Ledger (Khata)"
+        title={
+          <span>
+            Ledger{" "}
+            <span className="text-gray-400 font-normal text-base">(Khata)</span>
+          </span>
+        }
         subtitle="Track customer balances, credits & payment history"
         actions={
           <button
@@ -168,7 +192,7 @@ export default function LedgerPage() {
               </div>
               <div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">Total Entries</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">{entries.length}</p>
+                <p className="text-xl font-bold text-neutral-900 dark:text-white">{entriesTotalCount}</p>
               </div>
             </div>
           </div>
@@ -198,7 +222,7 @@ export default function LedgerPage() {
                   >
                     <div>
                       <p className="text-sm font-medium text-neutral-900 dark:text-white">{c.name}</p>
-                      <p className="text-xs text-neutral-500">{c.mobile || ""}</p>
+                      <p className="text-xs text-neutral-500">{formatPhone(c.mobile) || ""}</p>
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-sm font-bold text-red-600 dark:text-red-400">
@@ -222,7 +246,11 @@ export default function LedgerPage() {
                     Statement — {selectedCustomer.name}
                   </h3>
                   <button
-                    onClick={() => { setSelectedCustomer(null); fetchLedger(); }}
+                    onClick={() => {
+                      setSelectedCustomer(null);
+                      setEntriesPage(1);
+                      fetchLedger();
+                    }}
                     className="text-xs text-neutral-400 hover:text-neutral-700 flex items-center gap-1"
                   >
                     <X className="w-3.5 h-3.5" /> Clear
@@ -258,15 +286,53 @@ export default function LedgerPage() {
                       <div key={e.id} className="flex items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-slate-700">
                         <div>
                           <p className="text-sm font-medium text-neutral-900 dark:text-white">{e.description}</p>
-                          <p className="text-xs text-neutral-400">{e.reference_type} · {new Date(e.entry_date).toLocaleDateString("en-IN")}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span
+                              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                e.entry_type === "CREDIT"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                  : "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                              }`}
+                            >
+                              {e.entry_type === "CREDIT" ? "Billed" : "Paid"}
+                            </span>
+                            <span className="text-xs text-neutral-400">{e.reference_type} · {formatDate(e.entry_date)}</span>
+                          </div>
                         </div>
-                        <span className={`font-bold text-sm ${e.entry_type === "CREDIT" ? "text-red-600" : "text-green-600"}`}>
+                        <span className={`font-bold text-sm ${e.entry_type === "CREDIT" ? "text-amber-700" : "text-green-700"}`}>
                           {e.entry_type === "CREDIT" ? "-" : "+"}₹{parseFloat(e.amount).toLocaleString("en-IN")}
                         </span>
                       </div>
                     ))
                   )}
                 </div>
+                {!loading && selectedCustomer && entries.length > 0 && (
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-100 dark:border-slate-700">
+                    <p className="text-sm text-neutral-500">
+                      Showing {(entriesPage - 1) * ENTRIES_PAGE_SIZE + 1} to{" "}
+                      {Math.min(entriesPage * ENTRIES_PAGE_SIZE, entriesTotalCount)} of{" "}
+                      {entriesTotalCount} results
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={entriesPage <= 1}
+                        onClick={() => setEntriesPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 dark:border-slate-600 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        disabled={entriesPage * ENTRIES_PAGE_SIZE >= entriesTotalCount}
+                        onClick={() => setEntriesPage((p) => p + 1)}
+                        className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 dark:border-slate-600 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -288,24 +354,62 @@ export default function LedgerPage() {
                     entries.map((e: any) => (
                       <div key={e.id} className="flex items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${e.entry_type === "CREDIT" ? "bg-red-100 dark:bg-red-900/30" : "bg-green-100 dark:bg-green-900/30"}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${e.entry_type === "CREDIT" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-green-100 dark:bg-green-900/30"}`}>
                             {e.entry_type === "CREDIT"
-                              ? <TrendingDown className="w-4 h-4 text-red-500" />
-                              : <TrendingUp className="w-4 h-4 text-green-500" />
+                              ? <TrendingDown className="w-4 h-4 text-amber-600" />
+                              : <TrendingUp className="w-4 h-4 text-green-600" />
                             }
                           </div>
                           <div>
                             <p className="text-sm font-medium text-neutral-900 dark:text-white">{e.description}</p>
-                            <p className="text-xs text-neutral-400">{e.customer_name || ""} · {new Date(e.entry_date).toLocaleDateString("en-IN")}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  e.entry_type === "CREDIT"
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                    : "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                                }`}
+                              >
+                                {e.entry_type === "CREDIT" ? "Billed" : "Paid"}
+                              </span>
+                              <span className="text-xs text-neutral-400">{e.customer_name || ""} · {formatDate(e.entry_date)}</span>
+                            </div>
                           </div>
                         </div>
-                        <span className={`font-bold text-sm ${e.entry_type === "CREDIT" ? "text-red-600" : "text-green-600"}`}>
+                        <span className={`font-bold text-sm ${e.entry_type === "CREDIT" ? "text-amber-700" : "text-green-700"}`}>
                           {e.entry_type === "CREDIT" ? "-" : "+"}₹{parseFloat(e.amount).toLocaleString("en-IN")}
                         </span>
                       </div>
                     ))
                   )}
                 </div>
+                {!loading && !selectedCustomer && entries.length > 0 && (
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-100 dark:border-slate-700">
+                    <p className="text-sm text-neutral-500">
+                      Showing {(entriesPage - 1) * ENTRIES_PAGE_SIZE + 1} to{" "}
+                      {Math.min(entriesPage * ENTRIES_PAGE_SIZE, entriesTotalCount)} of{" "}
+                      {entriesTotalCount} results
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={entriesPage <= 1}
+                        onClick={() => setEntriesPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 dark:border-slate-600 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        disabled={entriesPage * ENTRIES_PAGE_SIZE >= entriesTotalCount}
+                        onClick={() => setEntriesPage((p) => p + 1)}
+                        className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 dark:border-slate-600 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -360,14 +464,22 @@ export default function LedgerPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Entry Type *</label>
+                  <label className="flex items-center gap-1 block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">
+                    Entry Type *
+                    <span
+                      title={'Amount Added to Bill: customer owes more. Payment Received: customer paid you.'}
+                      className="cursor-help text-gray-400"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </span>
+                  </label>
                   <select
                     value={form.entry_type}
                     onChange={(e) => setForm({ ...form, entry_type: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                   >
-                    <option value="CREDIT">Credit (Customer Owes)</option>
-                    <option value="DEBIT">Debit (Payment Received)</option>
+                    <option value="CREDIT">Amount Added to Bill (Customer Owes)</option>
+                    <option value="DEBIT">Payment Received from Customer</option>
                   </select>
                 </div>
                 <div>

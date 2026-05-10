@@ -7,9 +7,9 @@
  */
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { renderWithQuery, mockAuthValue } from "../test-utils";
 import type { UserRole } from "@/types";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -53,13 +53,18 @@ vi.mock("@/components/layout/TechnicianLocationTracker", () => ({
 // ── Import AFTER mocks (receives mocked versions) ─────────────────────────────
 
 import { useAuth } from "@/context/AuthContext";
+import { ToastProvider } from "@/context/ToastContext";
 import { Sidebar } from "@/components/layout/Layout";
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 function renderSidebarAs(role: UserRole) {
   vi.mocked(useAuth).mockReturnValue(mockAuthValue(role) as ReturnType<typeof useAuth>);
-  render(<Sidebar />);
+  renderWithQuery(
+    <ToastProvider>
+      <Sidebar />
+    </ToastProvider>,
+  );
 }
 
 // ── OWNER ─────────────────────────────────────────────────────────────────────
@@ -70,7 +75,8 @@ describe("Sidebar – OWNER", () => {
   it("shows Dashboard", () => expect(screen.getByText("Dashboard")).toBeInTheDocument());
   it("shows Job Cards", () => expect(screen.getByText("Job Cards")).toBeInTheDocument());
   it("shows Inventory", () => expect(screen.getByText("Inventory")).toBeInTheDocument());
-  it("shows Accounts & Finance", () => expect(screen.getByText("Accounts & Finance")).toBeInTheDocument());
+  it("shows Transactions", () => expect(screen.getByText("Transactions")).toBeInTheDocument());
+  it("shows Finance Reports", () => expect(screen.getByText("Finance Reports")).toBeInTheDocument());
   it("shows Reports", () => expect(screen.getByText("Reports")).toBeInTheDocument());
   it("shows Branches", () => expect(screen.getByText("Branches")).toBeInTheDocument());
   it("shows Staff", () => expect(screen.getByText("Staff")).toBeInTheDocument());
@@ -89,7 +95,8 @@ describe("Sidebar – MANAGER", () => {
   it("shows Dashboard", () => expect(screen.getByText("Dashboard")).toBeInTheDocument());
   it("shows Job Cards", () => expect(screen.getByText("Job Cards")).toBeInTheDocument());
   it("shows Inventory", () => expect(screen.getByText("Inventory")).toBeInTheDocument());
-  it("shows Accounts & Finance", () => expect(screen.getByText("Accounts & Finance")).toBeInTheDocument());
+  it("shows Transactions", () => expect(screen.getByText("Transactions")).toBeInTheDocument());
+  it("shows Finance Reports", () => expect(screen.getByText("Finance Reports")).toBeInTheDocument());
   it("shows Reports", () => expect(screen.getByText("Reports")).toBeInTheDocument());
   it("shows Customers", () => expect(screen.getByText("Customers")).toBeInTheDocument());
   it("does NOT show Branches (no canManageBranches)", () => expect(screen.queryByText("Branches")).not.toBeInTheDocument());
@@ -106,7 +113,8 @@ describe("Sidebar – TECHNICIAN", () => {
   it("shows My Jobs (technician-only item)", () => expect(screen.getByText("My Jobs")).toBeInTheDocument());
   it("shows Job Cards (canViewJobCards)", () => expect(screen.getByText("Job Cards")).toBeInTheDocument());
   it("does NOT show Inventory (no canViewInventory)", () => expect(screen.queryByText("Inventory")).not.toBeInTheDocument());
-  it("does NOT show Accounts & Finance", () => expect(screen.queryByText("Accounts & Finance")).not.toBeInTheDocument());
+  it("does NOT show Transactions", () => expect(screen.queryByText("Transactions")).not.toBeInTheDocument());
+  it("does NOT show Finance Reports", () => expect(screen.queryByText("Finance Reports")).not.toBeInTheDocument());
   it("does NOT show Customers", () => expect(screen.queryByText("Customers")).not.toBeInTheDocument());
   it("does NOT show Reports", () => expect(screen.queryByText("Reports")).not.toBeInTheDocument());
   it("does NOT show Branches", () => expect(screen.queryByText("Branches")).not.toBeInTheDocument());
@@ -125,7 +133,8 @@ describe("Sidebar – RECEPTIONIST", () => {
   it("shows Enquiries", () => expect(screen.getByText("Enquiries")).toBeInTheDocument());
   it("shows Pickup & Drop", () => expect(screen.getByText("Pickup & Drop")).toBeInTheDocument());
   it("does NOT show Inventory (no canViewInventory)", () => expect(screen.queryByText("Inventory")).not.toBeInTheDocument());
-  it("does NOT show Accounts & Finance", () => expect(screen.queryByText("Accounts & Finance")).not.toBeInTheDocument());
+  it("does NOT show Transactions", () => expect(screen.queryByText("Transactions")).not.toBeInTheDocument());
+  it("does NOT show Finance Reports", () => expect(screen.queryByText("Finance Reports")).not.toBeInTheDocument());
   it("does NOT show Reports", () => expect(screen.queryByText("Reports")).not.toBeInTheDocument());
   it("does NOT show My Jobs", () => expect(screen.queryByText("My Jobs")).not.toBeInTheDocument());
 });
@@ -136,7 +145,8 @@ describe("Sidebar – ACCOUNTANT", () => {
   beforeEach(() => renderSidebarAs("ACCOUNTANT"));
 
   it("shows Dashboard", () => expect(screen.getByText("Dashboard")).toBeInTheDocument());
-  it("shows Accounts & Finance", () => expect(screen.getByText("Accounts & Finance")).toBeInTheDocument());
+  it("shows Transactions", () => expect(screen.getByText("Transactions")).toBeInTheDocument());
+  it("shows Finance Reports", () => expect(screen.getByText("Finance Reports")).toBeInTheDocument());
   it("shows Reports", () => expect(screen.getByText("Reports")).toBeInTheDocument());
   it("does NOT show Job Cards (no canViewJobCards)", () => expect(screen.queryByText("Job Cards")).not.toBeInTheDocument());
   it("does NOT show Inventory", () => expect(screen.queryByText("Inventory")).not.toBeInTheDocument());
@@ -154,5 +164,6 @@ describe("Sidebar – SUPER_ADMIN", () => {
   it("shows Dashboard", () => expect(screen.getByText("Dashboard")).toBeInTheDocument());
   it("shows Branches (canManageBranches)", () => expect(screen.getByText("Branches")).toBeInTheDocument());
   it("shows Staff (canManageUsers)", () => expect(screen.getByText("Staff")).toBeInTheDocument());
-  it("does NOT show Accounts & Finance (no canViewBilling)", () => expect(screen.queryByText("Accounts & Finance")).not.toBeInTheDocument());
+  it("does NOT show Transactions (finance via role, not SUPER_ADMIN)", () => expect(screen.queryByText("Transactions")).not.toBeInTheDocument());
+  it("does NOT show Finance Reports (finance via role, not SUPER_ADMIN)", () => expect(screen.queryByText("Finance Reports")).not.toBeInTheDocument());
 });

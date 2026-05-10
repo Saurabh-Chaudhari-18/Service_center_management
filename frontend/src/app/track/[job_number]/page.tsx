@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { Wrench, Phone, AlertCircle, FileText, MapPin, Camera } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import { JOB_STATUS_CONFIG, JobStatus } from "@/types";
-import { format } from "date-fns";
+import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { API_BASE_URL } from "@/lib/api";
 
 interface TimelineItem {
@@ -39,14 +39,20 @@ export default function TrackJobPage() {
   const jobNumber = params.job_number as string;
 
   const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<TrackingData | null>(null);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) {
       setError("Please enter a valid phone number.");
+      return;
+    }
+    if (!pin || pin.replace(/\D/g, "").length !== 4) {
+      setError("Please enter your 4-digit PIN from SMS.");
       return;
     }
 
@@ -54,11 +60,18 @@ export default function TrackJobPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/jobs/public/track/${jobNumber}/?phone=${encodeURIComponent(phone)}`);
+      const qp = new URLSearchParams({
+        phone: digits.slice(-10),
+        pin: pin.replace(/\D/g, "").slice(0, 4),
+      });
+      const res = await fetch(`${API_BASE_URL}/jobs/public/track/${jobNumber}/?${qp.toString()}`);
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Could not find job with provided details.");
+        throw new Error(
+          errorData.error ||
+            "Could not find job with provided details. Please check your phone number and PIN.",
+        );
       }
       
       const responseData: TrackingData = await res.json();
@@ -122,6 +135,24 @@ export default function TrackJobPage() {
                 required
               />
 
+              <Input
+                label="4-Digit PIN"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="PIN from your SMS"
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                required
+              />
+
+              <p className="text-xs text-gray-400 mt-[-8px]">
+                PIN was sent via SMS when your device was registered. Contact the
+                service center if you don&apos;t have it.
+              </p>
+
               <Button
                 type="submit"
                 className="w-full h-12"
@@ -180,7 +211,7 @@ export default function TrackJobPage() {
                       <div className="grid grid-cols-3 gap-2">
                         <dt className="text-neutral-500">Est. Ready by:</dt>
                         <dd className="col-span-2 font-medium text-neutral-900">
-                          {format(new Date(data.estimated_completion_date), "MMM dd, yyyy")}
+                          {formatDateLong(data.estimated_completion_date)}
                         </dd>
                       </div>
                     )}
@@ -200,7 +231,7 @@ export default function TrackJobPage() {
                         <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-neutral-100 bg-neutral-50/50 shadow-sm">
                           <div className="flex flex-col">
                             <span className="font-medium text-sm text-neutral-900">{JOB_STATUS_CONFIG[item.status]?.label || item.status_display}</span>
-                            <span className="text-xs text-neutral-500 mt-1">{format(new Date(item.timestamp), "MMM dd, h:mm a")}</span>
+                            <span className="text-xs text-neutral-500 mt-1">{formatDateTime(item.timestamp)}</span>
                           </div>
                         </div>
                       </div>

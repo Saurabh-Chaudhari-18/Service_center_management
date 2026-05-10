@@ -2,9 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useToast } from "@/context/ToastContext";
 import {
   LayoutDashboard,
   FileText,
@@ -61,20 +63,27 @@ const navigationItems: NavItem[] = [
   { name: "Inventory",     href: "/inventory",     icon: Package,         permission: "canViewInventory" },
   { name: "Suppliers",     href: "/suppliers",     icon: Contact,         roles: ["OWNER", "MANAGER"] },
   {
-    name: "Accounts & Finance",
-    icon: BookOpen,
+    name: "Transactions",
+    icon: Receipt,
     roles: ["OWNER", "MANAGER", "ACCOUNTANT"],
     children: [
-      { name: "Billing / Sales", href: "/billing/new", icon: Receipt },
-      { name: "Purchase",        href: "/purchases/new", icon: ShoppingCart },
-      { name: "Payment",         href: "/payments",      icon: IndianRupee },
-      { name: "Receipt",         href: "/receipts",      icon: IndianRupee },
-      { name: "Sales Register",  href: "/billing",       icon: FileText },
-      { name: "Purchase Register",href: "/purchases",    icon: FileText },
-      { name: "GST Dashboard",   href: "/gst",           icon: BadgePercent },
-      { name: "Khata (Ledger)",  href: "/ledger",        icon: BookOpen },
-      { name: "Expenses",        href: "/expenses",      icon: IndianRupee },
-    ]
+      { name: "New Invoice", href: "/billing/new", icon: Receipt },
+      { name: "New Purchase", href: "/purchases/new", icon: ShoppingCart },
+      { name: "Record Payment", href: "/payments", icon: IndianRupee },
+      { name: "Expenses", href: "/expenses", icon: IndianRupee },
+    ],
+  },
+  {
+    name: "Finance Reports",
+    icon: BarChart3,
+    roles: ["OWNER", "MANAGER", "ACCOUNTANT"],
+    children: [
+      { name: "Sales Register", href: "/billing", icon: FileText },
+      { name: "Purchase Register", href: "/purchases", icon: FileText },
+      { name: "Receipts", href: "/receipts", icon: IndianRupee },
+      { name: "Ledger", href: "/ledger", icon: BookOpen },
+      { name: "GST Dashboard", href: "/gst", icon: BadgePercent },
+    ],
   },
   { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
@@ -103,12 +112,16 @@ function useMobileSidebar() {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole } = useAuth();
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
   const { close: closeMobile } = useMobileSidebar();
 
   const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>({
-    "Accounts & Finance": true // default open for convenience
+    Transactions: true,
+    "Finance Reports": false,
   });
 
   const toggleExpanded = (name: string) => {
@@ -125,9 +138,12 @@ export function Sidebar() {
     try {
       await switchBranch(branchId);
       setBranchMenuOpen(false);
-      window.location.reload();
+      await queryClient.invalidateQueries();
+      router.push("/dashboard");
+      router.refresh();
     } catch (error) {
       console.error("Failed to switch branch:", error);
+      toast.error("Failed to switch branch. Please try again.");
     }
   };
 
@@ -287,8 +303,8 @@ export function Sidebar() {
 // =====================================================
 
 interface HeaderProps {
-  title: string;
-  subtitle?: string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
   actions?: React.ReactNode;
 }
 

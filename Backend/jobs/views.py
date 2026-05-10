@@ -39,6 +39,7 @@ from core.permissions import (
 )
 from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
+from core.pagination import OptionalPageSizePagination
 
 
 class JobCardPagination(PageNumberPagination):
@@ -571,9 +572,11 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         counts = qs.values('status').annotate(count=django_models.Count('id'))
         result = {item['status']: item['count'] for item in counts}
         total = sum(result.values())
+        urgent = qs.filter(is_urgent=True).count()
         return Response({
             'total': total,
             'by_status': result,
+            'urgent': urgent,
         })
 
     @action(detail=False, methods=['get'])
@@ -722,6 +725,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
     serializer_class = PickupRequestSerializer
     permission_classes = [IsAuthenticated, IsBranchMember]
+    pagination_class = OptionalPageSizePagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'is_urgent', 'assigned_technician', 'pickup_date']
     search_fields = [
@@ -902,21 +906,32 @@ from rest_framework.permissions import AllowAny
 class PublicTrackingView(APIView):
     """
     Public View for tracking job card status without authentication.
-    Requires Job Number and Phone Number for security.
+    Requires job number, phone, and tracking PIN for security.
     """
     permission_classes = [AllowAny]
-    
+
+    TRACKING_ERROR = 'Could not find job with provided details. Please check your phone number and PIN.'
+
     def get(self, request, job_number):
         phone = request.query_params.get('phone')
-        
+        pin = (request.query_params.get('pin') or '').strip()
+
         if not phone:
             return Response({'error': 'Phone number is required for verification.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        try:
-            # We strip non-digits to compare or rely on the mobile field
-            job = JobCard.objects.get(job_number=job_number, customer__mobile__endswith=phone[-10:])
-        except JobCard.DoesNotExist:
-            return Response({'error': 'No matching job found with this Number and Phone combination.'}, status=status.HTTP_404_NOT_FOUND)
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            return Response({'error': 'A valid 4-digit PIN is required for verification.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        digits = ''.join(ch for ch in phone if ch.isdigit())
+        if len(digits) < 10:
+            return Response({'error': self.TRACKING_ERROR}, status=status.HTTP_404_NOT_FOUND)
+
+        job = JobCard.objects.filter(
+            job_number=job_number,
+            customer__mobile__endswith=digits[-10:],
+            tracking_pin=pin,
+        ).first()
+        if not job:
+            return Response({'error': self.TRACKING_ERROR}, status=status.HTTP_404_NOT_FOUND)
             
         timeline = []
         for history in job.status_history.all():

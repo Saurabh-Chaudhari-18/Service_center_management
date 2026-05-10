@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/formatters";
 import type { JobStatus, JobStatusHistoryItem } from "@/types";
 import { JOB_STATUS_CONFIG } from "@/types";
 import { Badge } from "@/components/ui";
@@ -46,7 +46,7 @@ export function JobStatusTimeline({ history }: JobStatusTimelineProps) {
                   </p>
                 )}
                 <p className="text-xs text-neutral-400 mt-1">
-                  {format(new Date(item.created_at), "MMM dd, yyyy h:mm a")}
+                  {formatDateTime(item.created_at)}
                 </p>
               </div>
             </div>

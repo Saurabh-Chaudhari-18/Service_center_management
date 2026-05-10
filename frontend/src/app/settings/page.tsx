@@ -10,7 +10,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { User, Lock, Bell, Shield, Save, Megaphone, Star } from "lucide-react";
+import { User, Lock, Bell, Shield, Save, Megaphone, Star, Info } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 
 // =====================================================
 // Profile Section
@@ -18,6 +19,16 @@ import { User, Lock, Bell, Shield, Save, Megaphone, Star } from "lucide-react";
 
 function ProfileSection() {
   const { user, currentBranch } = useAuth();
+
+  const readOnlyFields = [
+    { label: "Email", value: user?.email || "—" },
+    { label: "Phone", value: user?.phone || "—" },
+    {
+      label: "Branch",
+      value: currentBranch?.name || "All Branches",
+    },
+    { label: "Role", value: user?.role || "—" },
+  ];
 
   return (
     <Card>
@@ -27,36 +38,28 @@ function ProfileSection() {
           {user?.last_name?.[0]}
         </div>
         <div>
-          <h2 className="text-xl font-bold text-neutral-900">
+          <h2 className="text-xl font-bold text-neutral-900 dark:text-white">
             {user?.first_name} {user?.last_name}
           </h2>
-          <p className="text-neutral-500">{user?.role}</p>
+          <p className="text-neutral-500 dark:text-neutral-400">{user?.role}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Email Address
-          </label>
-          <Input value={user?.email || ""} readOnly className="bg-neutral-50" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Phone Number
-          </label>
-          <Input value={user?.phone || ""} readOnly className="bg-neutral-50" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Current Branch
-          </label>
-          <Input
-            value={currentBranch?.name || "No Branch Selected"}
-            readOnly
-            className="bg-neutral-50"
-          />
-        </div>
+      <div className="space-y-4">
+        {readOnlyFields.map(({ label, value }) => (
+          <div key={label} className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              {label}
+            </span>
+            <span className="text-sm text-gray-900 dark:text-gray-100 py-2 px-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+              {value}
+            </span>
+          </div>
+        ))}
+        <p className="text-xs text-gray-400 mt-2 flex items-center gap-1 dark:text-gray-500">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          Contact your manager to update email, phone, or branch assignment.
+        </p>
       </div>
     </Card>
   );
@@ -80,6 +83,7 @@ const changePasswordSchema = z
 type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 
 function SecuritySection() {
+  const { toast } = useToast();
   const {
     register,
     handleSubmit,
@@ -93,12 +97,12 @@ function SecuritySection() {
     mutationFn: (data: ChangePasswordFormData) =>
       authApi.changePassword(data.oldPassword, data.newPassword),
     onSuccess: () => {
-      alert("Password updated successfully");
+      toast.success("Password changed successfully.");
       reset();
     },
     onError: (error: Error) => {
       console.error(error);
-      alert("Failed to update password. Please check your current password.");
+      toast.error(error?.message || "Failed to change password.");
     },
   });
 
@@ -152,6 +156,7 @@ function SecuritySection() {
 
 function NotificationsSection() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: templates, isLoading } = useQuery({
     queryKey: ["notification-templates"],
     queryFn: () => notificationsApi.listTemplates(),
@@ -162,9 +167,10 @@ function NotificationsSection() {
       notificationsApi.updateTemplate(id, { is_active: isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-templates"] });
+      toast.success("Notification preference saved.");
     },
     onError: () => {
-      alert("Failed to update preference");
+      toast.error("Failed to update preference.");
     },
   });
 
@@ -222,6 +228,7 @@ function NotificationsSection() {
 // =====================================================
 
 function MarketingSection() {
+  const { toast } = useToast();
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
@@ -249,9 +256,11 @@ function MarketingSection() {
       // Placeholder — update when API endpoints are confirmed
       await new Promise((r) => setTimeout(r, 600));
       setSaved(true);
+      toast.success("Marketing settings saved successfully.");
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Failed to save marketing settings", err);
+      toast.error("Failed to save marketing settings.");
     } finally {
       setSaving(false);
     }

@@ -226,7 +226,7 @@ interface DetailPanelProps {
 }
 
 function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "history" | "usage">(
+  const [activeTab, setActiveTab] = useState<"overview" | "history">(
     "overview",
   );
 
@@ -240,7 +240,6 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
   const tabs = [
     { id: "overview" as const, label: "Overview", icon: Info },
     { id: "history" as const, label: "Stock History", icon: History },
-    { id: "usage" as const, label: "Usage", icon: Wrench },
   ];
 
   return (
@@ -481,14 +480,6 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
           </div>
         )}
 
-        {activeTab === "usage" && (
-          <div className="p-5 text-center py-10">
-            <Wrench className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
-            <p className="text-sm text-neutral-500">
-              Job usage history coming soon
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

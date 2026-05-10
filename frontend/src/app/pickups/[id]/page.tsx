@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { Card, Button, LoadingState, LiveTrackingMap } from "@/components/ui";
@@ -23,7 +24,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/formatters";
 import type { PickupRequestStatus } from "@/types";
 import { PICKUP_STATUS_CONFIG } from "@/types";
 
@@ -130,6 +131,7 @@ export default function PickupDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { currentBranch } = useAuth();
   const pickupId = params.id as string;
 
@@ -181,8 +183,12 @@ export default function PickupDetailPage() {
       setStatusNotes("");
       setSelectedStatus("");
       setActionError("");
+      toast.success("Pickup status updated successfully.");
     },
-    onError: (err: Error) => setActionError(err.message),
+    onError: (err: Error) => {
+      setActionError(err.message);
+      toast.error("Failed to update pickup status. Please try again.");
+    },
   });
 
   const convertMutation = useMutation({
@@ -371,9 +377,14 @@ export default function PickupDetailPage() {
                 <InfoRow label="Address" value={pickup.pickup_address} />
                 <InfoRow
                   label="Date"
-                  value={format(
-                    new Date(pickup.pickup_date),
-                    "EEEE, MMM dd, yyyy",
+                  value={new Date(pickup.pickup_date).toLocaleDateString(
+                    "en-IN",
+                    {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    },
                   )}
                   icon={<Calendar className="w-4 h-4" />}
                 />
@@ -459,11 +470,11 @@ export default function PickupDetailPage() {
             <div className="flex items-center gap-6 text-sm text-neutral-500">
               <span>
                 Created by {pickup.created_by_name} on{" "}
-                {format(new Date(pickup.created_at), "MMM dd, yyyy h:mm a")}
+                {formatDateTime(pickup.created_at)}
               </span>
               <span>
                 Last updated:{" "}
-                {format(new Date(pickup.updated_at), "MMM dd, yyyy h:mm a")}
+                {formatDateTime(pickup.updated_at)}
               </span>
             </div>
           </Card>

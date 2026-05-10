@@ -26,10 +26,13 @@ import {
   Clock,
   User,
   Laptop,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
 import type { JobCard } from "@/types";
+import { formatDate, formatPhone } from "@/lib/formatters";
+
+const JOB_LIST_PAGE_SIZE = 10;
 
 // =====================================================
 // Job Card Item Component
@@ -80,6 +83,11 @@ function JobCardItem({ job }: JobCardItemProps) {
                 <User className="w-4 h-4 text-neutral-400" />
                 <span className="truncate">
                   {job.customer?.first_name} {job.customer?.last_name}
+                  {job.customer?.mobile ? (
+                    <span className="text-neutral-400 ml-1">
+                      · {formatPhone(job.customer.mobile)}
+                    </span>
+                  ) : null}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-neutral-600">
@@ -99,7 +107,7 @@ function JobCardItem({ job }: JobCardItemProps) {
             <div className="mt-3 flex items-center gap-4 text-xs text-neutral-400">
               <div className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>{format(new Date(job.created_at), "MMM dd, yyyy")}</span>
+                <span>{formatDate(job.created_at)}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -127,18 +135,24 @@ function JobCardItem({ job }: JobCardItemProps) {
 // Status Filter Tabs
 // =====================================================
 
+const URGENT_TAB = "URGENT";
+
 interface StatusTabsProps {
   selectedStatus: string | null;
   onStatusChange: (status: string | null) => void;
   jobCounts: Record<string, number>;
+  totalJobs: number;
+  urgentCount: number;
 }
 
 function StatusTabs({
   selectedStatus,
   onStatusChange,
   jobCounts,
+  totalJobs,
+  urgentCount,
 }: StatusTabsProps) {
-  const tabs = [
+  const statusTabs = [
     { value: null, label: "All" },
     { value: "RECEIVED", label: "Received" },
     { value: "DIAGNOSIS", label: "Diagnosis" },
@@ -150,16 +164,60 @@ function StatusTabs({
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-      {tabs.map((tab) => {
+      {statusTabs.slice(0, 1).map((tab) => {
         const isActive = selectedStatus === tab.value;
-        const count = tab.value
-          ? jobCounts[tab.value] || 0
-          : Object.values(jobCounts).reduce((a, b) => a + b, 0);
+        const count = totalJobs;
 
         return (
           <button
             key={tab.value || "all"}
+            type="button"
             onClick={() => onStatusChange(tab.value)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              isActive
+                ? "bg-primary-500 text-white shadow-md"
+                : "status-tab-inactive"
+            }`}
+          >
+            {tab.label}
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs ${
+                isActive ? "bg-white/20" : "bg-neutral-100"
+              }`}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+      <button
+        key="urgent"
+        type="button"
+        onClick={() => onStatusChange(URGENT_TAB)}
+        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+          selectedStatus === URGENT_TAB
+            ? "border-b-2 border-red-500 text-red-600 bg-red-50/80"
+            : "text-gray-600 hover:text-red-500"
+        }`}
+      >
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Urgent
+        {urgentCount > 0 && (
+          <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 ml-0.5">
+            {urgentCount}
+          </span>
+        )}
+      </button>
+      {statusTabs.slice(1).map((tab) => {
+        const value = tab.value as string;
+        const isActive = selectedStatus === value;
+        const count = jobCounts[value] || 0;
+
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onStatusChange(value)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
               isActive
                 ? "bg-primary-500 text-white shadow-md"
@@ -193,13 +251,20 @@ export default function JobsPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs", currentBranch?.id, statusFilter, search, page],
-    queryFn: () =>
-      jobsApi.list({
+    queryFn: () => {
+      const params: Parameters<typeof jobsApi.list>[0] = {
         branch: currentBranch?.id,
-        status: statusFilter || undefined,
         search: search || undefined,
         page,
-      }),
+        page_size: JOB_LIST_PAGE_SIZE,
+      };
+      if (statusFilter === URGENT_TAB) {
+        params.is_urgent = true;
+      } else if (statusFilter) {
+        params.status = statusFilter;
+      }
+      return jobsApi.list(params);
+    },
     enabled: !!currentBranch,
   });
 
@@ -213,6 +278,8 @@ export default function JobsPage() {
   });
 
   const jobCounts: Record<string, number> = statsData?.by_status ?? {};
+  const urgentCount = statsData?.urgent ?? 0;
+  const totalJobsStat = statsData?.total ?? 0;
 
   const jobs = data?.results || [];
   const totalCount = data?.count || 0;
@@ -224,7 +291,7 @@ export default function JobsPage() {
       <AppLayout>
         <Header
           title="Job Cards"
-          subtitle={`${totalCount} total job cards`}
+          subtitle={`${totalJobsStat} total job cards`}
           actions={
             hasPermission("canCreateJobCards") && (
               <Link href="/jobs/new">
@@ -270,6 +337,8 @@ export default function JobsPage() {
               setPage(1);
             }}
             jobCounts={jobCounts}
+            totalJobs={totalJobsStat}
+            urgentCount={urgentCount}
           />
 
           {/* Jobs List */}
@@ -323,8 +392,9 @@ export default function JobsPage() {
               {(hasPrevPage || hasNextPage) && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-neutral-500">
-                    Showing {(page - 1) * 10 + 1} to{" "}
-                    {Math.min(page * 10, totalCount)} of {totalCount} results
+                    Showing {(page - 1) * JOB_LIST_PAGE_SIZE + 1} to{" "}
+                    {Math.min(page * JOB_LIST_PAGE_SIZE, totalCount)} of{" "}
+                    {totalCount} results
                   </p>
                   <div className="flex gap-2">
                     <Button

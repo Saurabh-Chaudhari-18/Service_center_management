@@ -26,8 +26,8 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
 import type { Customer } from "@/types";
+import { formatPhone } from "@/lib/formatters";
 
 // =====================================================
 // Customer Card Component
@@ -61,7 +61,7 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
           <div className="mt-1 space-y-1">
             <p className="text-sm text-neutral-500 flex items-center gap-2">
               <Phone className="w-3.5 h-3.5" />
-              {customer.mobile}
+              {formatPhone(customer.mobile)}
             </p>
             {customer.email && (
               <p className="text-sm text-neutral-500 flex items-center gap-2">
@@ -85,7 +85,7 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
           )}
           <p className="text-xs text-neutral-400 mt-2">
             {customer.created_at
-              ? `Since ${format(new Date(customer.created_at), "MMM yyyy")}`
+              ? `Since ${new Date(customer.created_at).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`
               : "Recently joined"}
           </p>
         </div>
@@ -160,7 +160,7 @@ function CustomerDetailsModal({
             <div className="mt-2 grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-neutral-500">Mobile</p>
-                <p className="font-medium">{customer.mobile}</p>
+                <p className="font-medium">{formatPhone(customer.mobile)}</p>
               </div>
               {customer.email && (
                 <div>

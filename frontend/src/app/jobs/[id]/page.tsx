@@ -37,7 +37,7 @@ import {
   Printer,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDateLong, formatPhone } from "@/lib/formatters";
 import { JobStatusTimeline } from "@/components/jobs/JobStatusTimeline";
 import { JobAssignTechnicianModal } from "@/components/jobs/JobAssignTechnicianModal";
 import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
@@ -156,12 +156,17 @@ export default function JobDetailPage() {
           {/* Status Bar */}
           <Card padding="md" className="mb-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <JobStatusBadge status={job.status} />
                 {job.is_urgent && <Badge variant="danger">URGENT</Badge>}
                 {job.is_warranty_repair && (
                   <Badge variant="info">Warranty Repair</Badge>
                 )}
+                {job.tracking_pin ? (
+                  <span className="text-xs md:text-sm text-neutral-600 dark:text-neutral-300 font-mono bg-neutral-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-neutral-200 dark:border-slate-600">
+                    Public tracking PIN: <strong>{job.tracking_pin}</strong>
+                  </span>
+                ) : null}
               </div>
 
               {/* Quick Actions */}
@@ -261,7 +266,7 @@ export default function JobDetailPage() {
                         Mobile Number
                       </p>
                       <p className="font-medium text-neutral-900 font-mono">
-                        {job.customer?.mobile}
+                        {formatPhone(job.customer?.mobile)}
                       </p>
                     </div>
                   </div>
@@ -496,7 +501,7 @@ export default function JobDetailPage() {
                   <div className="flex items-center justify-between py-2 border-b border-neutral-100">
                     <span className="text-sm text-neutral-500">Created</span>
                     <span className="text-sm">
-                      {format(new Date(job.created_at), "MMM dd, yyyy")}
+                      {formatDateLong(job.created_at)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-neutral-100">
@@ -529,10 +534,7 @@ export default function JobDetailPage() {
                         Est. Completion
                       </span>
                       <span className="text-sm">
-                        {format(
-                          new Date(job.estimated_completion_date),
-                          "MMM dd, yyyy",
-                        )}
+                        {formatDateLong(job.estimated_completion_date)}
                       </span>
                     </div>
                   )}
@@ -609,10 +611,35 @@ export default function JobDetailPage() {
         {/* PRINT-ONLY: Job Card Printable Template */}
         {showPrintView && (
           <PrintPortal>
+            {/* eslint-disable-next-line react/no-danger */}
+            <style
+              dangerouslySetInnerHTML={{
+                __html: `
+                  @media print {
+                    #print-portal-root .print-section {
+                      page-break-inside: avoid;
+                      break-inside: avoid;
+                    }
+                    #print-portal-root table {
+                      page-break-inside: avoid;
+                      break-inside: avoid;
+                    }
+                    #print-portal-root tr {
+                      page-break-inside: avoid;
+                      break-inside: avoid;
+                    }
+                    #print-portal-root .print-header {
+                      page-break-after: avoid;
+                      break-after: avoid;
+                    }
+                  }
+                `,
+              }}
+            />
             <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
               <div className="space-y-3">
                 {/* Shop Header */}
-                <div className="print-section border-2 border-black p-2 mb-2">
+                <div className="print-header print-section border-2 border-black p-2 mb-2">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex gap-4 items-center">
                       <JobBrandLogo brand="HP" />
@@ -643,7 +670,7 @@ export default function JobDetailPage() {
                       JOB CARD: {job.job_number}
                     </p>
                     <p className="text-[11pt] font-medium">
-                      Date: {format(new Date(job.created_at), "dd MMM yyyy")}
+                      Date: {formatDateLong(job.created_at)}
                     </p>
                     <p className="text-[10pt] font-medium text-neutral-600">
                       Status: {job.status?.replace(/_/g, " ")}
@@ -663,7 +690,7 @@ export default function JobDetailPage() {
                         {job.customer?.last_name}
                       </p>
                       <p>
-                        <b>Mobile:</b> {job.customer?.mobile}
+                        <b>Mobile:</b> {formatPhone(job.customer?.mobile)}
                       </p>
                       {job.customer?.email && (
                         <p>

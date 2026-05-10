@@ -15,6 +15,7 @@ from django.utils import timezone
 from core.models import TimeStampedModel, Branch, User
 from core.utils import encrypt_data, decrypt_data
 from core.exceptions import InvalidStatusTransition, JobReadOnlyError
+import random
 import uuid
 
 
@@ -102,7 +103,13 @@ class JobCard(TimeStampedModel):
         unique=True,
         help_text="Auto-generated branch-scoped job number"
     )
-    
+    tracking_pin = models.CharField(
+        max_length=4,
+        blank=True,
+        default='',
+        help_text="Customer-facing PIN for public job tracking (digits only)",
+    )
+
     # Customer
     customer = models.ForeignKey(
         'customers.Customer',
@@ -431,6 +438,8 @@ class JobCard(TimeStampedModel):
                 self.job_number = self.branch.get_next_jobcard_number()
             else:
                 self.job_number = self.get_universal_job_number()
+        if not self.tracking_pin:
+            self.tracking_pin = str(random.randint(1000, 9999))
         super().save(*args, **kwargs)
 
 

@@ -26,7 +26,7 @@ import {
   User,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatPhone, formatDate } from "@/lib/formatters";
 import type { PickupRequest, PickupRequestStatus } from "@/types";
 import { PICKUP_STATUS_CONFIG } from "@/types";
 
@@ -122,23 +122,31 @@ function PickupStats() {
 // Main Page
 // =====================================================
 
+const PICKUPS_PAGE_SIZE = 10;
+
 export default function PickupsPage() {
   const { currentBranch } = useAuth();
   const [activeTab, setActiveTab] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pickups", currentBranch?.id, activeTab, searchQuery],
+    queryKey: ["pickups", currentBranch?.id, activeTab, searchQuery, currentPage],
     queryFn: () =>
       pickupsApi.list({
         branch: currentBranch?.id,
         ...(activeTab !== "ALL" ? { status: activeTab } : {}),
         ...(searchQuery ? { search: searchQuery } : {}),
+        page: currentPage,
+        page_size: PICKUPS_PAGE_SIZE,
       }),
     enabled: !!currentBranch,
   });
 
   const pickups = data?.results || [];
+  const totalCount = data?.count ?? pickups.length;
+  const hasNextPage = !!(data?.next);
+  const hasPrevPage = !!(data?.previous);
 
   return (
     <ProtectedRoute requiredPermission="canViewPickups">
@@ -167,7 +175,10 @@ export default function PickupsPage() {
                 {STATUS_TABS.map((tab) => (
                   <button
                     key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
+                    onClick={() => {
+                      setActiveTab(tab.value);
+                      setCurrentPage(1);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       activeTab === tab.value
                         ? "bg-primary-500 text-white shadow-sm"
@@ -186,7 +197,10 @@ export default function PickupsPage() {
                   type="text"
                   placeholder="Search pickups..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
@@ -230,7 +244,7 @@ export default function PickupsPage() {
                           </span>
                           <span className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5" />
-                            {pickup.customer_mobile}
+                            {formatPhone(pickup.customer_mobile)}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center gap-4 text-sm text-neutral-500">
@@ -239,10 +253,7 @@ export default function PickupsPage() {
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5" />
-                            {format(
-                              new Date(pickup.pickup_date),
-                              "MMM dd, yyyy",
-                            )}
+                            {formatDate(pickup.pickup_date)}
                           </span>
                           {pickup.pickup_time_slot && (
                             <span className="flex items-center gap-1">
@@ -261,6 +272,33 @@ export default function PickupsPage() {
                     </div>
                   </Link>
                 ))}
+              </div>
+            )}
+            {!isLoading && pickups.length > 0 && (hasPrevPage || hasNextPage) && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
+                <p className="text-sm text-neutral-500">
+                  Showing {(currentPage - 1) * PICKUPS_PAGE_SIZE + 1} to{" "}
+                  {Math.min(currentPage * PICKUPS_PAGE_SIZE, totalCount)} of{" "}
+                  {totalCount} results
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!hasPrevPage}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!hasNextPage}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </Card>

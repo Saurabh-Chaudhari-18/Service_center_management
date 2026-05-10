@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { gstApi } from "@/lib/api/services";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { TrendingUp, TrendingDown, CheckCircle2, AlertCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, CheckCircle2, AlertCircle, FileText, BarChart2 } from "lucide-react";
+import { Button } from "@/components/ui";
 import { GSTDateFilter, type DateRange } from "./GSTDateFilter";
 
 function StatCard({ label, value, sub, color = "neutral" }: {
@@ -62,24 +64,63 @@ export default function GSTDashboardPage() {
               <span>CGST: {fmt(data.net_payable?.cgst)}</span>
               <span>SGST: {fmt(data.net_payable?.sgst)}</span>
             </div>
-            <div className="mt-4 flex gap-3">
-              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                data.filing_status?.gstr1_filed ? "bg-white/20" : "bg-orange-400/40"
-              }`}>
-                {data.filing_status?.gstr1_filed
-                  ? <CheckCircle2 className="w-3.5 h-3.5" />
-                  : <AlertCircle className="w-3.5 h-3.5" />}
-                GSTR-1 {data.filing_status?.gstr1_filed ? "Filed" : "Pending"}
-              </div>
-              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                data.filing_status?.gstr3b_filed ? "bg-white/20" : "bg-orange-400/40"
-              }`}>
-                {data.filing_status?.gstr3b_filed
-                  ? <CheckCircle2 className="w-3.5 h-3.5" />
-                  : <AlertCircle className="w-3.5 h-3.5" />}
-                GSTR-3B {data.filing_status?.gstr3b_filed ? "Filed" : "Pending"}
-              </div>
+            <div className="mt-4 flex gap-3 flex-wrap">
+              <Link href="/gst/gstr1" className="inline-flex">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-90 transition-opacity ${
+                    data.filing_status?.gstr1_filed
+                      ? "bg-white/20 text-white"
+                      : "bg-orange-400/40 text-white"
+                  }`}
+                >
+                  {data.filing_status?.gstr1_filed ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5" />
+                  )}
+                  GSTR-1 {data.filing_status?.gstr1_filed ? "Filed ✓" : "Pending →"}
+                </span>
+              </Link>
+              <Link href="/gst/gstr3b" className="inline-flex">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-90 transition-opacity ${
+                    data.filing_status?.gstr3b_filed
+                      ? "bg-white/20 text-white"
+                      : "bg-orange-400/40 text-white"
+                  }`}
+                >
+                  {data.filing_status?.gstr3b_filed ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5" />
+                  )}
+                  GSTR-3B {data.filing_status?.gstr3b_filed ? "Filed ✓" : "Pending →"}
+                </span>
+              </Link>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/gst/gstr1">
+              <Button variant="secondary" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
+                View GSTR-1
+              </Button>
+            </Link>
+            <Link href="/gst/gstr3b">
+              <Button variant="secondary" size="sm" leftIcon={<FileText className="h-4 w-4" />}>
+                View GSTR-3B
+              </Button>
+            </Link>
+            <Link href="/gst/hsn">
+              <Button variant="secondary" size="sm" leftIcon={<BarChart2 className="h-4 w-4" />}>
+                HSN Summary
+              </Button>
+            </Link>
+            <Link href="/gst/itc">
+              <Button variant="secondary" size="sm" leftIcon={<TrendingDown className="h-4 w-4" />}>
+                Input Tax Credit
+              </Button>
+            </Link>
           </div>
 
           {/* Output GST */}

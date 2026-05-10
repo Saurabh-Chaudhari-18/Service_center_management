@@ -5,15 +5,23 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { IndianRupee, CreditCard, CheckCircle2, Search, Calendar, FileText, User, ChevronDown, ChevronUp, History } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { Purchase } from "@/types";
-import { format } from "date-fns";
+import { formatDateLong, formatDateTime } from "@/lib/formatters";
+import { Button } from "@/components/ui";
+
+const PAGE_SIZE = 10;
 
 export default function PaymentsPage() {
   const { currentBranch } = useAuth();
+  const { toast } = useToast();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPayable, setTotalPayable] = useState(0);
   const [expandedPurchaseId, setExpandedPurchaseId] = useState<string | null>(null);
   
   // Payment Modal state
@@ -22,24 +30,49 @@ export default function PaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [isPaying, setIsPaying] = useState(false);
 
+  const loadOutstandingTotal = useCallback(async () => {
+    if (!currentBranch?.id) return;
+    try {
+      const res = await purchasesApi.outstandingTotal({ branch: currentBranch.id });
+      setTotalPayable(parseFloat(res.total_outstanding || "0") || 0);
+    } catch (e) {
+      console.error("Failed to load outstanding total", e);
+    }
+  }, [currentBranch?.id]);
+
   const loadPurchases = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await purchasesApi.list({ branch: currentBranch?.id });
+      const res = await purchasesApi.list({
+        branch: currentBranch?.id,
+        page: currentPage,
+        page_size: PAGE_SIZE,
+        ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+        ...(activeTab === "pending" ? { has_outstanding: "true" } : {}),
+      });
       const items = Array.isArray(res) ? res : res.results || [];
       setPurchases(items);
+      const count = typeof (res as { count?: number }).count === "number"
+        ? (res as { count: number }).count
+        : items.length;
+      setTotalCount(count);
     } catch (e) {
       console.error("Failed to load purchases", e);
+      toast.error("Failed to load payments. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [currentBranch?.id]);
+  }, [currentBranch?.id, currentPage, searchTerm, activeTab]);
 
   useEffect(() => {
     if (currentBranch) {
       void loadPurchases();
     }
   }, [currentBranch, loadPurchases]);
+
+  useEffect(() => {
+    if (currentBranch) void loadOutstandingTotal();
+  }, [currentBranch, loadOutstandingTotal]);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,30 +83,19 @@ export default function PaymentsPage() {
       await purchasesApi.recordPayment(selectedPurchase.id, parseFloat(paymentAmount), paymentMethod);
       setSelectedPurchase(null);
       setPaymentAmount("");
+      toast.success("Payment recorded successfully.");
       loadPurchases();
+      loadOutstandingTotal();
     } catch (error) {
       console.error("Failed to record payment", error);
-      alert("Failed to record payment. Please try again.");
+      toast.error("Failed to record payment. Please try again.");
     } finally {
       setIsPaying(false);
     }
   };
 
-  const filteredPurchases = purchases.filter(p => {
-    const matchesSearch = p.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (p.invoice_number && p.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-    if (!matchesSearch) return false;
-    
-    if (activeTab === "pending") {
-      return parseFloat(String(p.balance_due)) > 0;
-    }
-    return true;
-  });
-
-  const totalPayable = purchases
-    .filter(p => parseFloat(String(p.balance_due)) > 0)
-    .reduce((acc, p) => acc + parseFloat(String(p.balance_due || 0)), 0);
+  const hasNextPage = currentPage * PAGE_SIZE < totalCount;
+  const hasPrevPage = currentPage > 1;
 
   return (
     <AppLayout>
@@ -102,7 +124,10 @@ export default function PaymentsPage() {
               type="text"
               placeholder="Search vendor or invoice..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all"
             />
           </div>
@@ -111,7 +136,11 @@ export default function PaymentsPage() {
         {/* Tabs */}
         <div className="flex bg-neutral-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
           <button
-            onClick={() => setActiveTab("pending")}
+            type="button"
+            onClick={() => {
+              setActiveTab("pending");
+              setCurrentPage(1);
+            }}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
               activeTab === "pending"
                 ? "bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm"
@@ -121,7 +150,11 @@ export default function PaymentsPage() {
             Pending Payables
           </button>
           <button
-            onClick={() => setActiveTab("history")}
+            type="button"
+            onClick={() => {
+              setActiveTab("history");
+              setCurrentPage(1);
+            }}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
               activeTab === "history"
                 ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
@@ -136,7 +169,7 @@ export default function PaymentsPage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200 dark:border-slate-700 shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-neutral-500">Loading {activeTab === "pending" ? "pending payments" : "payment history"}...</div>
-          ) : filteredPurchases.length === 0 ? (
+          ) : purchases.length === 0 ? (
             <div className="p-12 text-center flex flex-col items-center">
               {activeTab === "pending" ? (
                 <>
@@ -154,7 +187,7 @@ export default function PaymentsPage() {
             </div>
           ) : (
             <div className="divide-y divide-neutral-100 dark:divide-slate-700">
-              {filteredPurchases.map((purchase) => {
+              {purchases.map((purchase) => {
                 const isExpanded = expandedPurchaseId === purchase.id;
                 const hasPayments = purchase.payments && purchase.payments.length > 0;
                 
@@ -168,7 +201,7 @@ export default function PaymentsPage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-500">
                           <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> {purchase.invoice_number || "No Inv #"}</span>
-                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {format(new Date(purchase.purchase_date), "dd MMM yyyy")}</span>
+                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {formatDateLong(purchase.purchase_date)}</span>
                           <span>Total: ₹{parseFloat(String(purchase.total_amount)).toLocaleString()}</span>
                           {hasPayments && (
                             <button
@@ -237,7 +270,7 @@ export default function PaymentsPage() {
                                 </div>
                               </div>
                               <div className="text-right text-xs text-neutral-500">
-                                {format(new Date(payment.created_at || new Date()), "dd MMM yyyy, hh:mm a")}
+                                {formatDateTime(payment.created_at || new Date().toISOString())}
                               </div>
                             </div>
                           ))}
@@ -247,6 +280,32 @@ export default function PaymentsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {!loading && purchases.length > 0 && (hasPrevPage || hasNextPage) && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100 dark:border-slate-700">
+              <p className="text-sm text-neutral-500">
+                Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
+                {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} results
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasPrevPage}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasNextPage}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </div>

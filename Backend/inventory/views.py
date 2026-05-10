@@ -28,6 +28,7 @@ from core.permissions import (
 )
 from core.models import Role
 from core.exceptions import InsufficientInventory, ProtectedResourceError
+from core.pagination import OptionalPageSizePagination
 
 
 class InventoryCategoryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -440,13 +441,44 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering = ['-purchase_date']
     branch_field = 'branch'
     queryset = Purchase.objects.all()
+    pagination_class = OptionalPageSizePagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
         if not user.is_authenticated:
             return queryset
-        return queryset.prefetch_related('items__inventory_item', 'payments')
+        queryset = queryset.prefetch_related('items__inventory_item', 'payments')
+        from inventory.models import PurchaseStatus
+        ho = self.request.query_params.get('has_outstanding')
+        if ho == 'true':
+            queryset = queryset.exclude(
+                status__in=[PurchaseStatus.PAID, PurchaseStatus.CANCELLED],
+            )
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def outstanding_total(self, request):
+        """Aggregate balance due across outstanding purchases for the scoped branch(es)."""
+        from decimal import Decimal
+        from django.db.models import Sum, F, DecimalField
+        from django.db.models.expressions import ExpressionWrapper
+        from inventory.models import PurchaseStatus
+        from core.permissions import BranchScopedMixin as BSM
+
+        queryset = BSM.get_queryset(self).prefetch_related(
+            'items__inventory_item', 'payments'
+        )
+        queryset = queryset.exclude(status__in=[PurchaseStatus.PAID, PurchaseStatus.CANCELLED])
+        total = queryset.aggregate(
+            t=Sum(
+                ExpressionWrapper(
+                    F('total_amount') - F('paid_amount'),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                )
+            )
+        )['t'] or Decimal('0')
+        return Response({'total_outstanding': str(total)})
 
     @action(detail=True, methods=['post'])
     def record_payment(self, request, pk=None):

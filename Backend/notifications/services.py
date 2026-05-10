@@ -42,6 +42,7 @@ class NotificationService:
                 'job_number': job.job_number,
                 'branch_name': job.branch.name,
                 'device': f"{job.brand} {job.model}",
+                'tracking_pin': getattr(job, 'tracking_pin', '') or '',
             },
             job_pdf=job_pdf,
             job_pdf_filename=f"{job.job_number.replace('/', '-')}.pdf",

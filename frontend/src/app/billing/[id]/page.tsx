@@ -24,7 +24,7 @@ import {
   Edit,
   History,
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 
 // =====================================================
@@ -248,10 +248,7 @@ function PaymentHistory({
                         </span>
                       </div>
                       <p className="text-sm text-neutral-500 mt-1">
-                        {format(
-                          new Date(payment.payment_date),
-                          "dd MMM yyyy, hh:mm a",
-                        )}
+                        {formatDateTime(payment.payment_date)}
                       </p>
                     </div>
 
@@ -354,7 +351,7 @@ function EditHistory({ invoiceId }: { invoiceId: string }) {
                   <span>{edit.edited_by_name}</span>
                   <span>•</span>
                   <span>
-                    {format(new Date(edit.created_at), "dd MMM yyyy, hh:mm a")}
+                    {formatDateTime(edit.created_at)}
                   </span>
                 </div>
               </div>
@@ -453,7 +450,7 @@ export default function InvoiceDetailsPage() {
       <AppLayout>
         <Header
           title={`Invoice ${invoice.invoice_number}`}
-          subtitle={format(new Date(invoice.invoice_date), "MMMM dd, yyyy")}
+          subtitle={formatDateLong(invoice.invoice_date)}
           actions={
             <div className="flex flex-wrap gap-2 items-center justify-end">
               <Button

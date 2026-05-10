@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { format } from "date-fns";
+import { formatDateLong } from "@/lib/formatters";
 import type { Invoice, InvoiceLineItem, Payment } from "@/types";
 import { INVOICE_STATUS_CONFIG } from "@/types";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
@@ -235,7 +235,7 @@ function InvoiceRow({
         <p className="text-sm text-neutral-500">{invoice.customer_mobile}</p>
       </td>
       <td className="px-4 py-4 text-sm text-neutral-600">
-        {format(new Date(invoice.invoice_date), "dd MMM yyyy")}
+        {formatDateLong(invoice.invoice_date)}
       </td>
       <td className="px-4 py-4">
         <p className="font-semibold text-neutral-900">
@@ -403,7 +403,7 @@ function InvoiceDetailPanel({
                 Date
               </p>
               <p className="font-medium text-neutral-900">
-                {format(new Date(inv.invoice_date), "dd MMM yyyy")}
+                {formatDateLong(inv.invoice_date)}
               </p>
             </div>
             {inv.due_date && (
@@ -412,7 +412,7 @@ function InvoiceDetailPanel({
                   Due Date
                 </p>
                 <p className="font-medium text-neutral-900">
-                  {format(new Date(inv.due_date), "dd MMM yyyy")}
+                  {formatDateLong(inv.due_date)}
                 </p>
               </div>
             )}
@@ -530,7 +530,7 @@ function InvoiceDetailPanel({
                         ₹{Number(payment.amount).toLocaleString("en-IN")}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {format(new Date(payment.payment_date), "dd MMM yyyy")}{" "}
+                        {formatDateLong(payment.payment_date)}{" "}
                         • {payment.payment_method}
                       </p>
                     </div>

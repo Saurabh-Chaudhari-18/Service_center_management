@@ -167,7 +167,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobCard
         fields = [
-            'id', 'branch', 'branch_name', 'job_number',
+            'id', 'branch', 'branch_name', 'job_number', 'tracking_pin',
             'customer', 'customer_id',
             'device_type', 'device_type_display', 'brand', 'model', 'serial_number',
             'customer_complaint', 'physical_condition', 'physical_condition_display',
@@ -186,7 +186,7 @@ class JobCardSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'job_number', 'status', 'received_by',
+            'id', 'job_number', 'tracking_pin', 'status', 'received_by',
             'customer_approval_date', 'actual_completion_date',
             'delivery_date', 'delivered_by', 'created_at', 'updated_at'
         ]
@@ -259,14 +259,14 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobCard
         fields = [
-            'id', 'job_number', 'status', 'branch', 'customer_id', 'device_type', 'brand', 'model',
+            'id', 'job_number', 'tracking_pin', 'status', 'branch', 'customer_id', 'device_type', 'brand', 'model',
             'serial_number', 'device_password', 'bios_password',
             'customer_complaint', 'physical_condition', 'engineer_diagnosis',
             'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
             'accessories', 'additional_comments', 'estimated_cost'
         ]
-        read_only_fields = ['id', 'job_number', 'status']
+        read_only_fields = ['id', 'job_number', 'tracking_pin', 'status']
 
     def validate_customer_id(self, value):
         """Validate customer exists and belongs to branch."""

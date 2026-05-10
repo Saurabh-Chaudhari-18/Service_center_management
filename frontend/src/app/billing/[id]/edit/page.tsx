@@ -21,7 +21,7 @@ import {
   Package,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDateLong } from "@/lib/formatters";
 import type { Invoice } from "@/types";
 
 // =====================================================
@@ -212,7 +212,7 @@ function InvoiceTemplate({
             </p>
             <p>
               <span className="font-medium mr-2">Date:</span>
-              {format(new Date(invoice.invoice_date), "dd MMM yyyy")}
+              {formatDateLong(invoice.invoice_date)}
             </p>
             {invoice.job_number && (
               <p>
@@ -642,7 +642,7 @@ function EditInvoiceContent() {
         <div className="max-w-4xl mx-auto p-6">
           <Header
             title={`Edit Invoice ${invoice.invoice_number}`}
-            subtitle={format(new Date(invoice.invoice_date), "MMMM dd, yyyy")}
+            subtitle={formatDateLong(invoice.invoice_date)}
             actions={
               <Link href={`/billing/${id}`}>
                 <Button

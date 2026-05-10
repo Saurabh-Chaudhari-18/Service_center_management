@@ -37,7 +37,7 @@ import {
   Phone,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDateLong } from "@/lib/formatters";
 import type { JobCard, Customer, InventoryItem } from "@/types";
 
 // =====================================================
@@ -490,7 +490,7 @@ function InvoiceTemplate({
           <div className="space-y-1 text-sm text-neutral-600">
             <p>
               <span className="font-medium mr-2">Date:</span>
-              {format(new Date(), "dd MMM yyyy")}
+              {formatDateLong(new Date().toISOString())}
             </p>
             <p>
               <span className="font-medium mr-2">Job Ref:</span>

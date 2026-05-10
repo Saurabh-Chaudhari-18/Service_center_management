@@ -26,6 +26,7 @@ from marketing.serializers import (
 from core.permissions import (
     IsBranchMember, BranchScopedMixin, IsOwnerOrManager
 )
+from core.pagination import OptionalPageSizePagination
 
 
 class ReminderConfigViewSet(viewsets.ModelViewSet):
@@ -120,6 +121,7 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
     serializer_class = CustomerLedgerEntrySerializer
     permission_classes = [IsAuthenticated, IsBranchMember]
+    pagination_class = OptionalPageSizePagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['customer', 'entry_type', 'reference_type']
     ordering = ['-entry_date', '-created_at']
