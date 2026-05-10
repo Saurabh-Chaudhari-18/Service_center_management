@@ -2,7 +2,7 @@
 Unified API error envelope for DRF responses.
 
 Shape: { "success": false, "error": { "code", "message", "status_code", ... } }
-Validation errors also include "fields" and "field_errors" (same dict).
+Validation errors also include "fields" (DRF serializer errors dict).
 """
 
 from rest_framework.views import exception_handler
@@ -32,7 +32,6 @@ def custom_exception_handler(exc, context):
                         'code': 'validation_error',
                         'message': 'Input validation failed.',
                         'fields': raw,
-                        'field_errors': raw,
                         'status_code': status_code,
                     },
                 },

@@ -193,8 +193,8 @@ function formatErrorMessage(error: AxiosError<unknown>): string {
       err.message
     ) {
       const fields =
-        (err.field_errors as Record<string, unknown> | undefined) ??
-        (err.fields as Record<string, unknown> | undefined);
+        (err.fields as Record<string, unknown> | undefined) ??
+        (err.field_errors as Record<string, unknown> | undefined);
       if (fields && Object.keys(fields).length > 0) {
         const lines: string[] = [];
         Object.entries(fields).forEach(([key, value]) => {

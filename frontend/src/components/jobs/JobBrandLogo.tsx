@@ -1,11 +1,18 @@
 "use client";
 
 interface JobBrandLogoProps {
-  brand: "HP" | "DELL" | "ASUS" | "LENOVO";
+  brand: string;
+}
+
+/** Match known OEM marks case-insensitively; other brands show initials. */
+function normalizedBrand(brand: string): string {
+  return brand.trim().toUpperCase();
 }
 
 export function JobBrandLogo({ brand }: JobBrandLogoProps) {
-  switch (brand) {
+  const key = normalizedBrand(brand);
+
+  switch (key) {
     case "HP":
       return (
         <svg viewBox="0 0 100 100" className="w-8 h-8">
@@ -17,7 +24,7 @@ export function JobBrandLogo({ brand }: JobBrandLogoProps) {
             fontWeight="bold"
             fill="white"
             textAnchor="middle"
-            style={{ fontStyle: "italic", fontFamily: "serif" }}
+            className="italic font-serif"
           >
             hp
           </text>
@@ -57,7 +64,7 @@ export function JobBrandLogo({ brand }: JobBrandLogoProps) {
             fontWeight="bold"
             fill="#00539B"
             textAnchor="middle"
-            style={{ letterSpacing: "2px" }}
+            className="tracking-widest"
           >
             ASUS
           </text>
@@ -80,5 +87,14 @@ export function JobBrandLogo({ brand }: JobBrandLogoProps) {
           </text>
         </svg>
       );
+    default: {
+      const initials =
+        key.length >= 2 ? key.slice(0, 2) : key.length === 1 ? key : "?";
+      return (
+        <div className="w-8 h-8 shrink-0 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+          {initials}
+        </div>
+      );
+    }
   }
 }

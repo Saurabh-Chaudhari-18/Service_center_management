@@ -8,15 +8,18 @@ marketing configs, dropdown options, supplier + PO skeleton.
 Usage:
     python manage.py seed_demo
     python manage.py seed_demo --password MyDemoPass
+    DEMO_PASSWORD=secret python manage.py seed_demo   # env override when --password omitted
     python manage.py seed_demo --core-only           # lighter: skips extended modules
     python manage.py seed_demo --skip-invoice        # no sample invoice line items
 
 Extended data is omitted when --core-only is set (faster/smaller DB footprint).
 
-Each run sets the password for the four demo-*@scm.local accounts to --password
-so login matches the printed password even if those users already existed.
+Effective password is --password if set; otherwise DEMO_PASSWORD env; otherwise
+demo12345. Each run applies it to demo-*@scm.local accounts so printed login
+matches even if users already existed.
 """
 
+import os
 from datetime import timedelta
 from decimal import Decimal
 
@@ -225,8 +228,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--password",
-            default="demo12345",
-            help="Password for newly created demo users (default: demo12345)",
+            default=None,
+            help="Password for demo users (default: $DEMO_PASSWORD or demo12345)",
         )
         parser.add_argument(
             "--skip-invoice",
@@ -240,7 +243,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        password = options["password"]
+        password = options["password"] or os.environ.get(
+            "DEMO_PASSWORD", "demo12345"
+        )
         skip_invoice = options["skip_invoice"]
         core_only = options["core_only"]
 

@@ -3,7 +3,12 @@ Job Card services - PDF generation.
 """
 
 from io import BytesIO
+
+from django.db import transaction
 from django.utils import timezone
+
+from core.models import Role
+from jobs.models import DiagnosisPart, JobStatus
 
 
 class JobCardService:
@@ -210,11 +215,6 @@ def apply_diagnosis(job, validated_data: dict, user) -> dict:
     Apply diagnosis data to a job card.
     Raises ValueError if the job is terminal and the user is not an OWNER.
     """
-    from django.db import transaction
-
-    from core.models import Role
-    from jobs.models import JobStatus, DiagnosisPart
-
     if job.is_terminal_status() and user.role != Role.OWNER:
         raise ValueError('Cannot modify a completed job.')
 

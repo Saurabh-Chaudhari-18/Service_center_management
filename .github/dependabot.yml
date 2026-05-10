@@ -32,6 +32,11 @@ updates:
           - react
           - react-dom
           - "@types/react*"
+      security:
+        patterns:
+          - "*"
+        update-types:
+          - "security"
 
   - package-ecosystem: docker
     directory: /Backend

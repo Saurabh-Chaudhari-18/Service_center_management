@@ -12,7 +12,9 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
-    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
   };
 });
 
@@ -50,7 +52,9 @@ import { useAuth } from "@/context/AuthContext";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function renderSettings(role: UserRole = "OWNER") {
-  vi.mocked(useAuth).mockReturnValue(mockAuthValue(role) as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuthValue(role) as ReturnType<typeof useAuth>,
+  );
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
       <SettingsPage />
@@ -72,7 +76,9 @@ describe("Settings page smoke tests", () => {
 
   it("shows Settings heading", () => {
     renderSettings("OWNER");
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Settings" }),
+    ).toBeInTheDocument();
   });
 
   it("shows Profile tab navigation", () => {
@@ -85,9 +91,10 @@ describe("Settings page smoke tests", () => {
     expect(screen.getByText(/security/i)).toBeInTheDocument();
   });
 
-  it("shows user email in profile section", () => {
+  it("shows user email in profile section as read-only text", () => {
     renderSettings("OWNER");
-    expect(screen.getByDisplayValue("owner@test.com")).toBeInTheDocument();
+    expect(screen.getByText("owner@test.com")).toBeInTheDocument();
+    expect(document.querySelector('input[value="owner@test.com"]')).toBeNull();
   });
 
   it("renders without crashing for TECHNICIAN", () => {

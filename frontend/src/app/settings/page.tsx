@@ -10,30 +10,45 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { User, Lock, Bell, Shield, Save, Megaphone, Star, Info } from "lucide-react";
+import {
+  User,
+  Lock,
+  Bell,
+  Shield,
+  Save,
+  Megaphone,
+  Star,
+  Info,
+} from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import { formatPhone } from "@/lib/formatters";
 
 // =====================================================
-// Profile Section
+// Profile Section (read-only identity — not form inputs)
 // =====================================================
+
+function profileRoleLabel(role: string | undefined): string {
+  if (!role) return "—";
+  return role.replace(/_/g, " ");
+}
 
 function ProfileSection() {
   const { user, currentBranch } = useAuth();
 
-  const readOnlyFields = [
+  const readOnlyRows: { label: string; value: string }[] = [
     { label: "Email", value: user?.email || "—" },
-    { label: "Phone", value: user?.phone || "—" },
+    { label: "Phone", value: formatPhone(user?.phone) },
     {
       label: "Branch",
-      value: currentBranch?.name || "All Branches",
+      value: currentBranch?.name || "All branches",
     },
-    { label: "Role", value: user?.role || "—" },
+    { label: "Role", value: profileRoleLabel(user?.role) },
   ];
 
   return (
     <Card>
       <div className="flex items-center gap-4 mb-6">
-        <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center text-2xl font-bold text-primary-600">
+        <div className="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-2xl font-bold text-primary-600 dark:text-primary-300">
           {user?.first_name?.[0]}
           {user?.last_name?.[0]}
         </div>
@@ -41,26 +56,44 @@ function ProfileSection() {
           <h2 className="text-xl font-bold text-neutral-900 dark:text-white">
             {user?.first_name} {user?.last_name}
           </h2>
-          <p className="text-neutral-500 dark:text-neutral-400">{user?.role}</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 capitalize">
+            {profileRoleLabel(user?.role)}
+          </p>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {readOnlyFields.map(({ label, value }) => (
-          <div key={label} className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">
+        Account details
+        <span className="ml-2 font-normal normal-case text-neutral-400 dark:text-neutral-500">
+          (read-only)
+        </span>
+      </p>
+
+      <dl className="rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-neutral-100 dark:divide-slate-700 overflow-hidden">
+        {readOnlyRows.map(({ label, value }) => (
+          <div
+            key={label}
+            className="px-4 py-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
+          >
+            <dt className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide shrink-0 sm:min-w-28">
               {label}
-            </span>
-            <span className="text-sm text-gray-900 dark:text-gray-100 py-2 px-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+            </dt>
+            <dd className="text-sm font-medium text-neutral-900 dark:text-neutral-100 select-text sm:text-right break-all">
               {value}
-            </span>
+            </dd>
           </div>
         ))}
-        <p className="text-xs text-gray-400 mt-2 flex items-center gap-1 dark:text-gray-500">
-          <Info className="h-3.5 w-3.5 shrink-0" />
+      </dl>
+
+      <p
+        className="text-xs text-neutral-500 dark:text-neutral-400 mt-4 flex items-start gap-2 rounded-lg bg-neutral-50 dark:bg-slate-800/70 px-3 py-2.5 border border-neutral-100 dark:border-slate-700"
+        role="note"
+      >
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary-500" aria-hidden />
+        <span>
           Contact your manager to update email, phone, or branch assignment.
-        </p>
-      </div>
+        </span>
+      </p>
     </Card>
   );
 }
@@ -236,7 +269,8 @@ function MarketingSection() {
     reminder_1_days: 90,
     reminder_2_days: 180,
     reminder_3_days: 365,
-    reminder_message: "Hello {customer_name}, it's been {days} days since your {device_type} was serviced at {branch_name}. Book your next service now!",
+    reminder_message:
+      "Hello {customer_name}, it's been {days} days since your {device_type} was serviced at {branch_name}. Book your next service now!",
     send_whatsapp: true,
     is_active: true,
   });
@@ -244,7 +278,8 @@ function MarketingSection() {
   const [reviewForm, setReviewForm] = React.useState({
     google_review_link: "",
     send_after_hours: 24,
-    review_message: "Thank you {customer_name} for choosing {branch_name}! We'd love your feedback. Please leave us a Google review: {review_link}",
+    review_message:
+      "Thank you {customer_name} for choosing {branch_name}! We'd love your feedback. Please leave us a Google review: {review_link}",
     send_whatsapp: true,
     is_active: true,
   });
@@ -275,12 +310,16 @@ function MarketingSection() {
           Automated Service Reminders
         </h3>
         <p className="text-sm text-neutral-500 mb-5">
-          Automatically remind customers to come back for servicing after delivery.
+          Automatically remind customers to come back for servicing after
+          delivery.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           {[
-            { key: "reminder_1_days", label: "1st Reminder (days after delivery)" },
+            {
+              key: "reminder_1_days",
+              label: "1st Reminder (days after delivery)",
+            },
             { key: "reminder_2_days", label: "2nd Reminder (days)" },
             { key: "reminder_3_days", label: "3rd Reminder (days)" },
           ].map((f) => (
@@ -292,7 +331,12 @@ function MarketingSection() {
                 type="number"
                 min="1"
                 value={(reminderForm as any)[f.key]}
-                onChange={(e) => setReminderForm({ ...reminderForm, [f.key]: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setReminderForm({
+                    ...reminderForm,
+                    [f.key]: parseInt(e.target.value),
+                  })
+                }
                 className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
               />
             </div>
@@ -306,11 +350,17 @@ function MarketingSection() {
           <textarea
             rows={3}
             value={reminderForm.reminder_message}
-            onChange={(e) => setReminderForm({ ...reminderForm, reminder_message: e.target.value })}
+            onChange={(e) =>
+              setReminderForm({
+                ...reminderForm,
+                reminder_message: e.target.value,
+              })
+            }
             className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
           />
           <p className="text-xs text-neutral-400 mt-1">
-            Variables: {"{"}customer_name{'}'}, {"{"}days{'}'}, {"{"}device_type{'}'}, {"{"}branch_name{'}'}
+            Variables: {"{"}customer_name{"}"}, {"{"}days{"}"}, {"{"}device_type
+            {"}"}, {"{"}branch_name{"}"}
           </p>
         </div>
 
@@ -318,7 +368,9 @@ function MarketingSection() {
           <input
             type="checkbox"
             checked={reminderForm.is_active}
-            onChange={(e) => setReminderForm({ ...reminderForm, is_active: e.target.checked })}
+            onChange={(e) =>
+              setReminderForm({ ...reminderForm, is_active: e.target.checked })
+            }
             className="rounded"
           />
           Enable automated service reminders
@@ -344,7 +396,12 @@ function MarketingSection() {
               type="url"
               placeholder="https://g.page/r/your-business/review"
               value={reviewForm.google_review_link}
-              onChange={(e) => setReviewForm({ ...reviewForm, google_review_link: e.target.value })}
+              onChange={(e) =>
+                setReviewForm({
+                  ...reviewForm,
+                  google_review_link: e.target.value,
+                })
+              }
               className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             />
           </div>
@@ -356,7 +413,12 @@ function MarketingSection() {
               type="number"
               min="1"
               value={reviewForm.send_after_hours}
-              onChange={(e) => setReviewForm({ ...reviewForm, send_after_hours: parseInt(e.target.value) })}
+              onChange={(e) =>
+                setReviewForm({
+                  ...reviewForm,
+                  send_after_hours: parseInt(e.target.value),
+                })
+              }
               className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             />
           </div>
@@ -369,11 +431,14 @@ function MarketingSection() {
           <textarea
             rows={3}
             value={reviewForm.review_message}
-            onChange={(e) => setReviewForm({ ...reviewForm, review_message: e.target.value })}
+            onChange={(e) =>
+              setReviewForm({ ...reviewForm, review_message: e.target.value })
+            }
             className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
           />
           <p className="text-xs text-neutral-400 mt-1">
-            Variables: {"{"}customer_name{'}'}, {"{"}branch_name{'}'}, {"{"}review_link{'}'}
+            Variables: {"{"}customer_name{"}"}, {"{"}branch_name{"}"}, {"{"}
+            review_link{"}"}
           </p>
         </div>
 
@@ -381,7 +446,9 @@ function MarketingSection() {
           <input
             type="checkbox"
             checked={reviewForm.is_active}
-            onChange={(e) => setReviewForm({ ...reviewForm, is_active: e.target.checked })}
+            onChange={(e) =>
+              setReviewForm({ ...reviewForm, is_active: e.target.checked })
+            }
             className="rounded"
           />
           Enable automated Google review requests

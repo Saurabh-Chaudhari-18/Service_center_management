@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, FileText, ChevronRight, Calculator } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
+import { formatDateLong } from "@/lib/formatters";
 import { useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { Purchase } from "@/types";
@@ -36,14 +37,6 @@ export default function PurchasesPage() {
       void loadPurchases();
     }
   }, [currentBranch, loadPurchases]);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -121,7 +114,7 @@ export default function PurchasesPage() {
                         <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-slate-400 mt-2">
                           <span className="flex items-center gap-1">
                             <Calculator className="w-4 h-4" />
-                            {formatDate(purchase.purchase_date)}
+                            {formatDateLong(purchase.purchase_date)}
                           </span>
                           
                           {/* Status Badge */}

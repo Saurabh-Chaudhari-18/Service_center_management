@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
@@ -113,6 +114,7 @@ interface UserFormModalProps {
 
 function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isEditing = !!user;
 
   const [form, setForm] = useState<UserFormData>(() => {
@@ -153,12 +155,12 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
     const data = raw as Record<string, unknown>;
     const errBlock = data.error as Record<string, unknown> | undefined;
 
-    // Backend format: { error: { field_errors: { field: [msgs] } } }
+    // Backend format: { error: { fields: { field: [msgs] } } } (legacy: field_errors)
     const fieldErrors =
-      (errBlock?.field_errors as Record<string, unknown> | undefined) ||
       (errBlock?.fields as Record<string, unknown> | undefined) ||
-      (data.field_errors as Record<string, unknown> | undefined) ||
+      (errBlock?.field_errors as Record<string, unknown> | undefined) ||
       (data.fields as Record<string, unknown> | undefined) ||
+      (data.field_errors as Record<string, unknown> | undefined) ||
       data;
     if (fieldErrors && typeof fieldErrors === "object" && !Array.isArray(fieldErrors)) {
       Object.entries(fieldErrors).forEach(([key, val]) => {
@@ -181,7 +183,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onClose();
-      alert("Staff member created successfully!");
+      toast.success("Staff member created successfully.");
     },
     onError: (error: unknown) => {
       const parsed = parseApiErrors(error);
@@ -189,7 +191,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
         setErrors(parsed);
       } else {
         const msg = error instanceof Error ? error.message : "Unknown error";
-        alert("Failed to create user: " + msg);
+        toast.error("Failed to create user: " + msg);
       }
     },
   });
@@ -200,7 +202,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onClose();
-      alert("Staff member updated successfully!");
+      toast.success("Staff member updated successfully.");
     },
     onError: (error: unknown) => {
       const parsed = parseApiErrors(error);
@@ -208,7 +210,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
         setErrors(parsed);
       } else {
         const msg = error instanceof Error ? error.message : "Unknown error";
-        alert("Failed to update user: " + msg);
+        toast.error("Failed to update user: " + msg);
       }
     },
   });
@@ -507,19 +509,20 @@ interface DeleteConfirmProps {
 
 function DeleteConfirmModal({ isOpen, onClose, user }: DeleteConfirmProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => usersApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onClose();
-      alert("Staff member deactivated successfully!");
+      toast.success("Staff member deactivated successfully.");
     },
     onError: (error: {
       response?: { data?: { detail?: string } };
       message?: string;
     }) => {
-      alert(
+      toast.error(
         "Failed to deactivate: " +
           (error.response?.data?.detail || error.message || "Unknown error"),
       );

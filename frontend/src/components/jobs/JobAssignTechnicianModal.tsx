@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Modal, Button, Select, Textarea, Alert } from "@/components/ui";
-import { jobsApi, API_BASE_URL } from "@/lib/api";
+import { jobsApi, usersApi } from "@/lib/api";
 
 export interface JobAssignTechnicianModalProps {
   isOpen: boolean;
@@ -25,17 +25,10 @@ export function JobAssignTechnicianModal({
   const { data: techniciansData } = useQuery({
     queryKey: ["technicians", branchId],
     queryFn: () =>
-      fetch(
-        `${API_BASE_URL}/core/users/?role=TECHNICIAN${
-          branchId ? `&branch=${branchId}` : ""
-        }`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("scm_access_token")}`,
-            "Content-Type": "application/json",
-          },
-        },
-      ).then((res) => res.json()),
+      usersApi.list({
+        role: "TECHNICIAN",
+        ...(branchId ? { branch: branchId } : {}),
+      }),
     enabled: isOpen,
   });
 

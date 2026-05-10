@@ -29,4 +29,22 @@ def anonymise_customer(customer) -> None:
         customer.company_name = ''
         customer.notes = ''
         customer.is_active = False
-        customer.save()
+        customer.save(
+            update_fields=[
+                "first_name",
+                "last_name",
+                "email",
+                "mobile",
+                "alternate_mobile",
+                "address_line1",
+                "address_line2",
+                "city",
+                "state",
+                "pincode",
+                "state_code",
+                "gstin",
+                "company_name",
+                "notes",
+                "is_active",
+            ]
+        )
