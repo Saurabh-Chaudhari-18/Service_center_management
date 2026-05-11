@@ -174,7 +174,10 @@ export function CommandPalette() {
       />
 
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-20 sm:pt-32">
+        <div
+          className="fixed inset-0 flex items-start justify-center pt-20 sm:pt-32"
+          style={{ zIndex: "var(--z-command)" }}
+        >
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm transition-opacity"

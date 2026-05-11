@@ -7,7 +7,14 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, LoadingState, LiveTrackingMap } from "@/components/ui";
+import {
+  Card,
+  Button,
+  LoadingState,
+  LiveTrackingMap,
+  Modal,
+  PickupStatusBadge,
+} from "@/components/ui";
 import { pickupsApi, usersApi } from "@/lib/api";
 import {
   ArrowLeft,
@@ -27,25 +34,6 @@ import Link from "next/link";
 import { formatDateTime } from "@/lib/formatters";
 import type { PickupRequestStatus } from "@/types";
 import { PICKUP_STATUS_CONFIG } from "@/types";
-
-// =====================================================
-// Status Badge
-// =====================================================
-
-function PickupStatusBadge({ status }: { status: PickupRequestStatus }) {
-  const config = PICKUP_STATUS_CONFIG[status];
-  return (
-    <span
-      className="px-3 py-1.5 rounded-full text-sm font-semibold"
-      style={{
-        backgroundColor: config.bgColor,
-        color: config.textColor,
-      }}
-    >
-      {config.label}
-    </span>
-  );
-}
 
 // =====================================================
 // Status Timeline
@@ -266,7 +254,7 @@ export default function PickupDetailPage() {
           <Card>
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <PickupStatusBadge status={pickup.status} />
+                <PickupStatusBadge status={pickup.status} size="md" />
                 {pickup.is_urgent && (
                   <span className="px-3 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
@@ -480,110 +468,111 @@ export default function PickupDetailPage() {
           </Card>
         </div>
 
-        {/* Assign Technician Modal */}
-        {showAssignModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Assign Technician for Pickup
-              </h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {technicians?.results?.map(
-                  (tech: {
-                    id: string;
-                    first_name: string;
-                    last_name: string;
-                  }) => (
-                    <button
-                      key={tech.id}
-                      onClick={() => assignMutation.mutate(tech.id)}
-                      disabled={assignMutation.isPending}
-                      className="w-full text-left px-4 py-3 rounded-lg border border-neutral-100 hover:border-primary-300 hover:bg-primary-50 transition-all flex items-center gap-3"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-medium text-sm">
-                        {tech.first_name?.[0]}
-                        {tech.last_name?.[0]}
-                      </div>
-                      <span className="font-medium text-neutral-900">
-                        {tech.first_name} {tech.last_name}
-                      </span>
-                    </button>
-                  ),
-                )}
-                {(!technicians?.results ||
-                  technicians.results.length === 0) && (
-                  <p className="text-neutral-500 text-sm text-center py-4">
-                    No technicians available
-                  </p>
-                )}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowAssignModal(false)}
+        <Modal
+          isOpen={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          title="Assign Technician for Pickup"
+          size="md"
+          footer={
+            <Button type="button" variant="ghost" onClick={() => setShowAssignModal(false)}>
+              Cancel
+            </Button>
+          }
+        >
+          <div className="max-h-60 space-y-2 overflow-y-auto">
+            {technicians?.results?.map(
+              (tech: {
+                id: string;
+                first_name: string;
+                last_name: string;
+              }) => (
+                <button
+                  key={tech.id}
+                  type="button"
+                  onClick={() => assignMutation.mutate(tech.id)}
+                  disabled={assignMutation.isPending}
+                  className="flex w-full items-center gap-3 rounded-lg border border-neutral-100 px-4 py-3 text-left transition-all hover:border-primary-300 hover:bg-primary-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
-                  Cancel
-                </Button>
-              </div>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-medium text-primary-600">
+                    {tech.first_name?.[0]}
+                    {tech.last_name?.[0]}
+                  </div>
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {tech.first_name} {tech.last_name}
+                  </span>
+                </button>
+              ),
+            )}
+            {(!technicians?.results || technicians.results.length === 0) && (
+              <p className="py-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                No technicians available
+              </p>
+            )}
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={showStatusModal}
+          onClose={() => {
+            setShowStatusModal(false);
+            setSelectedStatus("");
+            setStatusNotes("");
+          }}
+          title="Update Status"
+          size="md"
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setSelectedStatus("");
+                  setStatusNotes("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => statusMutation.mutate()}
+                disabled={!selectedStatus || statusMutation.isPending}
+                isLoading={statusMutation.isPending}
+              >
+                Update
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {pickup.allowed_transitions?.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setSelectedStatus(t.value)}
+                className={`w-full rounded-lg border px-4 py-3 text-left transition-all ${
+                  selectedStatus === t.value
+                    ? "border-primary-500 bg-primary-50 dark:bg-primary-950/40"
+                    : "border-neutral-100 hover:border-primary-200 dark:border-slate-700"
+                }`}
+              >
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">{t.label}</span>
+              </button>
+            ))}
+
+            <div className="mt-3">
+              <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Notes (optional)
+              </label>
+              <textarea
+                value={statusNotes}
+                onChange={(e) => setStatusNotes(e.target.value)}
+                placeholder="Add notes for this status change..."
+                className="mt-1 min-h-[80px] w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+              />
             </div>
           </div>
-        )}
-
-        {/* Update Status Modal */}
-        {showStatusModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Update Status
-              </h3>
-              <div className="space-y-3">
-                {pickup.allowed_transitions?.map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => setSelectedStatus(t.value)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all ${
-                      selectedStatus === t.value
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-neutral-100 hover:border-primary-200"
-                    }`}
-                  >
-                    <span className="font-medium">{t.label}</span>
-                  </button>
-                ))}
-
-                <div className="mt-3">
-                  <label className="text-sm font-medium text-neutral-700">
-                    Notes (optional)
-                  </label>
-                  <textarea
-                    value={statusNotes}
-                    onChange={(e) => setStatusNotes(e.target.value)}
-                    placeholder="Add notes for this status change..."
-                    className="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setShowStatusModal(false);
-                    setSelectedStatus("");
-                    setStatusNotes("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => statusMutation.mutate()}
-                  disabled={!selectedStatus || statusMutation.isPending}
-                >
-                  {statusMutation.isPending ? "Updating..." : "Update"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        </Modal>
       </AppLayout>
     </ProtectedRoute>
   );

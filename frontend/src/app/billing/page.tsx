@@ -19,6 +19,8 @@ import {
   LoadingState,
   EmptyState,
 } from "@/components/ui";
+import { EntityInspector, PageShell, PaginationFooter } from "@/components/shell";
+import { BillingInvoiceInspectorBody } from "@/components/domain/billing/BillingInvoiceInspectorBody";
 import { billingApi } from "@/lib/api";
 import {
   Plus,
@@ -33,15 +35,14 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  CreditCard,
   Edit,
   IndianRupee,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { formatDateLong } from "@/lib/formatters";
-import type { Invoice, InvoiceLineItem, Payment } from "@/types";
-import { INVOICE_STATUS_CONFIG } from "@/types";
+import type { Invoice } from "@/types";
+import { getInvoiceStatusPresentation, SemanticStatusBadge } from "@/platform/semantics";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 
 // =====================================================
@@ -209,7 +210,7 @@ function InvoiceRow({
   onSelect,
   onDownload,
 }: InvoiceRowProps) {
-  const statusConfig = INVOICE_STATUS_CONFIG[invoice.status];
+  const statusPresentation = getInvoiceStatusPresentation(invoice.status);
 
   return (
     <tr
@@ -246,15 +247,7 @@ function InvoiceRow({
         </p>
       </td>
       <td className="px-4 py-4">
-        <span
-          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
-          style={{
-            backgroundColor: statusConfig.bgColor,
-            color: statusConfig.color,
-          }}
-        >
-          {statusConfig.label}
-        </span>
+        <SemanticStatusBadge presentation={statusPresentation} size="sm" />
       </td>
       <td className="px-4 py-4">
         <p
@@ -290,299 +283,7 @@ function InvoiceRow({
   );
 }
 
-// =====================================================
-// Invoice Detail Panel (Zoho Split-Pane)
-// =====================================================
-
-function InvoiceDetailPanel({
-  invoice,
-  onClose,
-  onDownload,
-}: {
-  invoice: Invoice;
-  onClose: () => void;
-  onDownload: (inv: Invoice) => void;
-}) {
-  const statusConfig = INVOICE_STATUS_CONFIG[invoice.status];
-
-  // Fetch full invoice details with line items
-  const { data: fullInvoice } = useQuery({
-    queryKey: ["invoice", invoice.id],
-    queryFn: () => billingApi.getInvoice(invoice.id),
-    enabled: !!invoice.id,
-  });
-
-  // Fetch payments
-  const { data: payments } = useQuery({
-    queryKey: ["invoice-payments", invoice.id],
-    queryFn: () => billingApi.getPayments(invoice.id),
-    enabled: !!invoice.id,
-  });
-
-  const inv = fullInvoice || invoice;
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[550px] bg-white shadow-2xl z-50 flex flex-col border-l border-neutral-200 animate-slide-in-right">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 bg-neutral-50">
-        <div>
-          <h2 className="text-lg font-bold text-neutral-900">
-            {inv.invoice_number}
-          </h2>
-          <p className="text-sm text-neutral-500">{inv.customer_name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href={`/billing/${inv.id}`}>
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<Eye className="w-4 h-4" />}
-            >
-              Full View
-            </Button>
-          </Link>
-          <Link href={`/billing/${inv.id}/edit`}>
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<Edit className="w-4 h-4" />}
-            >
-              Edit
-            </Button>
-          </Link>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-neutral-200 transition-colors text-neutral-500"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Status + Amount Row */}
-        <div className="flex items-center justify-between">
-          <span
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold"
-            style={{
-              backgroundColor: statusConfig.bgColor,
-              color: statusConfig.color,
-            }}
-          >
-            {statusConfig.label}
-          </span>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-neutral-900">
-              ₹{Number(inv.total_amount).toLocaleString("en-IN")}
-            </p>
-            <p
-              className={`text-sm font-medium ${inv.balance_due > 0 ? "text-red-600" : "text-green-600"}`}
-            >
-              {inv.balance_due > 0
-                ? `₹${inv.balance_due.toLocaleString("en-IN")} due`
-                : "Fully Paid"}
-            </p>
-          </div>
-        </div>
-
-        {/* Invoice Details Card */}
-        <div className="bg-neutral-50 rounded-xl p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-neutral-500 text-xs uppercase tracking-wider">
-                Date
-              </p>
-              <p className="font-medium text-neutral-900">
-                {formatDateLong(inv.invoice_date)}
-              </p>
-            </div>
-            {inv.due_date && (
-              <div>
-                <p className="text-neutral-500 text-xs uppercase tracking-wider">
-                  Due Date
-                </p>
-                <p className="font-medium text-neutral-900">
-                  {formatDateLong(inv.due_date)}
-                </p>
-              </div>
-            )}
-            {inv.job_number && (
-              <div>
-                <p className="text-neutral-500 text-xs uppercase tracking-wider">
-                  Job Reference
-                </p>
-                <p className="font-medium text-neutral-900">{inv.job_number}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-neutral-500 text-xs uppercase tracking-wider">
-                Customer
-              </p>
-              <p className="font-medium text-neutral-900">
-                {inv.customer_name}
-              </p>
-              <p className="text-xs text-neutral-500">{inv.customer_mobile}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Line Items */}
-        {inv.line_items && inv.line_items.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">
-              Line Items
-            </h4>
-            <div className="border border-neutral-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-500 uppercase">
-                      Item
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-neutral-500 uppercase">
-                      Qty
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-neutral-500 uppercase">
-                      Rate
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-neutral-500 uppercase">
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {inv.line_items.map((item: InvoiceLineItem, idx: number) => (
-                    <tr key={idx}>
-                      <td className="px-3 py-2.5">
-                        <p className="font-medium text-neutral-900">
-                          {item.description}
-                        </p>
-                        <span className="text-xs text-neutral-400">
-                          {item.item_type}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-neutral-600">
-                        {item.quantity}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-neutral-600">
-                        ₹{Number(item.unit_price).toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-neutral-900">
-                        ₹{Number(item.amount).toLocaleString("en-IN")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Totals */}
-              <div className="bg-neutral-50 border-t border-neutral-200 px-3 py-3 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">Subtotal</span>
-                  <span className="font-medium">
-                    ₹{Number(inv.subtotal).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-500">Tax (GST)</span>
-                  <span className="font-medium">
-                    ₹{Number(inv.total_tax).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div className="flex justify-between font-bold text-base border-t border-neutral-300 pt-2 mt-1">
-                  <span>Total</span>
-                  <span>
-                    ₹{Number(inv.total_amount).toLocaleString("en-IN")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment History */}
-        {payments && payments.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-3">
-              Payments ({payments.length})
-            </h4>
-            <div className="space-y-2">
-              {payments.map((payment: Payment, idx: number) => (
-                <div
-                  key={payment.id || idx}
-                  className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                      <CreditCard className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-neutral-900">
-                        ₹{Number(payment.amount).toLocaleString("en-IN")}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {formatDateLong(payment.payment_date)}{" "}
-                        • {payment.payment_method}
-                      </p>
-                    </div>
-                  </div>
-                  {payment.reference && (
-                    <span className="text-xs text-neutral-400">
-                      Ref: {payment.reference}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Notes */}
-        {inv.notes && (
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-700 uppercase tracking-wider mb-2">
-              Notes
-            </h4>
-            <p className="text-sm text-neutral-600 bg-neutral-50 rounded-xl p-3">
-              {inv.notes}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Actions */}
-      <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50 flex items-center gap-3">
-        <Link href={`/billing/${inv.id}`} className="flex-1">
-          <Button
-            variant="primary"
-            className="w-full"
-            leftIcon={<Eye className="w-4 h-4" />}
-          >
-            View Full Details
-          </Button>
-        </Link>
-        {inv.status !== "CANCELLED" && (
-          <Button
-            variant="secondary"
-            leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => onDownload(inv)}
-          >
-            PDF
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
+const BILLING_LIST_PAGE_SIZE = 10;
 
 // =====================================================
 // Main Billing Page
@@ -769,7 +470,7 @@ function BillingContent() {
           }
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell width="fluid" className="min-w-0">
           {/* Payment Summary Banner */}
           <PaymentSummaryBanner stats={stats} />
 
@@ -825,10 +526,10 @@ function BillingContent() {
           </Card>
 
           {/* Main Content Area */}
-          <div className="flex gap-0 relative">
+          <div className="relative flex min-w-0 gap-0">
             {/* Invoices Table */}
             <div
-              className={`flex-1 transition-all duration-300 ${selectedInvoice ? "mr-[550px]" : ""}`}
+              className={`min-w-0 flex-1 transition-all duration-300 ${selectedInvoice ? "mr-[550px]" : ""}`}
             >
               {isLoading ? (
                 <LoadingState />
@@ -946,53 +647,79 @@ function BillingContent() {
                 </Card>
               )}
 
-              {/* Pagination */}
               {(data?.previous || data?.next) && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-neutral-500">
-                    Showing {(page - 1) * 10 + 1} to{" "}
-                    {Math.min(page * 10, data?.count || 0)} of{" "}
-                    {data?.count || 0}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!data?.previous}
-                      onClick={() => setPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!data?.next}
-                      onClick={() => setPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
+                <PaginationFooter
+                  className="mt-4 rounded-xl border border-neutral-100 bg-white dark:border-slate-700 dark:bg-slate-900"
+                  page={page}
+                  pageSize={BILLING_LIST_PAGE_SIZE}
+                  totalCount={data?.count ?? 0}
+                  onPrevious={() => setPage((p) => p - 1)}
+                  onNext={() => setPage((p) => p + 1)}
+                  disabledPrevious={!data?.previous}
+                  disabledNext={!data?.next}
+                />
               )}
             </div>
 
-            {/* Detail Panel Overlay */}
             {selectedInvoice && (
-              <>
-                {/* Backdrop for mobile */}
-                <div
-                  className="fixed inset-0 bg-black/20 z-40 md:hidden"
-                  onClick={() => setSelectedInvoice(null)}
-                />
-                <InvoiceDetailPanel
-                  invoice={selectedInvoice}
-                  onClose={() => setSelectedInvoice(null)}
-                  onDownload={handleDownload}
-                />
-              </>
+              <EntityInspector
+                open
+                onOpenChange={(next) => {
+                  if (!next) setSelectedInvoice(null);
+                }}
+                title={selectedInvoice.invoice_number}
+                subtitle={selectedInvoice.customer_name}
+                width="md"
+                headerActions={
+                  <>
+                    <Link href={`/billing/${selectedInvoice.id}`}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<Eye className="h-4 w-4" />}
+                      >
+                        Full View
+                      </Button>
+                    </Link>
+                    <Link href={`/billing/${selectedInvoice.id}/edit`}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<Edit className="h-4 w-4" />}
+                      >
+                        Edit
+                      </Button>
+                    </Link>
+                  </>
+                }
+                footer={
+                  <div className="flex items-center gap-3">
+                    <Link href={`/billing/${selectedInvoice.id}`} className="flex-1">
+                      <Button
+                        variant="primary"
+                        className="w-full"
+                        leftIcon={<Eye className="h-4 w-4" />}
+                      >
+                        View Full Details
+                      </Button>
+                    </Link>
+                    {selectedInvoice.status !== "CANCELLED" && (
+                      <Button
+                        variant="secondary"
+                        leftIcon={<Download className="h-4 w-4" />}
+                        onClick={() => handleDownload(selectedInvoice)}
+                      >
+                        PDF
+                      </Button>
+                    )}
+                  </div>
+                }
+              >
+                <BillingInvoiceInspectorBody invoice={selectedInvoice} />
+              </EntityInspector>
             )}
           </div>
-        </div>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

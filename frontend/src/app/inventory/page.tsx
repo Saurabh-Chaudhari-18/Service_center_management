@@ -18,6 +18,7 @@ import {
   EmptyState,
   Alert,
 } from "@/components/ui";
+import { SegmentedControl, type SegmentedOption } from "@/components/shell";
 import { inventoryApi } from "@/lib/api";
 import {
   Plus,
@@ -43,7 +44,6 @@ import {
   Camera,
   CircuitBoard,
   Box,
-  Wrench,
   ArrowUpDown,
   TrendingUp,
   TrendingDown,
@@ -51,6 +51,29 @@ import {
   Info,
 } from "lucide-react";
 import type { InventoryItem, StockAdjustment } from "@/types";
+
+const INVENTORY_VIEW_SEGMENTS: readonly SegmentedOption<"table" | "card">[] = [
+  {
+    value: "table",
+    label: (
+      <span className="inline-flex items-center justify-center gap-1.5">
+        <List className="h-4 w-4 shrink-0" aria-hidden />
+        Table
+      </span>
+    ),
+    selectedClassName: "bg-primary-500 text-white shadow-sm dark:bg-primary-600",
+  },
+  {
+    value: "card",
+    label: (
+      <span className="inline-flex items-center justify-center gap-1.5">
+        <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
+        Cards
+      </span>
+    ),
+    selectedClassName: "bg-primary-500 text-white shadow-sm dark:bg-primary-600",
+  },
+];
 
 // =====================================================
 // Category Icon & Color Maps
@@ -1126,22 +1149,13 @@ export default function InventoryPage() {
                       {opt.label}
                     </button>
                   ))}
-                  <div className="flex rounded-lg border border-neutral-200 overflow-hidden ml-1">
-                    <button
-                      onClick={() => setViewMode("table")}
-                      className={`p-2 transition-colors ${viewMode === "table" ? "bg-primary-500 text-white" : "bg-white text-neutral-500 hover:bg-neutral-50"}`}
-                      title="Table View"
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode("card")}
-                      className={`p-2 transition-colors ${viewMode === "card" ? "bg-primary-500 text-white" : "bg-white text-neutral-500 hover:bg-neutral-50"}`}
-                      title="Card View"
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <SegmentedControl
+                    aria-label="Inventory layout"
+                    className="ml-1 w-full shrink-0 sm:w-auto"
+                    value={viewMode}
+                    onValueChange={setViewMode}
+                    options={INVENTORY_VIEW_SEGMENTS}
+                  />
                 </div>
               </div>
 

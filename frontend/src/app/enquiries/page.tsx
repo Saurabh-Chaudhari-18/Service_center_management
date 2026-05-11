@@ -1,20 +1,29 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { enquiriesApi } from "@/lib/api/services";
-import { Modal, Button, Textarea } from "@/components/ui";
+import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState } from "@/components/ui";
 import {
   Plus, UserSearch, Phone, Calendar, ArrowRightCircle,
-  XCircle, Search, RefreshCw, X,
-  TrendingUp, Clock, AlertTriangle,
+  XCircle, Search, RefreshCw,
   AlertCircle,
 } from "lucide-react";
 import { formatDateLong, formatPhone } from "@/lib/formatters";
 import { ENQUIRY_STATUS_CONFIG } from "@/types";
 import type { Enquiry, EnquiryStatus } from "@/types";
+import {
+  ActionBar,
+  EntityCards,
+  FormSection,
+  OperationalSectionLabel,
+  PageShell,
+  RegisterToolbar,
+} from "@/components/shell";
+import { EnquiryStatsStrip } from "@/components/domain/enquiries/EnquiryStatsStrip";
 
 const LEAD_SOURCES = [
   { value: "WALK_IN", label: "Walk-in" },
@@ -34,16 +43,30 @@ const isOverdue = (followUpDate: string | null, status: string) => {
   return new Date(followUpDate) < new Date(new Date().setHours(0, 0, 0, 0));
 };
 
+type EnquiryStatsShape = {
+  total?: number;
+  conversion_rate?: number;
+  today_followups?: number;
+  overdue_followups?: number;
+};
+
+const EMPTY_STATS: EnquiryStatsShape = {
+  total: 0,
+  conversion_rate: 0,
+  today_followups: 0,
+  overdue_followups: 0,
+};
+
+const ENQUIRY_CREATE_FORM_ID = "enquiry-create-form";
+
 export default function EnquiriesPage() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
   const [showForm, setShowForm] = useState(false);
-  const [stats, setStats] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [saving, setSaving] = useState(false);
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [lostTarget, setLostTarget] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
@@ -62,53 +85,88 @@ export default function EnquiriesPage() {
     notes: "",
   });
 
-  const fetchEnquiries = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params: any = {};
+  const listQueryKey = useMemo(
+    () => ["enquiries", "list", currentBranch?.id, search, statusFilter] as const,
+    [currentBranch?.id, search, statusFilter],
+  );
+
+  const errorToastRef = React.useRef(false);
+
+  const {
+    data: enquiries = [],
+    isLoading: listLoading,
+    isError: listError,
+    refetch: refetchList,
+  } = useQuery({
+    queryKey: listQueryKey,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
       if (currentBranch) params.branch = currentBranch.id;
       if (search) params.search = search;
       if (statusFilter && statusFilter !== "OVERDUE") params.status = statusFilter;
       const res = await enquiriesApi.list(params);
-      let rows = res.results || [];
+      let rows: Enquiry[] = (res.results || []) as Enquiry[];
       if (statusFilter === "OVERDUE") {
-        rows = rows.filter((enq: Enquiry) =>
+        rows = rows.filter((enq) =>
           isOverdue(enq.follow_up_date ?? null, enq.status),
         );
       }
-      setEnquiries(rows);
-    } catch (err) {
-      console.error("Failed to load enquiries:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentBranch, search, statusFilter]);
+      return rows;
+    },
+    staleTime: 15_000,
+  });
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const params: any = {};
+  const {
+    data: stats = EMPTY_STATS,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["enquiries", "stats", currentBranch?.id] as const,
+    queryFn: async (): Promise<EnquiryStatsShape> => {
+      const params: Record<string, string> = {};
       if (currentBranch) params.branch = currentBranch.id;
       const res = await enquiriesApi.getStats(params);
-      setStats(res);
-    } catch (err) {
-      console.error("Failed to load enquiry stats:", err);
+      return (res ?? {}) as EnquiryStatsShape;
+    },
+    staleTime: 15_000,
+  });
+
+  const statusFilterOptions = useMemo(
+    () => [
+      {
+        value: "OVERDUE",
+        label: `Overdue ${
+          (stats.overdue_followups ?? 0) > 0 ? `(${stats.overdue_followups})` : ""
+        }`,
+      },
+      ...Object.entries(ENQUIRY_STATUS_CONFIG).map(([key, val]) => ({
+        value: key,
+        label: val.label,
+      })),
+    ],
+    [stats.overdue_followups],
+  );
+
+  React.useEffect(() => {
+    if ((listError || statsError) && !errorToastRef.current) {
+      errorToastRef.current = true;
+      toast.error("Failed to load enquiries. Pull to refresh or try again.");
     }
-  }, [currentBranch]);
+    if (!listError && !statsError) errorToastRef.current = false;
+  }, [listError, statsError, toast]);
 
-  useEffect(() => {
-    fetchEnquiries();
-    fetchStats();
-  }, [fetchEnquiries, fetchStats]);
+  const invalidateEnquiries = () =>
+    queryClient.invalidateQueries({ queryKey: ["enquiries"] });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       await enquiriesApi.create({
         ...form,
         quoted_price: form.quoted_price ? parseFloat(form.quoted_price) : null,
         branch: currentBranch?.id,
       });
+    },
+    onSuccess: () => {
       setShowForm(false);
       setForm({
         customer_name: "",
@@ -124,38 +182,40 @@ export default function EnquiriesPage() {
         notes: "",
       });
       toast.success("Enquiry created successfully.");
-      fetchEnquiries();
-      fetchStats();
-    } catch (err) {
-      console.error("Failed to create enquiry:", err);
+      void invalidateEnquiries();
+    },
+    onError: () => {
       toast.error("Failed to create enquiry. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+  });
 
-  const handleConvertToJob = async (id: string) => {
-    try {
-      const res = await enquiriesApi.convertToJob(id);
+  const convertMutation = useMutation({
+    mutationFn: (id: string) => enquiriesApi.convertToJob(id),
+    onSuccess: (res) => {
       toast.success(res.message || "Converted to job successfully.");
-      fetchEnquiries();
-      fetchStats();
-    } catch (err) {
-      console.error("Failed to convert:", err);
+      void invalidateEnquiries();
+    },
+    onError: () => {
       toast.error("Failed to convert enquiry. Please try again.");
-    }
-  };
+    },
+  });
 
-  const handleMarkLost = async (id: string, reason: string) => {
-    try {
-      await enquiriesApi.markLost(id, reason);
+  const markLostMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      enquiriesApi.markLost(id, reason),
+    onSuccess: () => {
       toast.success("Enquiry marked as lost.");
-      fetchEnquiries();
-      fetchStats();
-    } catch (err) {
-      console.error("Failed to mark lost:", err);
+      void invalidateEnquiries();
+    },
+    onError: () => {
       toast.error("Failed to mark enquiry as lost. Please try again.");
-    }
+    },
+  });
+
+  const handleRefresh = () => {
+    void Promise.all([refetchList(), refetchStats()]).catch(() => {
+      toast.error("Failed to refresh.");
+    });
   };
 
   return (
@@ -164,174 +224,167 @@ export default function EnquiriesPage() {
         title="Enquiries"
         subtitle="Track leads, follow-ups & conversions"
         actions={
-          <button
+          <Button
+            type="button"
+            leftIcon={<Plus className="h-4 w-4" />}
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
           >
-            <Plus className="w-4 h-4" /> New Enquiry
-          </button>
+            New Enquiry
+          </Button>
         }
       />
 
-      <div className="p-4 lg:p-6 space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30">
-                <UserSearch className="w-5 h-5 text-indigo-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Total Leads</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">{stats?.total || 0}</p>
-              </div>
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-green-100 dark:bg-green-900/30">
-                <TrendingUp className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Conversion Rate</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">{stats?.conversion_rate || 0}%</p>
-              </div>
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
-                <Clock className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Today&apos;s Follow-ups</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">{stats?.today_followups || 0}</p>
-              </div>
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100 dark:bg-red-900/30">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Overdue</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">{stats?.overdue_followups || 0}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <PageShell width="fluid">
+        <EnquiryStatsStrip
+          total={stats?.total}
+          conversion_rate={stats?.conversion_rate}
+          today_followups={stats?.today_followups}
+          overdue_followups={stats?.overdue_followups}
+        />
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <input
+        <RegisterToolbar
+          filters={
+            <Select
+              aria-label="Filter by status"
+              placeholder="All Statuses"
+              value={statusFilter}
+              options={statusFilterOptions}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-sm py-2"
+            />
+          }
+          search={
+            <Input
               type="text"
               placeholder="Search by name, mobile, brand..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+              leftIcon={<Search className="h-4 w-4" />}
+              aria-label="Search enquiries"
+              className="py-2 text-sm"
             />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-          >
-            <option value="">All Statuses</option>
-            <option value="OVERDUE">
-              Overdue {(stats?.overdue_followups ?? 0) > 0 ? `(${stats.overdue_followups})` : ""}
-            </option>
-            {Object.entries(ENQUIRY_STATUS_CONFIG).map(([key, val]) => (
-              <option key={key} value={key}>{val.label}</option>
-            ))}
-          </select>
-          <button onClick={() => { fetchEnquiries(); fetchStats(); }} className="p-2 rounded-xl border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+          }
+          secondaryActions={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="shrink-0 rounded-xl border border-neutral-200 p-2 dark:border-slate-700"
+              aria-label="Refresh enquiries"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          }
+        />
 
-        {/* Enquiries List */}
-        <div className="space-y-3">
-          {loading ? (
-            <div className="card p-8 text-center text-neutral-400">Loading enquiries...</div>
+        <div>
+          <OperationalSectionLabel title="Lead queue" hint="Triage &amp; actions" />
+
+          {listLoading ? (
+            <LoadingState />
+          ) : listError ? (
+            <EmptyState
+              icon={<UserSearch className="h-8 w-8 text-neutral-400" />}
+              title="Couldn’t load enquiries"
+              description="Check your connection and try again."
+              action={
+                <Button type="button" onClick={() => void refetchList()}>
+                  Retry
+                </Button>
+              }
+            />
           ) : enquiries.length === 0 ? (
-            <div className="card p-8 text-center text-neutral-400">No enquiries found. Create your first lead!</div>
+            <EmptyState
+              icon={<UserSearch className="h-8 w-8 text-neutral-400" />}
+              title="No enquiries found"
+              description="Create your first lead to get started."
+              action={
+                <Button type="button" onClick={() => setShowForm(true)} leftIcon={<Plus className="h-4 w-4" />}>
+                  New Enquiry
+                </Button>
+              }
+            />
           ) : (
-            enquiries.map((enq) => {
+            <EntityCards columns="single" compact>
+            {enquiries.map((enq) => {
               const statusConfig = ENQUIRY_STATUS_CONFIG[enq.status as EnquiryStatus] || ENQUIRY_STATUS_CONFIG.NEW;
               return (
                 <div
                   key={enq.id}
-                  className={`card p-4 hover:shadow-lg transition-shadow ${
+                  className={`card p-3 ${
                     isOverdue(enq.follow_up_date ?? null, enq.status)
-                      ? "border-l-4 border-l-red-500"
+                      ? "border-l-[3px] border-l-red-500"
                       : ""
                   }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="min-w-[200px] flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-neutral-900 dark:text-white">{enq.customer_name}</h3>
                         <span
-                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                           style={{ backgroundColor: statusConfig.bgColor, color: statusConfig.textColor }}
                         >
                           {statusConfig.label}
                         </span>
                         {enq.source_display && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 dark:bg-slate-700 text-neutral-600 dark:text-neutral-300">
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-slate-700 dark:text-neutral-300">
                             {enq.source_display}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">
-                        <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{formatPhone(enq.customer_mobile)}</span>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">
+                        <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{formatPhone(enq.customer_mobile)}</span>
                         {enq.brand && <span>{enq.brand} {enq.model_name}</span>}
                         {enq.follow_up_date && (
                           <span className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
+                            <Calendar className="h-3.5 w-3.5" />
                             Follow-up: {formatDateLong(enq.follow_up_date)}
                           </span>
                         )}
                         {isOverdue(enq.follow_up_date ?? null, enq.status) && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">
-                            <AlertCircle className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 dark:bg-red-900/20">
+                            <AlertCircle className="h-3 w-3" />
                             Follow-up Overdue
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1 line-clamp-2">{enq.problem_description}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-neutral-600 dark:text-neutral-400">{enq.problem_description}</p>
                       {enq.quoted_price && (
-                        <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mt-1">
+                        <p className="mt-1 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
                           Quoted: ₹{Number(enq.quoted_price).toLocaleString("en-IN")}
                         </p>
                       )}
                     </div>
 
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex shrink-0 gap-2">
                       {enq.status !== "CONVERTED" && enq.status !== "LOST" && enq.status !== "CLOSED" && (
                         <>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<ArrowRightCircle className="h-3.5 w-3.5" />}
                             onClick={() => setConvertTarget(enq.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+                            className="gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
                           >
-                            <ArrowRightCircle className="w-3.5 h-3.5" /> Convert
-                          </button>
-                          <button
+                            Convert
+                          </Button>
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<XCircle className="h-3.5 w-3.5" />}
                             onClick={() => setLostTarget(enq.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                            className="gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
                           >
-                            <XCircle className="w-3.5 h-3.5" /> Lost
-                          </button>
+                            Lost
+                          </Button>
                         </>
                       )}
                       {enq.converted_job_number && (
-                        <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                        <span className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
                           → Job #{enq.converted_job_number}
                         </span>
                       )}
@@ -339,140 +392,178 @@ export default function EnquiriesPage() {
                   </div>
                 </div>
               );
-            })
+            })}
+            </EntityCards>
           )}
         </div>
-      </div>
+      </PageShell>
 
-      {/* Create Enquiry Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">New Enquiry / Lead</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Customer Name *</label>
-                  <input required type="text" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="Full name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Mobile *</label>
-                  <input required type="tel" value={form.customer_mobile} onChange={(e) => setForm({ ...form, customer_mobile: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="+91..."
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Device</label>
-                  <input type="text" value={form.device_type} onChange={(e) => setForm({ ...form, device_type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="Laptop"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Brand</label>
-                  <input type="text" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="HP, Dell..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Model</label>
-                  <input type="text" value={form.model_name} onChange={(e) => setForm({ ...form, model_name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="Model name"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Problem Description *</label>
-                <textarea required value={form.problem_description} onChange={(e) => setForm({ ...form, problem_description: e.target.value })}
-                  rows={3} className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
-                  placeholder="What the customer described..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Quoted Price (₹)</label>
-                  <input type="number" step="0.01" value={form.quoted_price} onChange={(e) => setForm({ ...form, quoted_price: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Lead Source</label>
-                  <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  >
-                    {LEAD_SOURCES.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Follow-up Date</label>
-                <input type="date" value={form.follow_up_date} onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-slate-800"
-                >
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="New Enquiry / Lead"
+        size="lg"
+        footer={
+          <div className="w-full min-w-[min(100%,24rem)]">
+            <ActionBar
+              className="border-transparent border-t-0 pt-0 pb-0"
+              secondary={
+                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setShowForm(false)}>
                   Cancel
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                </Button>
+              }
+              primary={
+                <Button
+                  type="submit"
+                  form={ENQUIRY_CREATE_FORM_ID}
+                  isLoading={createMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
-                  {saving ? "Saving..." : "Create Lead"}
-                </button>
-              </div>
-            </form>
+                  Create Lead
+                </Button>
+              }
+            />
           </div>
-        </div>
-      )}
+        }
+      >
+        <form
+          id={ENQUIRY_CREATE_FORM_ID}
+          onSubmit={(e) => {
+            e.preventDefault();
+            createMutation.mutate();
+          }}
+          className="space-y-6"
+        >
+          <FormSection title="Customer" fieldGap="tight">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                required
+                type="text"
+                label="Customer Name"
+                value={form.customer_name}
+                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                placeholder="Full name"
+                className="text-sm"
+              />
+              <Input
+                required
+                type="tel"
+                label="Mobile"
+                value={form.customer_mobile}
+                onChange={(e) => setForm({ ...form, customer_mobile: e.target.value })}
+                placeholder="+91..."
+                className="text-sm"
+              />
+            </div>
+          </FormSection>
+
+          <FormSection title="Device" fieldGap="tight">
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                type="text"
+                label="Device"
+                value={form.device_type}
+                onChange={(e) => setForm({ ...form, device_type: e.target.value })}
+                placeholder="Laptop"
+                className="text-sm"
+              />
+              <Input
+                type="text"
+                label="Brand"
+                value={form.brand}
+                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                placeholder="HP, Dell..."
+                className="text-sm"
+              />
+              <Input
+                type="text"
+                label="Model"
+                value={form.model_name}
+                onChange={(e) => setForm({ ...form, model_name: e.target.value })}
+                placeholder="Model name"
+                className="text-sm"
+              />
+            </div>
+          </FormSection>
+
+          <FormSection title="Request" fieldGap="tight">
+            <Textarea
+              label="Problem Description"
+              required
+              value={form.problem_description}
+              onChange={(e) => setForm({ ...form, problem_description: e.target.value })}
+              rows={3}
+              placeholder="What the customer described..."
+              className="resize-none text-sm"
+            />
+          </FormSection>
+
+          <FormSection title="Quote & follow-up" fieldGap="tight">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                type="number"
+                step="0.01"
+                label="Quoted Price (₹)"
+                value={form.quoted_price}
+                onChange={(e) => setForm({ ...form, quoted_price: e.target.value })}
+                placeholder="0.00"
+                className="text-sm"
+              />
+              <Select
+                label="Lead Source"
+                value={form.source}
+                options={LEAD_SOURCES}
+                onChange={(e) => setForm({ ...form, source: e.target.value })}
+                className="text-sm py-2"
+              />
+            </div>
+            <Input
+              type="date"
+              label="Follow-up Date"
+              value={form.follow_up_date}
+              onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })}
+              className="text-sm"
+            />
+          </FormSection>
+        </form>
+      </Modal>
 
       {convertTarget && (
         <Modal
           isOpen={true}
           onClose={() => setConvertTarget(null)}
           title="Convert to Job Card"
+          footer={
+            <div className="w-full min-w-[min(100%,24rem)]">
+              <ActionBar
+                className="border-transparent border-t-0 pt-0 pb-0"
+                secondary={
+                  <Button variant="secondary" type="button" className="w-full sm:w-auto" onClick={() => setConvertTarget(null)}>
+                    Cancel
+                  </Button>
+                }
+                primary={
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    isLoading={convertMutation.isPending}
+                    onClick={() => {
+                      convertMutation.mutate(convertTarget, {
+                        onSettled: () => setConvertTarget(null),
+                      });
+                    }}
+                  >
+                    Convert to Job
+                  </Button>
+                }
+              />
+            </div>
+          }
         >
           <p className="text-sm text-gray-600 dark:text-gray-400">
             This will create a new job card from this enquiry. The enquiry will be
             marked as Converted. Continue?
           </p>
-          <div className="mt-4 flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setConvertTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                handleConvertToJob(convertTarget);
-                setConvertTarget(null);
-              }}
-            >
-              Convert to Job
-            </Button>
-          </div>
         </Modal>
       )}
 
@@ -484,8 +575,51 @@ export default function EnquiriesPage() {
             setLostReason("");
           }}
           title="Mark as Lost"
+          footer={
+            <div className="w-full min-w-[min(100%,24rem)]">
+              <ActionBar
+                className="border-transparent border-t-0 pt-0 pb-0"
+                secondary={
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      setLostTarget(null);
+                      setLostReason("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                }
+                primary={
+                  <Button
+                    variant="danger"
+                    type="button"
+                    className="w-full sm:w-auto"
+                    disabled={!lostReason.trim()}
+                    isLoading={markLostMutation.isPending}
+                    onClick={() => {
+                      if (!lostTarget) return;
+                      markLostMutation.mutate(
+                        { id: lostTarget, reason: lostReason },
+                        {
+                          onSettled: () => {
+                            setLostTarget(null);
+                            setLostReason("");
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    Mark as Lost
+                  </Button>
+                }
+              />
+            </div>
+          }
         >
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
             Please provide a reason for marking this enquiry as lost.
           </p>
           <Textarea
@@ -495,28 +629,6 @@ export default function EnquiriesPage() {
             onChange={(e) => setLostReason(e.target.value)}
             rows={3}
           />
-          <div className="mt-4 flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setLostTarget(null);
-                setLostReason("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!lostReason.trim()}
-              onClick={() => {
-                handleMarkLost(lostTarget, lostReason);
-                setLostTarget(null);
-                setLostReason("");
-              }}
-            >
-              Mark as Lost
-            </Button>
-          </div>
         </Modal>
       )}
     </AppLayout>

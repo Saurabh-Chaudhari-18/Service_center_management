@@ -1,42 +1,57 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, FileText, ChevronRight, Calculator } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { formatDateLong } from "@/lib/formatters";
 import { useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { Purchase } from "@/types";
+import { useToast } from "@/context/ToastContext";
+import { Button, EmptyState, Input, LoadingState } from "@/components/ui";
+import { EntityTable, PageShell, RegisterToolbar } from "@/components/shell";
+import type { Purchase } from "@/types";
 
 export default function PurchasesPage() {
   const router = useRouter();
   const { currentBranch } = useAuth();
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const { toast } = useToast();
+  const [search, setSearch] = React.useState("");
 
-  const loadPurchases = useCallback(async () => {
-    if (!currentBranch) return;
-    setLoading(true);
-    try {
+  const searchParam = useMemo(
+    () => (search.length > 2 ? search : undefined),
+    [search],
+  );
+
+  const errorToastRef = React.useRef(false);
+
+  const {
+    data: purchases = [],
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ["purchases", "register", currentBranch?.id, searchParam ?? ""],
+    queryFn: async () => {
       const response = await purchasesApi.list({
-        branch: currentBranch.id,
-        search: search.length > 2 ? search : undefined,
+        branch: currentBranch!.id,
+        search: searchParam,
       });
-      setPurchases(response.results);
-    } catch (error) {
-      console.error("Failed to load purchases:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentBranch, search]);
+      return response.results;
+    },
+    enabled: !!currentBranch,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    if (currentBranch) {
-      void loadPurchases();
+  React.useEffect(() => {
+    if (isError && !errorToastRef.current) {
+      errorToastRef.current = true;
+      toast.error("Failed to load purchases. Please try again.");
     }
-  }, [currentBranch, loadPurchases]);
+    if (!isError) errorToastRef.current = false;
+  }, [isError, toast]);
 
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -45,116 +60,160 @@ export default function PurchasesPage() {
     }).format(Number(amount));
   };
 
+  const showInitialLoading = !currentBranch || (isLoading && purchases.length === 0);
+
   return (
     <ProtectedRoute>
       <AppLayout>
-        <Header 
-          title="Purchase History" 
+        <Header
+          title="Purchase History"
           subtitle="Track inbound inventory, vendor bills, and historical costs."
           actions={
-            <button
+            <Button
+              type="button"
+              leftIcon={<Plus className="h-4 w-4" />}
               onClick={() => router.push("/purchases/new")}
-              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-primary-600 to-primary-500 dark:from-emerald-500 dark:to-teal-500 border border-transparent rounded-xl hover:shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 shadow-sm"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              <span>Add New Purchase</span>
-            </button>
+              Add New Purchase
+            </Button>
           }
         />
-        <div className="p-6 font-sans">
-          <div className="max-w-6xl mx-auto space-y-8">
-            {/* Search & Filters */}
-            <div className="bg-white/90 dark:bg-slate-800/50 backdrop-blur-xl border border-neutral-200 dark:border-slate-700/50 shadow-sm p-4 rounded-2xl flex flex-col md:flex-row gap-4 focus-within:ring-1 focus-within:ring-primary-500/50 transition-all">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400 dark:text-slate-400" />
-                <input
+
+        <PageShell width="fluid" className="font-sans">
+          <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">
+            <RegisterToolbar
+              search={
+                <Input
                   type="text"
                   placeholder="Search by vendor name or invoice number..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900/50 border border-neutral-200 dark:border-slate-700/50 rounded-xl text-neutral-900 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                  leftIcon={<Search className="h-5 w-5" />}
+                  aria-label="Search purchases"
+                  className="text-sm dark:bg-slate-900/60"
+                />
+              }
+              secondaryActions={
+                isFetching && !isLoading ? (
+                  <span className="text-xs text-neutral-500 dark:text-slate-400">Updating…</span>
+                ) : null
+              }
+            />
+          </div>
+
+          <EntityTable
+            loading={showInitialLoading}
+            loadingSlot={<LoadingState />}
+            empty={!showInitialLoading && !isError && purchases.length === 0}
+            emptySlot={
+              <EmptyState
+                icon={<FileText className="h-8 w-8 text-neutral-400" />}
+                title="No purchases found"
+                description={
+                  search
+                    ? "Try adjusting your search terms."
+                    : "You haven't added any vendor purchases yet."
+                }
+              />
+            }
+          >
+            {isError ? (
+              <div className="rounded-xl border border-neutral-200 p-8 dark:border-slate-800">
+                <EmptyState
+                  icon={<FileText className="h-8 w-8 text-neutral-400" />}
+                  title="Couldn’t load purchases"
+                  description="Check your connection and try again."
+                  action={
+                    <Button type="button" onClick={() => void refetch()}>
+                      Retry
+                    </Button>
+                  }
                 />
               </div>
-            </div>
-
-            {/* Purchases List */}
-            <div className="grid gap-4">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 dark:border-emerald-500"></div>
-                </div>
-              ) : purchases.length === 0 ? (
-                <div className="bg-neutral-50 dark:bg-slate-800/30 border border-neutral-200 dark:border-slate-700/50 rounded-2xl p-12 text-center shadow-sm backdrop-blur-sm">
-                  <FileText className="w-16 h-16 text-neutral-300 dark:text-slate-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-medium text-neutral-800 dark:text-slate-300">No purchases found</h3>
-                  <p className="text-neutral-500 dark:text-slate-500 mt-2">
-                    {search ? "Try adjusting your search terms." : "You haven't added any vendor purchases yet."}
-                  </p>
-                </div>
-              ) : (
-                purchases.map((purchase) => (
-                  <div
-                    key={purchase.id}
-                    onClick={() => router.push(`/purchases/${purchase.id}`)}
-                    className="group relative bg-white/90 dark:bg-slate-800/40 backdrop-blur-md border border-neutral-200 dark:border-slate-700/50 hover:border-primary-300 dark:hover:border-emerald-500/30 rounded-2xl p-5 cursor-pointer transition-all duration-200 hover:shadow-md dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden"
-                  >
-                    
-                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-neutral-900 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-emerald-400 transition-colors">
+            ) : showInitialLoading || purchases.length === 0 ? null : (
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+                    <th scope="col" className="px-3 py-2">Vendor</th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">Invoice</th>
+                    <th scope="col" className="px-3 py-2">Date</th>
+                    <th scope="col" className="px-3 py-2">Status</th>
+                    <th scope="col" className="px-3 py-2 text-right">Total</th>
+                    <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">Balance</th>
+                    <th scope="col" className="w-10 px-2 py-2" aria-label="Open" />
+                  </tr>
+                </thead>
+                <tbody className="text-neutral-800 dark:text-slate-200">
+                  {purchases.map((purchase: Purchase) => {
+                    const balance = parseFloat(String(purchase.balance_due));
+                    const statusCls =
+                      purchase.status === "PAID"
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
+                        : purchase.status === "PARTIAL"
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                          : purchase.status === "CANCELLED"
+                            ? "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300"
+                            : "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300";
+                    const go = () => router.push(`/purchases/${purchase.id}`);
+                    return (
+                      <tr
+                        key={purchase.id}
+                        tabIndex={0}
+                        className="cursor-pointer border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50 focus-visible:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
+                        onClick={go}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            go();
+                          }
+                        }}
+                      >
+                        <td className="max-w-[200px] px-3 py-2 align-middle">
+                          <span className="block truncate font-medium text-neutral-900 dark:text-white">
                             {purchase.vendor_name}
-                          </h3>
-                          {purchase.invoice_number && (
-                            <span className="px-2.5 py-1 text-xs font-medium bg-neutral-100 dark:bg-slate-700 text-neutral-700 dark:text-slate-300 rounded-md border border-neutral-200 dark:border-slate-600">
-                              INV: {purchase.invoice_number}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-slate-400 mt-2">
-                          <span className="flex items-center gap-1">
-                            <Calculator className="w-4 h-4" />
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-1 text-xs text-neutral-500 sm:hidden dark:text-slate-400">
+                            <Calculator className="h-3 w-3 shrink-0 opacity-70" />
+                            {purchase.invoice_number || "—"}
+                          </span>
+                        </td>
+                        <td className="hidden px-3 py-2 align-middle text-neutral-600 dark:text-slate-400 sm:table-cell">
+                          {purchase.invoice_number || "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 align-middle tabular-nums text-neutral-600 dark:text-slate-400">
+                          <span className="inline-flex items-center gap-1">
+                            <Calculator className="hidden h-3.5 w-3.5 opacity-60 sm:inline" aria-hidden />
                             {formatDateLong(purchase.purchase_date)}
                           </span>
-                          
-                          {/* Status Badge */}
-                          <div className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                            purchase.status === 'PAID' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                            purchase.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
-                            purchase.status === 'CANCELLED' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' :
-                            'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400'
-                          }`}>
-                            {purchase.status || 'UNPAID'}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col md:flex-row items-end md:items-center justify-between md:justify-end gap-6">
-                        <div className="text-right">
-                          <p className="text-sm text-neutral-500 dark:text-slate-400 mb-1">Total Amount</p>
-                          <p className="text-xl font-bold text-neutral-900 dark:text-white">
-                            {formatCurrency(purchase.total_amount)}
-                          </p>
-                        </div>
-                        {parseFloat(String(purchase.balance_due)) > 0 && (
-                          <div className="text-right">
-                            <p className="text-xs font-medium text-rose-500 uppercase tracking-wide mb-1">Balance Due</p>
-                            <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                        </td>
+                        <td className="px-3 py-2 align-middle">
+                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCls}`}>
+                            {purchase.status || "UNPAID"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right align-middle font-semibold tabular-nums">
+                          {formatCurrency(purchase.total_amount)}
+                        </td>
+                        <td className="hidden px-3 py-2 text-right align-middle md:table-cell">
+                          {balance > 0 ? (
+                            <span className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">
                               {formatCurrency(purchase.balance_due || 0)}
-                            </p>
-                          </div>
-                        )}
-                        <div className="w-10 h-10 rounded-full bg-neutral-50 dark:bg-slate-700/50 border border-neutral-100 dark:border-transparent flex items-center justify-center group-hover:bg-primary-50 dark:group-hover:bg-emerald-500/20 group-hover:border-primary-100 transition-colors self-center">
-                          <ChevronRight className="w-5 h-5 text-neutral-400 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-emerald-400 transition-colors" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400 dark:text-slate-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 align-middle text-neutral-400 dark:text-slate-500">
+                          <ChevronRight className="mx-auto h-4 w-4" aria-hidden />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </EntityTable>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

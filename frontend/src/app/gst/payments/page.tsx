@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { gstApi } from "@/lib/api/services";
-import { CreditCard, Plus, X } from "lucide-react";
+import { CreditCard, Plus } from "lucide-react";
+import { Modal, Button } from "@/components/ui";
 
 const PAYMENT_METHODS = ["NEFT", "UPI", "CASH", "DEBIT_CARD", "OTHER"];
 
@@ -57,58 +58,65 @@ export default function GSTPaymentsPage() {
         <p className="text-3xl font-bold text-violet-700 mt-1">{fmt(totalPaid)}</p>
       </div>
 
-      {/* Add Payment Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-neutral-900">Add GST Payment</h2>
-              <button onClick={() => setShowForm(false)}><X className="w-5 h-5 text-neutral-400" /></button>
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="Add GST Payment"
+        size="md"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => addMutation.mutate()} isLoading={addMutation.isPending}>
+              Save Payment
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {[
+            { label: "Period (Month)", key: "period_month", type: "month" },
+            { label: "CGST Paid (₹)", key: "cgst_paid", type: "number" },
+            { label: "SGST Paid (₹)", key: "sgst_paid", type: "number" },
+            { label: "Payment Date", key: "payment_date", type: "date" },
+            { label: "Challan Number (CRN)", key: "challan_number", type: "text" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">{f.label}</label>
+              <input
+                type={f.type}
+                value={(form as Record<string, string>)[f.key]}
+                onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+              />
             </div>
-            <div className="space-y-4">
-              {[
-                { label: "Period (Month)", key: "period_month", type: "month" },
-                { label: "CGST Paid (₹)", key: "cgst_paid", type: "number" },
-                { label: "SGST Paid (₹)", key: "sgst_paid", type: "number" },
-                { label: "Payment Date", key: "payment_date", type: "date" },
-                { label: "Challan Number (CRN)", key: "challan_number", type: "text" },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="block text-xs font-semibold text-neutral-600 mb-1">{f.label}</label>
-                  <input
-                    type={f.type}
-                    value={(form as any)[f.key]}
-                    onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  />
-                </div>
+          ))}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Payment Method</label>
+            <select
+              value={form.payment_method}
+              onChange={(e) => setForm((p) => ({ ...p, payment_method: e.target.value }))}
+              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+            >
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1">Payment Method</label>
-                <select value={form.payment_method} onChange={e => setForm(p => ({ ...p, payment_method: e.target.value }))}
-                  className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm">
-                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                  rows={2} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm resize-none" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowForm(false)}
-                className="flex-1 py-2 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-600 hover:bg-neutral-50">
-                Cancel
-              </button>
-              <button onClick={() => addMutation.mutate()} disabled={addMutation.isPending}
-                className="flex-1 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 disabled:opacity-50">
-                {addMutation.isPending ? "Saving..." : "Save Payment"}
-              </button>
-            </div>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+              rows={2}
+              className="w-full resize-none rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+            />
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Table */}
       <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">

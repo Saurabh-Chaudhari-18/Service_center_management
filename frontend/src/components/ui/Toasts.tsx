@@ -39,7 +39,8 @@ export function ToastContainer() {
     <div
       aria-live="polite"
       aria-atomic="false"
-      className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2"
+      className="fixed bottom-4 right-4 flex flex-col gap-2"
+      style={{ zIndex: "var(--z-toast)" }}
     >
       {toasts.map((t) => (
         <ToastCard key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />

@@ -2,7 +2,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { gstApi } from "@/lib/api/services";
-import { Hash, Plus, Search, X, Pencil } from "lucide-react";
+import { Hash, Plus, Search, Pencil } from "lucide-react";
+import { Modal, Button } from "@/components/ui";
 
 const DEFAULT_FORM = { code: "", code_type: "SAC", description: "", default_gst_rate: "18" };
 type HSNFormState = typeof DEFAULT_FORM;
@@ -16,6 +17,7 @@ interface HSNCodeRecord {
 }
 
 interface GSTFormModalProps {
+  isOpen: boolean;
   title: string;
   onSave: () => void;
   onClose: () => void;
@@ -24,52 +26,67 @@ interface GSTFormModalProps {
   setForm: React.Dispatch<React.SetStateAction<HSNFormState>>;
 }
 
-function GSTFormModal({ title, onSave, onClose, loading, form, setForm }: GSTFormModalProps) {
+function GSTFormModal({ isOpen, title, onSave, onClose, loading, form, setForm }: GSTFormModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-neutral-900">{title}</h2>
-          <button type="button" onClick={onClose}><X className="w-5 h-5 text-neutral-400" /></button>
-        </div>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1">Code *</label>
-              <input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-                placeholder="e.g. 998711"
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm font-mono" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1">Type</label>
-              <select value={form.code_type} onChange={e => setForm(p => ({ ...p, code_type: e.target.value }))}
-                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm">
-                <option value="SAC">SAC (Service)</option>
-                <option value="HSN">HSN (Goods)</option>
-              </select>
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} isLoading={loading}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Code *</label>
+            <input
+              value={form.code}
+              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+              placeholder="e.g. 998711"
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+            />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-neutral-600 mb-1">Description *</label>
-            <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="e.g. Repair of computers and peripherals"
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 mb-1">Default GST Rate (%)</label>
-            <input type="number" value={form.default_gst_rate} onChange={e => setForm(p => ({ ...p, default_gst_rate: e.target.value }))}
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm" />
+            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Type</label>
+            <select
+              value={form.code_type}
+              onChange={(e) => setForm((p) => ({ ...p, code_type: e.target.value }))}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+            >
+              <option value="SAC">SAC (Service)</option>
+              <option value="HSN">HSN (Goods)</option>
+            </select>
           </div>
         </div>
-        <div className="flex gap-3 mt-5">
-          <button type="button" onClick={onClose} className="flex-1 py-2 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-600">Cancel</button>
-          <button type="button" onClick={onSave} disabled={loading}
-            className="flex-1 py-2 bg-neutral-900 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-            {loading ? "Saving..." : "Save"}
-          </button>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Description *</label>
+          <input
+            value={form.description}
+            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+            placeholder="e.g. Repair of computers and peripherals"
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Default GST Rate (%)</label>
+          <input
+            type="number"
+            value={form.default_gst_rate}
+            onChange={(e) => setForm((p) => ({ ...p, default_gst_rate: e.target.value }))}
+            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+          />
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -182,16 +199,24 @@ export default function HSNPage() {
         </div>
       </div>
 
-      {showForm && (
-        <GSTFormModal title="Add HSN/SAC Code" onSave={() => addMutation.mutate()}
-          onClose={() => setShowForm(false)} loading={addMutation.isPending}
-          form={form} setForm={setForm} />
-      )}
-      {editing && (
-        <GSTFormModal title="Edit HSN/SAC Code" onSave={() => updateMutation.mutate()}
-          onClose={() => setEditing(null)} loading={updateMutation.isPending}
-          form={form} setForm={setForm} />
-      )}
+      <GSTFormModal
+        isOpen={showForm}
+        title="Add HSN/SAC Code"
+        onSave={() => addMutation.mutate()}
+        onClose={() => setShowForm(false)}
+        loading={addMutation.isPending}
+        form={form}
+        setForm={setForm}
+      />
+      <GSTFormModal
+        isOpen={!!editing}
+        title="Edit HSN/SAC Code"
+        onSave={() => updateMutation.mutate()}
+        onClose={() => setEditing(null)}
+        loading={updateMutation.isPending}
+        form={form}
+        setForm={setForm}
+      />
     </div>
   );
 }

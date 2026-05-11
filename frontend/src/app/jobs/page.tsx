@@ -6,7 +6,6 @@ import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
   Input,
   JobStatusBadge,
@@ -14,6 +13,12 @@ import {
   EmptyState,
   Badge,
 } from "@/components/ui";
+import {
+  PageShell,
+  PaginationFooter,
+  RegisterToolbar,
+  WorkspaceSurface,
+} from "@/components/shell";
 import { jobsApi } from "@/lib/api";
 import {
   Plus,
@@ -303,33 +308,28 @@ export default function JobsPage() {
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Search & Filters */}
-          <Card padding="sm">
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search by job number, customer name, or device..."
-                  leftIcon={<Search className="w-5 h-5" />}
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  leftIcon={<Filter className="w-4 h-4" />}
-                >
-                  More Filters
-                </Button>
-              </div>
-            </div>
-          </Card>
+        <PageShell width="fluid">
+          <RegisterToolbar
+            search={
+              <Input
+                placeholder="Search by job number, customer name, or device..."
+                leftIcon={<Search className="h-5 w-5" />}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Search job cards"
+                className="py-3 text-sm"
+              />
+            }
+            secondaryActions={
+              <Button variant="secondary" leftIcon={<Filter className="h-4 w-4" />}>
+                More Filters
+              </Button>
+            }
+          />
 
-          {/* Status Tabs */}
           <StatusTabs
             selectedStatus={statusFilter}
             onStatusChange={(status) => {
@@ -341,84 +341,64 @@ export default function JobsPage() {
             urgentCount={urgentCount}
           />
 
-          {/* Jobs List */}
-          {isLoading ? (
-            <LoadingState />
-          ) : error ? (
-            <Card>
-              <EmptyState
-                icon={<AlertCircle className="w-8 h-8 text-red-400" />}
-                title="Error loading jobs"
-                description="Failed to fetch job cards. Please try again."
-                action={
-                  <Button onClick={() => window.location.reload()}>
-                    Retry
-                  </Button>
-                }
-              />
-            </Card>
-          ) : jobs.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<FileText className="w-8 h-8 text-neutral-400" />}
-                title="No job cards found"
-                description={
-                  search || statusFilter
-                    ? "Try adjusting your search or filter criteria"
-                    : "Create your first job card to get started"
-                }
-                action={
-                  hasPermission("canCreateJobCards") &&
-                  !search &&
-                  !statusFilter && (
-                    <Link href="/jobs/new">
-                      <Button leftIcon={<Plus className="w-4 h-4" />}>
-                        Create Job Card
-                      </Button>
-                    </Link>
-                  )
-                }
-              />
-            </Card>
-          ) : (
-            <>
-              <div className="space-y-3">
+          <WorkspaceSurface>
+            {isLoading ? (
+              <div className="p-8">
+                <LoadingState />
+              </div>
+            ) : error ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<AlertCircle className="h-8 w-8 text-red-400" />}
+                  title="Error loading jobs"
+                  description="Failed to fetch job cards. Please try again."
+                  action={
+                    <Button onClick={() => window.location.reload()}>Retry</Button>
+                  }
+                />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<FileText className="h-8 w-8 text-neutral-400" />}
+                  title="No job cards found"
+                  description={
+                    search || statusFilter
+                      ? "Try adjusting your search or filter criteria"
+                      : "Create your first job card to get started"
+                  }
+                  action={
+                    hasPermission("canCreateJobCards") &&
+                    !search &&
+                    !statusFilter && (
+                      <Link href="/jobs/new">
+                        <Button leftIcon={<Plus className="h-4 w-4" />}>Create Job Card</Button>
+                      </Link>
+                    )
+                  }
+                />
+              </div>
+            ) : (
+              <div className="min-w-0 space-y-3 p-4 md:p-6">
                 {jobs.map((job) => (
                   <JobCardItem key={job.id} job={job} />
                 ))}
-              </div>
 
-              {/* Pagination */}
-              {(hasPrevPage || hasNextPage) && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-neutral-500">
-                    Showing {(page - 1) * JOB_LIST_PAGE_SIZE + 1} to{" "}
-                    {Math.min(page * JOB_LIST_PAGE_SIZE, totalCount)} of{" "}
-                    {totalCount} results
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!hasPrevPage}
-                      onClick={() => setPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!hasNextPage}
-                      onClick={() => setPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                {(hasPrevPage || hasNextPage) && (
+                  <PaginationFooter
+                    page={page}
+                    pageSize={JOB_LIST_PAGE_SIZE}
+                    totalCount={totalCount}
+                    onPrevious={() => setPage((p) => p - 1)}
+                    onNext={() => setPage((p) => p + 1)}
+                    disabledPrevious={!hasPrevPage}
+                    disabledNext={!hasNextPage}
+                  />
+                )}
+              </div>
+            )}
+          </WorkspaceSurface>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

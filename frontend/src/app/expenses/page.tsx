@@ -6,9 +6,10 @@ import { useAuth } from "@/context/AuthContext";
 import { expensesApi } from "@/lib/api/services";
 import {
   Plus, IndianRupee, Trash2, Search,
-  TrendingDown, Receipt, RefreshCw, X, BadgePercent,
+  TrendingDown, Receipt, RefreshCw, BadgePercent,
 } from "lucide-react";
 import type { Expense } from "@/types";
+import { Modal, Button } from "@/components/ui";
 
 const EXPENSE_CATEGORIES = [
   { value: "RENT", label: "Rent" },
@@ -320,18 +321,23 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Create Expense Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Add New Expense</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="Add New Expense"
+        size="xl"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="expense-create-form" isLoading={saving}>
+              Save Expense
+            </Button>
+          </>
+        }
+      >
+        <form id="expense-create-form" onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Title *</label>
                 <input
@@ -522,27 +528,8 @@ export default function ExpensesPage() {
               </div>
               {/* ─────────────────────────────────────────────────── */}
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-                >
-                  {saving ? "Saving..." : "Save Expense"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </AppLayout>
   );
 }

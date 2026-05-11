@@ -81,6 +81,19 @@
    Base Styles
 ───────────────────────────────────────────────────── */
 @layer base {
+  :root {
+    /* Overlay stack — numeric order preserves modal > inspector > sticky chrome */
+    --z-base: 0;
+    --z-sticky: 40;
+    --z-dropdown: 65;
+    --z-inspector-backdrop: 42;
+    --z-inspector: 50;
+    --z-modal-backdrop: 55;
+    --z-modal: 60;
+    --z-command: 100;
+    --z-toast: 110;
+  }
+
   body {
     @apply antialiased text-neutral-900;
     background: radial-gradient(ellipse at top left, #ede9fe 0%, #e0e7ff 30%, #eff6ff 60%, #f8fafc 100%);
@@ -226,12 +239,15 @@
 
   /* ── Modals ──────────────────────────────────── */
   .modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in;
+    @apply fixed inset-0 flex items-center justify-center p-4 animate-fade-in;
+    z-index: var(--z-modal-backdrop);
     background: rgba(15, 23, 42, 0.4);
     backdrop-filter: blur(6px);
   }
 
   .modal-content {
+    position: relative;
+    z-index: var(--z-modal);
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -261,7 +277,7 @@
     top: 0;
     bottom: 0;
     width: 16rem;
-    z-index: 40;
+    z-index: var(--z-sticky);
     transition: all 0.3s ease;
     background: linear-gradient(180deg, #312e81 0%, #3730a3 40%, #4338ca 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.08);

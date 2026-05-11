@@ -7,6 +7,7 @@ import { ledgerApi, customersApi } from "@/lib/api/services";
 import {
   IndianRupee, Search, RefreshCw, X, ChevronRight, User, FileText, CheckCircle2,
 } from "lucide-react";
+import { Modal, Button } from "@/components/ui";
 
 export default function ReceiptsPage() {
   const { currentBranch } = useAuth();
@@ -290,18 +291,28 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      {/* Manual Add Entry Modal (for customers not in the outstanding list) */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Receive Payment</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="Receive Payment"
+        size="md"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="receipt-manual-form"
+              disabled={saving || !form.customer || !form.amount}
+              isLoading={saving}
+            >
+              Save Receipt
+            </Button>
+          </>
+        }
+      >
+        <form id="receipt-manual-form" onSubmit={handleSubmit} className="space-y-4">
               {/* Customer search */}
               <div>
                 <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Select Customer *</label>
@@ -357,23 +368,8 @@ export default function ReceiptsPage() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-slate-800"
-                >Cancel</button>
-                <button
-                  type="submit" disabled={saving || !form.customer || !form.amount}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-                >
-                  {saving ? "Processing..." : "Save Receipt"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </AppLayout>
   );
 }

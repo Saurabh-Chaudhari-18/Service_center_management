@@ -5,10 +5,11 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { suppliersApi } from "@/lib/api/services";
 import {
-  Plus, Search, RefreshCw, X, Phone, MapPin,
+  Plus, Search, RefreshCw, Phone, MapPin,
   Star, Trash2
 } from "lucide-react";
 import type { Supplier } from "@/types";
+import { Modal, Button } from "@/components/ui";
 
 export default function SuppliersPage() {
   const { currentBranch } = useAuth();
@@ -178,18 +179,23 @@ export default function SuppliersPage() {
         )}
       </div>
 
-      {/* Create Supplier Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Add Supplier</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="Add Supplier"
+        size="lg"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="supplier-create-form" isLoading={saving}>
+              Save Supplier
+            </Button>
+          </>
+        }
+      >
+        <form id="supplier-create-form" onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Company / Supplier Name *</label>
                 <input required type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -245,23 +251,8 @@ export default function SuppliersPage() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-                >
-                  {saving ? "Saving..." : "Save Supplier"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </AppLayout>
   );
 }

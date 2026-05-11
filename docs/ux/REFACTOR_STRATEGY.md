@@ -35,8 +35,12 @@ Implement minimal **API-stable** composites (thin wrappers):
 | `EntityTable` | [INTERACTION_RULES.md](./INTERACTION_RULES.md) | Accessible table + empty + loading slots |
 | `EntityCards` | Same | Responsive fallback |
 | `ActionBar` | [CRUD_STANDARDS.md](./CRUD_STANDARDS.md) | Form footer |
+| `FormSection` | [LAYOUT_SYSTEM.md](./LAYOUT_SYSTEM.md) §9 | Heading + grouped fields |
+| `RecordLayout` | [PAGE_ARCHETYPES.md](./PAGE_ARCHETYPES.md) A2 | Detail main + sidebar rail |
 
 **Deliverable:** components exported from `frontend/src/components/shell/` (or similar); Storybook optional.
+
+**Status:** Phase 1 shell primitives landed in [`frontend/src/components/shell/`](../../frontend/src/components/shell/) (`PageShell`, `RegisterToolbar`, `EntityTable`, `EntityCards`, `ActionBar`, `FormSection`, `RecordLayout`). Route migrations remain optional follow-up work.
 
 ### Phase 2 — Data layer normalization
 
@@ -48,6 +52,8 @@ Migrate **manual fetch** pages to React Query:
 - `payments/page.tsx` (partially structured — align hooks)
 
 **Why first:** inconsistent loading/error states **amplify** UX fragmentation during UI migration.
+
+**Status:** Phase 2 applied to all four routes — shared `LoadingState` / `EmptyState`, toast on query failures where silent before, `@tanstack/react-query` queries + mutations, `invalidateQueries({ queryKey: ["purchases"] | ["enquiries"] | ["ledger"] })` on mutations, and low-risk `PageShell` / `RegisterToolbar` on purchases, enquiries, payments, ledger.
 
 ### Phase 3 — Overlay unification
 

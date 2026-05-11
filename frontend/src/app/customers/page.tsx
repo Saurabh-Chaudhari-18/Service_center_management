@@ -6,7 +6,6 @@ import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
   Input,
   Modal,
@@ -14,6 +13,7 @@ import {
   EmptyState,
   Badge,
 } from "@/components/ui";
+import { PageShell, RegisterToolbar, WorkspaceSurface } from "@/components/shell";
 import { customersApi } from "@/lib/api";
 import { CustomerCreateForm } from "./CustomerCreateForm";
 import {
@@ -282,54 +282,60 @@ export default function CustomersPage() {
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Search */}
-          <Card padding="md">
-            <Input
-              placeholder="Search by name or mobile number..."
-              leftIcon={<Search className="w-5 h-5" />}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Card>
-
-          {/* Customer List */}
-          {isLoading ? (
-            <LoadingState />
-          ) : customers.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<Users className="w-8 h-8 text-neutral-400" />}
-                title="No customers found"
-                description={
-                  search
-                    ? "Try a different search term"
-                    : "Add your first customer to get started"
-                }
-                action={
-                  !search && (
-                    <Button
-                      leftIcon={<Plus className="w-4 h-4" />}
-                      onClick={() => setShowAddModal(true)}
-                    >
-                      Add Customer
-                    </Button>
-                  )
-                }
+        <PageShell width="fluid">
+          <RegisterToolbar
+            search={
+              <Input
+                placeholder="Search by name or mobile number..."
+                leftIcon={<Search className="h-5 w-5" />}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search customers"
+                className="py-3 text-sm"
               />
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {customers.map((customer) => (
-                <CustomerCard
-                  key={customer.id}
-                  customer={customer}
-                  onViewDetails={setSelectedCustomer}
+            }
+          />
+
+          <WorkspaceSurface>
+            {isLoading ? (
+              <div className="p-8">
+                <LoadingState />
+              </div>
+            ) : customers.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Users className="h-8 w-8 text-neutral-400" />}
+                  title="No customers found"
+                  description={
+                    search
+                      ? "Try a different search term"
+                      : "Add your first customer to get started"
+                  }
+                  action={
+                    !search && (
+                      <Button
+                        leftIcon={<Plus className="h-4 w-4" />}
+                        onClick={() => setShowAddModal(true)}
+                      >
+                        Add Customer
+                      </Button>
+                    )
+                  }
                 />
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 md:p-6">
+                {customers.map((customer) => (
+                  <CustomerCard
+                    key={customer.id}
+                    customer={customer}
+                    onViewDetails={setSelectedCustomer}
+                  />
+                ))}
+              </div>
+            )}
+          </WorkspaceSurface>
+        </PageShell>
 
         {/* Modals */}
         {currentBranch && (

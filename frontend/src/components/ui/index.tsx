@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, AlertCircle, Check, X, Info, ChevronDown } from "lucide-react";
-import { JOB_STATUS_CONFIG, INVOICE_STATUS_CONFIG } from "@/types";
-import type { JobStatus, InvoiceStatus } from "@/types";
+import type { JobStatus, InvoiceStatus, PickupRequestStatus } from "@/types";
+import {
+  getJobStatusPresentation,
+  getInvoiceStatusPresentation,
+  getPickupStatusPresentation,
+  SemanticStatusBadge,
+} from "@/platform/semantics";
 
 // =====================================================
 // Button Component
@@ -35,15 +40,25 @@ export function Button({
     lg: "px-6 py-3 text-base",
   };
 
+  const showLeading = isLoading || leftIcon != null;
+
   return (
     <button
       className={`btn btn-${variant} ${sizeClasses[size]} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : leftIcon}
+      {showLeading ? (
+        <span className="inline-flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
+          {isLoading ? <Loader2 className="animate-spin" aria-hidden /> : leftIcon}
+        </span>
+      ) : null}
       {children}
-      {rightIcon && !isLoading && rightIcon}
+      {rightIcon && !isLoading ? (
+        <span className="inline-flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center [&>svg]:h-4 [&>svg]:w-4" aria-hidden>
+          {rightIcon}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -65,7 +80,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700">
+          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -88,7 +103,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             <AlertCircle className="w-3 h-3" />{error}
           </p>
         )}
-        {helperText && !error && <p className="text-xs text-neutral-500">{helperText}</p>}
+        {helperText && !error && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">{helperText}</p>
+        )}
       </div>
     );
   }
@@ -215,7 +232,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700">
+          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -243,24 +260,39 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           onClick={openDropdown}
           disabled={props.disabled}
         >
-          <span className={`block truncate ${!selectedOption && placeholder ? "text-neutral-400" : "text-neutral-900 font-medium"}`}>
+          <span
+            className={`block truncate ${
+              !selectedOption && placeholder
+                ? "text-neutral-400 dark:text-neutral-500"
+                : "font-medium text-neutral-900 dark:text-neutral-100"
+            }`}
+          >
             {displayLabel}
           </span>
-          <ChevronDown className={`w-4 h-4 ml-2 text-neutral-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`ml-2 h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-200 dark:text-neutral-500 ${
+              isOpen ? "rotate-180" : ""
+            }`}
+          />
         </button>
 
         {/* Portal-based dropdown */}
         {isOpen && mounted && createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[9999] bg-white border border-neutral-200 rounded-xl shadow-2xl max-h-[280px] overflow-y-auto ring-1 ring-black/5"
-            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+            className="fixed max-h-[280px] overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-2xl ring-1 ring-black/5 dark:border-slate-600 dark:bg-slate-900 dark:ring-white/10"
+            style={{
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              zIndex: "var(--z-dropdown)",
+            }}
           >
-            <div className="p-1.5 space-y-0.5">
+            <div className="space-y-0.5 p-1.5">
               {placeholder && (
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm text-neutral-400 hover:bg-neutral-50 rounded-lg transition-colors"
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-400 transition-colors hover:bg-neutral-50 dark:text-neutral-500 dark:hover:bg-slate-800"
                   onClick={() => handleSelect("")}
                 >
                   {placeholder}
@@ -272,10 +304,10 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                   <button
                     key={opt.value}
                     type="button"
-                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       isSelected
-                        ? "bg-primary-50 text-primary-700 font-bold"
-                        : "text-neutral-700 hover:bg-neutral-50 font-medium"
+                        ? "bg-primary-50 font-bold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300"
+                        : "text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-slate-800"
                     }`}
                     onClick={() => handleSelect(opt.value)}
                   >
@@ -314,7 +346,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700">
+          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -449,11 +481,8 @@ export function Badge({
 // =====================================================
 
 export function JobStatusBadge({ status }: { status: JobStatus }) {
-  const config = JOB_STATUS_CONFIG[status];
   return (
-    <span className="badge" style={{ backgroundColor: config.bgColor, color: config.textColor }}>
-      {config.label}
-    </span>
+    <SemanticStatusBadge presentation={getJobStatusPresentation(status)} size="md" />
   );
 }
 
@@ -462,11 +491,26 @@ export function JobStatusBadge({ status }: { status: JobStatus }) {
 // =====================================================
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  const config = INVOICE_STATUS_CONFIG[status];
   return (
-    <span className="badge" style={{ backgroundColor: config.bgColor, color: config.color }}>
-      {config.label}
-    </span>
+    <SemanticStatusBadge
+      presentation={getInvoiceStatusPresentation(status)}
+      size="md"
+    />
+  );
+}
+
+export function PickupStatusBadge({
+  status,
+  size = "sm",
+}: {
+  status: PickupRequestStatus;
+  size?: "sm" | "md";
+}) {
+  return (
+    <SemanticStatusBadge
+      presentation={getPickupStatusPresentation(status)}
+      size={size}
+    />
   );
 }
 
@@ -545,9 +589,16 @@ export function Alert({ variant, title, children, onClose, className = "" }: Ale
           <div className={`text-sm ${config.textColor} ${title ? "mt-1" : ""}`}>{children}</div>
         </div>
         {onClose && (
-          <button onClick={onClose} className="ml-auto -mx-1.5 -my-1.5 p-1.5 rounded-lg hover:bg-black/5 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Dismiss alert"
+            onClick={onClose}
+            className="ml-auto shrink-0 !p-1.5"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         )}
       </div>
     </div>
@@ -556,6 +607,7 @@ export function Alert({ variant, title, children, onClose, className = "" }: Ale
 
 // =====================================================
 // Modal Component
+// Governance: body scroll lock + Escape while open; labelled `role="dialog"`; footer stacks on small viewports.
 // =====================================================
 
 interface ModalProps {
@@ -569,30 +621,59 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children, size = "md", footer }: ModalProps) {
   const [mounted, setMounted] = useState(false);
+  const titleId = useId();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, mounted, onClose]);
 
   if (!isOpen || !mounted) return null;
 
   const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl" };
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`modal-content ${sizeClasses[size]} w-full`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100/80">
-          <h2 className="text-lg font-bold text-neutral-900">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-neutral-100/80 transition-colors text-neutral-500 hover:text-neutral-700">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex items-center justify-between border-b border-neutral-100/80 px-6 py-4 dark:border-slate-800/80">
+          <h2 id={titleId} className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
+            {title}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Close dialog"
+            onClick={onClose}
+            className="shrink-0 !p-2"
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
-        <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="max-h-[min(85vh,calc(100dvh-10rem))] overflow-y-auto px-6 py-4">{children}</div>
         {footer && (
-          <div className="px-6 py-4 border-t border-neutral-100/80 flex justify-end gap-3">{footer}</div>
+          <div className="flex min-w-0 flex-col gap-3 border-t border-neutral-100/80 px-6 py-4 dark:border-slate-800/80 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3 [&>button]:w-full sm:[&>button]:w-auto">
+            {footer}
+          </div>
         )}
       </div>
     </div>,
@@ -630,7 +711,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className="text-neutral-600 text-sm leading-relaxed">{message}</p>
+      <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{message}</p>
     </Modal>
   );
 }
