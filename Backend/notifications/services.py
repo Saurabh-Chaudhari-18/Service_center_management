@@ -239,14 +239,31 @@ class NotificationService:
                     status='PENDING'
                 )
 
-                # Dispatch to background worker
+                # Dispatch to background worker.
+                # Each .delay() call is individually wrapped so that a Celery broker
+                # or Redis result-store outage (e.g. "Retry limit exceeded reconnecting
+                # to result store") never bubbles up and crashes the job creation flow.
                 from notifications.tasks import deliver_sms, deliver_whatsapp, deliver_email
 
                 if channel == NotificationChannel.WHATSAPP:
-                    deliver_whatsapp.delay(str(log.id))
+                    try:
+                        deliver_whatsapp.delay(str(log.id))
+                    except Exception as celery_err:
+                        logger.warning(
+                            f"Could not queue WHATSAPP task (Celery/Redis unavailable): {celery_err}. "
+                            "Notification logged as FAILED — will retry on next worker restart."
+                        )
+                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
 
                 elif channel == NotificationChannel.SMS:
-                    deliver_sms.delay(str(log.id))
+                    try:
+                        deliver_sms.delay(str(log.id))
+                    except Exception as celery_err:
+                        logger.warning(
+                            f"Could not queue SMS task (Celery/Redis unavailable): {celery_err}. "
+                            "Notification logged as FAILED — will retry on next worker restart."
+                        )
+                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
 
                 elif channel == NotificationChannel.EMAIL:
                     default_subject = (
@@ -266,7 +283,14 @@ class NotificationService:
                     }
                     html_message = render_to_string('emails/job_notification.html', html_context)
 
-                    deliver_email.delay(str(log.id), customer.email, subject, html_message)
+                    try:
+                        deliver_email.delay(str(log.id), customer.email, subject, html_message)
+                    except Exception as celery_err:
+                        logger.warning(
+                            f"Could not queue EMAIL task (Celery/Redis unavailable): {celery_err}. "
+                            "Notification logged as FAILED — will retry on next worker restart."
+                        )
+                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
                 
                 # Only break if we successfully sent a mobile notification (SMS/WA). 
                 # We still want the loop to continue to send the EMAIL (which is the last channel in the list).
