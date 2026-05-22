@@ -40,7 +40,7 @@ class NotificationService:
             context={
                 'customer_name': job.customer.get_full_name(),
                 'job_number': job.job_number,
-                'branch_name': job.branch.name,
+                'branch_name': job.branch.name if job.branch else 'Service Center',
                 'device': f"{job.brand} {job.model}",
                 'tracking_pin': getattr(job, 'tracking_pin', '') or '',
             },
@@ -65,7 +65,7 @@ class NotificationService:
             context = {
                 'customer_name': job.customer.get_full_name(),
                 'job_number': job.job_number,
-                'branch_name': job.branch.name,
+                'branch_name': job.branch.name if job.branch else 'Service Center',
                 'device': f"{job.brand} {job.model}",
                 'status': new_status.label,
             }
@@ -197,14 +197,22 @@ class NotificationService:
         """
         customer = job.customer
         branch = job.branch
-        
-        channels_to_try = []
-        if branch.whatsapp_enabled and customer.whatsapp_enabled:
-            channels_to_try.append(NotificationChannel.WHATSAPP)
-        if branch.sms_enabled and customer.sms_enabled:
-            channels_to_try.append(NotificationChannel.SMS)
-        if customer.email:
-            channels_to_try.append(NotificationChannel.EMAIL)
+
+        # Universal jobs (branch=null) have no branch settings — skip mobile notifications
+        if branch is None:
+            logger.info(
+                f"Job {job.job_number} has no branch assigned (Universal). "
+                "Skipping mobile notifications; email-only if customer has email."
+            )
+            channels_to_try = [NotificationChannel.EMAIL] if customer.email else []
+        else:
+            channels_to_try = []
+            if branch.whatsapp_enabled and customer.whatsapp_enabled:
+                channels_to_try.append(NotificationChannel.WHATSAPP)
+            if branch.sms_enabled and customer.sms_enabled:
+                channels_to_try.append(NotificationChannel.SMS)
+            if customer.email:
+                channels_to_try.append(NotificationChannel.EMAIL)
         
         for channel in channels_to_try:
             try:
