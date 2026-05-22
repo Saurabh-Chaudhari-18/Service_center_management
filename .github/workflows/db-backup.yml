@@ -1,0 +1,47 @@
+name: Neon Database Backup to Cloudflare R2
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every 6 days
+    - cron: '0 0 */6 * *'
+  workflow_dispatch:
+    # Allows manual triggering from the GitHub Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 16 Client
+        run: |
+          # Add the official PostgreSQL repository to get pg_dump v16+
+          sudo apt-get install -y lsb-release gnupg2 curl
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Run pg_dump
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          # Generate compressed plain-text SQL backup
+          pg_dump "$DATABASE_URL" -F p | gzip > backup.sql.gz
+
+      - name: Upload Backup to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          # Format the filename with a UTC timestamp
+          FILENAME="backup_$(date -u +%Y-%m-%d_%H-%M-%S).sql.gz"
+          
+          # Upload using the AWS CLI pre-installed on the runner (compatible with R2)
+          aws s3 cp backup.sql.gz "s3://$R2_BUCKET_NAME/db-backups/$FILENAME" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
