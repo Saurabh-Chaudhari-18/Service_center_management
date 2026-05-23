@@ -87,10 +87,10 @@ function JobCardItem({ job }: JobCardItemProps) {
               <div className="flex items-center gap-2 text-sm text-neutral-600">
                 <User className="w-4 h-4 text-neutral-400" />
                 <span className="truncate">
-                  {job.customer?.first_name} {job.customer?.last_name}
-                  {job.customer?.mobile ? (
+                  {job.customer_name || (job.customer ? `${job.customer.first_name} ${job.customer.last_name}` : "Unknown Customer")}
+                  {(job.customer_mobile || job.customer?.mobile) ? (
                     <span className="text-neutral-400 ml-1">
-                      · {formatPhone(job.customer.mobile)}
+                      · {formatPhone(job.customer_mobile || job.customer?.mobile || "")}
                     </span>
                   ) : null}
                 </span>

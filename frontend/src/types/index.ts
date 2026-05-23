@@ -340,6 +340,8 @@ export interface JobCard extends BaseEntity {
   tracking_pin?: string;
   customer?: Customer;
   customer_id?: string;
+  customer_name?: string;
+  customer_mobile?: string;
   device_type: DeviceType;
   brand: string;
   model: string;
