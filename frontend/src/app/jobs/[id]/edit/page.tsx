@@ -236,8 +236,8 @@ export default function EditJobPage() {
       // Parse physical_condition JSON -> chip state
       const pc = job.physical_condition;
       if (pc && typeof pc === "object" && !Array.isArray(pc)) {
-        setSelectedPhysicalConditions(pc.selected || []);
-        setPhysicalConditionOtherText(pc.other_text || "");
+        setSelectedPhysicalConditions((pc as { selected: string[]; other_text?: string }).selected || []);
+        setPhysicalConditionOtherText((pc as { selected: string[]; other_text?: string }).other_text || "");
       } else if (typeof pc === "string" && pc) {
         // Legacy plain text — show as other_text
         setPhysicalConditionOtherText(pc);
@@ -246,8 +246,8 @@ export default function EditJobPage() {
       // Parse engineer_diagnosis JSON -> chip state
       const ed = job.engineer_diagnosis;
       if (ed && typeof ed === "object" && !Array.isArray(ed)) {
-        setSelectedDiagnoses(ed.selected || []);
-        setDiagnosisOtherText(ed.other_text || "");
+        setSelectedDiagnoses((ed as { selected: string[]; other_text?: string }).selected || []);
+        setDiagnosisOtherText((ed as { selected: string[]; other_text?: string }).other_text || "");
       } else if (typeof ed === "string" && ed) {
         setDiagnosisOtherText(ed);
       }

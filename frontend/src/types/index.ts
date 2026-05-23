@@ -345,7 +345,12 @@ export interface JobCard extends BaseEntity {
   model: string;
   serial_number: string;
   customer_complaint: string;
-  physical_condition: string;
+  /** JSON field: { selected: string[]; other_text?: string } or legacy plain string */
+  physical_condition: { selected: string[]; other_text?: string } | string | null;
+  physical_condition_display?: string;
+  /** JSON field: { selected: string[]; other_text?: string } or legacy plain string */
+  engineer_diagnosis?: { selected: string[]; other_text?: string } | string | null;
+  engineer_diagnosis_display?: string;
   status: JobStatus;
   assigned_technician: string | null;
   assigned_technician_name?: string;
