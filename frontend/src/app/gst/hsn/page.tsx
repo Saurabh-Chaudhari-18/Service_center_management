@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { gstApi } from "@/lib/api/services";
 import { Hash, Plus, Search, Pencil } from "lucide-react";
-import { Modal, Button } from "@/components/ui";
+import { Modal, Button, Input, Select } from "@/components/ui";
 
 const DEFAULT_FORM = { code: "", code_type: "SAC", description: "", default_gst_rate: "18" };
 type HSNFormState = typeof DEFAULT_FORM;
@@ -46,45 +46,35 @@ function GSTFormModal({ isOpen, title, onSave, onClose, loading, form, setForm }
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Code *</label>
-            <input
-              value={form.code}
-              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
-              placeholder="e.g. 998711"
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Type</label>
-            <select
-              value={form.code_type}
-              onChange={(e) => setForm((p) => ({ ...p, code_type: e.target.value }))}
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
-            >
-              <option value="SAC">SAC (Service)</option>
-              <option value="HSN">HSN (Goods)</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Description *</label>
-          <input
-            value={form.description}
-            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            placeholder="e.g. Repair of computers and peripherals"
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
+          <Input
+            label="Code *"
+            value={form.code}
+            onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            placeholder="e.g. 998711"
+            className="font-mono"
+          />
+          <Select
+            label="Type"
+            value={form.code_type}
+            onChange={(e) => setForm((p) => ({ ...p, code_type: e.target.value }))}
+            options={[
+              { value: "SAC", label: "SAC (Service)" },
+              { value: "HSN", label: "HSN (Goods)" },
+            ]}
           />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-300">Default GST Rate (%)</label>
-          <input
-            type="number"
-            value={form.default_gst_rate}
-            onChange={(e) => setForm((p) => ({ ...p, default_gst_rate: e.target.value }))}
-            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900/80 dark:text-neutral-100"
-          />
-        </div>
+        <Input
+          label="Description *"
+          value={form.description}
+          onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+          placeholder="e.g. Repair of computers and peripherals"
+        />
+        <Input
+          label="Default GST Rate (%)"
+          type="number"
+          value={String(form.default_gst_rate)}
+          onChange={(e) => setForm((p) => ({ ...p, default_gst_rate: e.target.value }))}
+        />
       </div>
     </Modal>
   );
@@ -134,19 +124,23 @@ export default function HSNPage() {
           </h1>
           <p className="text-sm text-neutral-500 mt-1">Manage HSN (goods) and SAC (service) codes used in invoices</p>
         </div>
-        <button type="button" onClick={() => { setForm(DEFAULT_FORM); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-xl text-sm font-semibold hover:bg-neutral-800 transition-colors">
-          <Plus className="w-4 h-4" /> Add Code
-        </button>
+        <Button
+          onClick={() => { setForm(DEFAULT_FORM); setShowForm(true); }}
+          leftIcon={<Plus className="w-4 h-4" />}
+        >
+          Add Code
+        </Button>
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by code or description..."
-          className="w-full pl-9 pr-4 py-2.5 border border-neutral-200 rounded-xl text-sm" />
-      </div>
+      <Input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search by code or description..."
+        leftIcon={<Search className="w-4 h-4" />}
+        aria-label="Search HSN/SAC codes"
+        className="py-2.5 text-sm"
+      />
 
       {/* Table */}
       <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">

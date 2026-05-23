@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
@@ -250,6 +251,7 @@ function StatusTabs({
 
 export default function JobsPage() {
   const { currentBranch, hasPermission } = useAuth();
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -379,23 +381,119 @@ export default function JobsPage() {
                 />
               </div>
             ) : (
-              <div className="min-w-0 space-y-3 p-4 md:p-6">
-                {jobs.map((job) => (
-                  <JobCardItem key={job.id} job={job} />
-                ))}
+              <>
+                {/* Desktop table — lg+ */}
+                <div className="hidden lg:block">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                        <th scope="col" className="px-4 py-3">Job #</th>
+                        <th scope="col" className="px-4 py-3">Status</th>
+                        <th scope="col" className="px-4 py-3">Customer</th>
+                        <th scope="col" className="px-4 py-3">Device</th>
+                        <th scope="col" className="px-4 py-3">Complaint</th>
+                        <th scope="col" className="px-4 py-3">Date</th>
+                        <th scope="col" className="px-4 py-3">Technician</th>
+                        <th scope="col" className="w-8 px-2 py-3" aria-label="Open" />
+                      </tr>
+                    </thead>
+                    <tbody className="text-neutral-800 dark:text-slate-200">
+                      {jobs.map((job) => (
+                        <tr
+                          key={job.id}
+                          tabIndex={0}
+                          className="cursor-pointer border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50 focus-visible:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
+                          onClick={() => router.push(`/jobs/${job.id}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              router.push(`/jobs/${job.id}`);
+                            }
+                          }}
+                        >
+                          <td className="px-4 py-2.5 align-middle">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-white">
+                                {job.job_number}
+                              </span>
+                              {job.is_urgent && (
+                                <span className="flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-400">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  Urgent
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 align-middle">
+                            <JobStatusBadge status={job.status} />
+                          </td>
+                          <td className="max-w-[160px] px-4 py-2.5 align-middle">
+                            <span className="block truncate font-medium text-neutral-900 dark:text-white">
+                              {job.customer?.first_name} {job.customer?.last_name}
+                            </span>
+                            {job.customer?.mobile && (
+                              <span className="block truncate text-xs text-neutral-500 dark:text-slate-400">
+                                {formatPhone(job.customer.mobile)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="max-w-[140px] px-4 py-2.5 align-middle">
+                            <span className="block truncate text-neutral-700 dark:text-slate-300">
+                              {job.brand} {job.model}
+                            </span>
+                          </td>
+                          <td className="max-w-[200px] px-4 py-2.5 align-middle">
+                            <span className="line-clamp-1 text-neutral-600 dark:text-slate-400">
+                              {job.customer_complaint}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 align-middle tabular-nums text-neutral-500 dark:text-slate-500">
+                            {formatDate(job.created_at)}
+                          </td>
+                          <td className="max-w-[120px] px-4 py-2.5 align-middle">
+                            <span className="block truncate text-neutral-600 dark:text-slate-400">
+                              {job.assigned_technician_name || <span className="text-neutral-300 dark:text-slate-600">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5 align-middle">
+                            <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(hasPrevPage || hasNextPage) && (
+                    <PaginationFooter
+                      className="px-4"
+                      page={page}
+                      pageSize={JOB_LIST_PAGE_SIZE}
+                      totalCount={totalCount}
+                      onPrevious={() => setPage((p) => p - 1)}
+                      onNext={() => setPage((p) => p + 1)}
+                      disabledPrevious={!hasPrevPage}
+                      disabledNext={!hasNextPage}
+                    />
+                  )}
+                </div>
 
-                {(hasPrevPage || hasNextPage) && (
-                  <PaginationFooter
-                    page={page}
-                    pageSize={JOB_LIST_PAGE_SIZE}
-                    totalCount={totalCount}
-                    onPrevious={() => setPage((p) => p - 1)}
-                    onNext={() => setPage((p) => p + 1)}
-                    disabledPrevious={!hasPrevPage}
-                    disabledNext={!hasNextPage}
-                  />
-                )}
-              </div>
+                {/* Mobile cards — below lg */}
+                <div className="min-w-0 space-y-3 p-4 lg:hidden">
+                  {jobs.map((job) => (
+                    <JobCardItem key={job.id} job={job} />
+                  ))}
+                  {(hasPrevPage || hasNextPage) && (
+                    <PaginationFooter
+                      page={page}
+                      pageSize={JOB_LIST_PAGE_SIZE}
+                      totalCount={totalCount}
+                      onPrevious={() => setPage((p) => p - 1)}
+                      onNext={() => setPage((p) => p + 1)}
+                      disabledPrevious={!hasPrevPage}
+                      disabledNext={!hasNextPage}
+                    />
+                  )}
+                </div>
+              </>
             )}
           </WorkspaceSurface>
         </PageShell>

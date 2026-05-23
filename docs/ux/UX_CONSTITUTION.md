@@ -36,47 +36,48 @@ Deliver a **single coherent operational platform**: predictable layouts, predict
 
 ## 3. Current codebase findings (inventory)
 
-*Inventory as of documentation authoring; update when large refactors land.*
+*Inventory updated after Phase 0–7 migrations. Remaining deviations are noted.*
 
 ### 3.1 Global shell
 
 - **`AppLayout` + `Sidebar` + `Header`** (`frontend/src/components/layout/Layout.tsx`): primary chrome, role/permission-based nav, branch switch, command palette entry, theme toggle.
-- **Mobile:** sidebar as overlay drawer; **GST module** adds a **second inner sidebar** (`frontend/src/app/gst/layout.tsx`) — **constitutional violation** pending migration (see [REFACTOR_STRATEGY.md](./REFACTOR_STRATEGY.md)).
+- **Mobile:** sidebar as overlay drawer. ✅ **GST inner sidebar removed** — `gst/layout.tsx` now uses horizontal tab strip inside `PageShell` (migrated).
 
 ### 3.2 List patterns (by route)
 
 | Pattern | Examples (app routes) |
 |--------|-------------------------|
-| **Card / glass list** | `jobs/page.tsx`, `pickups/page.tsx`, `my-jobs/page.tsx`, `purchases/page.tsx` |
-| **Card grid** | `customers/page.tsx` |
-| **Data table** | `billing/page.tsx`, `inventory/page.tsx`, `expenses/page.tsx`, GST registers (`gst/*.tsx` with `<table>`), `purchases/[id]/page.tsx` (line items) |
-| **Custom / div lists** | `ledger/page.tsx`, `payments/page.tsx`, `receipts/page.tsx`, `enquiries/page.tsx` (no shared table primitive) |
+| **Responsive hybrid (table lg+ / cards mobile)** | `jobs/page.tsx`, `customers/page.tsx`, `pickups/page.tsx`, `my-jobs/page.tsx` |
+| **Data table** | `billing/page.tsx`, `inventory/page.tsx`, `expenses/page.tsx`, GST registers (`gst/*.tsx`) |
+| **Card grid** | `suppliers/page.tsx`, `users/page.tsx` |
+| **Custom / div lists** | `ledger/page.tsx`, `payments/page.tsx`, `enquiries/page.tsx` |
 
 ### 3.3 Detail patterns
 
-- **Route-based detail:** `jobs/[id]`, `billing/[id]`, `pickups/[id]`, `purchases/[id]`, `track/[job_number]`.
-- **Modal-only detail:** `customers/page.tsx` (**Customer Details** in `Modal`) — **violates** stable URL principle; migration required.
+- **Route-based detail:** `jobs/[id]`, `billing/[id]`, `pickups/[id]`, `purchases/[id]`, `customers/[id]`, `track/[job_number]`. ✅ **`customers/[id]` route added** (stable URL; previously modal-only).
+- All detail pages use `RecordLayout` (A2 archetype) or equivalent shell composite.
 
 ### 3.4 CRUD surfaces
 
 - **Full-page create/edit:** `jobs/new`, `jobs/[id]/edit`, `billing/new`, `billing/[id]/edit`, `customers/new`, `pickups/new`, `purchases/new`, etc.
-- **Shared `Modal` from UI kit:** users, branches, organizations, customers (add + detail), inventory, parts of billing, job-related modals (`components/jobs/*`), command palette fast-create modals.
-- **Non-standard overlays:** `pickups/[id]/page.tsx` (inline `fixed inset-0` + `bg-white` panels), `suppliers/page.tsx` (custom overlay), `billing/new` / `billing/[id]/edit` (large preview modals), `gst/hsn/page.tsx` (`GSTFormModal` local pattern).
+- **Shared `Modal` from UI kit:** users, branches, organizations, customers (add), inventory, suppliers, parts of billing, job-related modals (`components/jobs/*`), command palette fast-create modals. ✅ **`suppliers/page.tsx` migrated** from custom overlay to shared `Modal`.
+- **`ConfirmDialog` for destructive actions:** suppliers, expenses, customers (delete), users (deactivate), purchases. ✅ All destructive actions now use shared `ConfirmDialog`.
 
-### 3.5 Data fetching inconsistency
+### 3.5 Data fetching
 
-- **React Query:** heavily used (`dashboard`, `jobs`, `billing`, `customers`, `pickups`, `inventory`, settings, etc.).
-- **Manual `useEffect` + `useState`:** `ledger`, `payments`, `enquiries`, `purchases` list — causes **inconsistent loading/empty/error UX** (operational fragmentation).
+- **React Query (`useQuery` / `useMutation`):** all primary pages — `dashboard`, `jobs`, `billing`, `customers`, `pickups`, `inventory`, `suppliers`, `expenses`, `receipts`, settings, GST, users, branches. ✅ `expenses/page.tsx` and `receipts/page.tsx` migrated from manual `useEffect`.
+- **Manual `useEffect` + `useState`:** `payments/page.tsx`, `enquiries/page.tsx` — remaining candidates for Phase 2 migration.
 
 ### 3.6 Status systems
 
-- **Central config:** `JOB_STATUS_CONFIG`, `INVOICE_STATUS_CONFIG`, `PICKUP_STATUS_CONFIG`, `ENQUIRY_STATUS_CONFIG` in `@/types` with UI badges in places.
-- **Ad hoc Tailwind pills:** scattered `bg-*-100 text-*-700` (e.g. purchases list, role badges on users) — **must converge** on token-driven badges ([DESIGN_TOKENS.md](./DESIGN_TOKENS.md)).
+- **Central config:** `JOB_STATUS_CONFIG`, `INVOICE_STATUS_CONFIG`, `PICKUP_STATUS_CONFIG`, `ENQUIRY_STATUS_CONFIG` in `@/types` with corresponding `*StatusBadge` components.
+- **Role badges:** `users/page.tsx` — `RoleBadge` now uses shared `Badge` component with `ROLE_COLORS` config. ✅ Migrated.
+- **Remaining ad hoc pills:** minor instances in `purchases/page.tsx` — scheduled for Phase 2.
 
 ### 3.7 Design-system bypasses
 
-- **Purchases list:** primary CTA is a raw `<button>` with gradients / `dark:` accents not aligned with `.btn-primary` (`purchases/page.tsx`).
-- **GST module:** visually and structurally distinct from global `Header` + glass workspace.
+- **Input / Select components:** all primary forms now use shared `Input` / `Select` from `@/components/ui`. ✅ GST HSN form, expense filters, receipt forms migrated.
+- **Remaining raw inputs:** inline forms in `payments/page.tsx`, `enquiries/page.tsx`.
 
 ---
 

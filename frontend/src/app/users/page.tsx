@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
   Button,
+  Badge,
   Input,
   Select,
   LoadingState,
@@ -69,12 +70,10 @@ function RoleBadge({ role }: { role: string }) {
     label: role,
   };
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
-    >
+    <Badge className={`!${config.bg} !${config.text} inline-flex items-center gap-1`}>
       <Shield className="w-3 h-3" />
       {config.label}
-    </span>
+    </Badge>
   );
 }
 
