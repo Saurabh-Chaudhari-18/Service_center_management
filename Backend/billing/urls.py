@@ -14,8 +14,8 @@ router = DefaultRouter()
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'payments', PaymentViewSet, basename='payment')
 router.register(r'credit-notes', CreditNoteViewSet, basename='credit-note')
-router.register(r'payment-methods', PaymentMethodsView, basename='payment-method')
 
 urlpatterns = [
+    path('payment-methods/', PaymentMethodsView.as_view(), name='payment-methods'),
     path('', include(router.urls)),
 ]

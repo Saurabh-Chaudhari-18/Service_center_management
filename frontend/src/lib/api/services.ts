@@ -61,18 +61,18 @@ export const authApi = {
   },
 
   getMyBranches: async (): Promise<Branch[]> => {
-    return apiGet<Branch[]>("/core/users/my_branches/");
+    return apiGet<Branch[]>("/core/users/my-branches/");
   },
 
   setCurrentBranch: async (branchId: string): Promise<void> => {
-    return apiPost("/core/users/set_current_branch/", { branch_id: branchId });
+    return apiPost("/core/users/set-current-branch/", { branch_id: branchId });
   },
 
   changePassword: async (
     oldPassword: string,
     newPassword: string,
   ): Promise<void> => {
-    return apiPost("/core/users/change_password/", {
+    return apiPost("/core/users/change-password/", {
       current_password: oldPassword,
       new_password: newPassword,
       new_password_confirm: newPassword,
@@ -84,7 +84,7 @@ export const authApi = {
     last_name?: string;
     phone?: string;
   }): Promise<AuthUser> => {
-    return apiPatch<AuthUser>("/core/users/update_me/", data);
+    return apiPatch<AuthUser>("/core/users/update-me/", data);
   },
 };
 
@@ -139,7 +139,7 @@ export const branchesApi = {
   },
 
   assignUser: async (branchId: string, userId: string): Promise<void> => {
-    return apiPost(`/core/branches/${branchId}/assign_user/`, {
+    return apiPost(`/core/branches/${branchId}/assign-user/`, {
       user_id: userId,
     });
   },
@@ -177,7 +177,7 @@ export const usersApi = {
     id: string,
     branchIds: string[],
   ): Promise<{ message: string }> => {
-    return apiPost(`/core/users/${id}/assign_branches/`, {
+    return apiPost(`/core/users/${id}/assign-branches/`, {
       branch_ids: branchIds,
     });
   },
@@ -190,7 +190,7 @@ export const usersApi = {
     latitude: number,
     longitude: number,
   ): Promise<{ message: string }> => {
-    return apiPost("/core/users/update_location/", { latitude, longitude });
+    return apiPost("/core/users/update-location/", { latitude, longitude });
   },
 };
 
@@ -206,33 +206,33 @@ export const customersApi = {
     page_size?: number;
     is_active?: boolean;
   }): Promise<PaginatedResponse<Customer>> => {
-    return apiGet<PaginatedResponse<Customer>>("/customers/customers/", params);
+    return apiGet<PaginatedResponse<Customer>>("/customers/", params);
   },
 
   get: async (id: string): Promise<Customer> => {
-    return apiGet<Customer>(`/customers/customers/${id}/`);
+    return apiGet<Customer>(`/customers/${id}/`);
   },
 
   create: async (data: Partial<Customer>): Promise<Customer> => {
-    return apiPost<Customer>("/customers/customers/", data);
+    return apiPost<Customer>("/customers/", data);
   },
 
   update: async (id: string, data: Partial<Customer>): Promise<Customer> => {
-    return apiPatch<Customer>(`/customers/customers/${id}/`, data);
+    return apiPatch<Customer>(`/customers/${id}/`, data);
   },
 
   searchByMobile: async (mobile: string): Promise<Customer[]> => {
-    return apiGet<Customer[]>("/customers/customers/search_by_mobile/", {
+    return apiGet<Customer[]>("/customers/search-by-mobile/", {
       mobile,
     });
   },
 
   getServiceHistory: async (id: string): Promise<JobCard[]> => {
-    return apiGet<JobCard[]>(`/customers/customers/${id}/service_history/`);
+    return apiGet<JobCard[]>(`/customers/${id}/service-history/`);
   },
 
   requestDeletion: async (id: string): Promise<{ message: string }> => {
-    return apiPost(`/customers/customers/${id}/request_deletion/`, {});
+    return apiPost(`/customers/${id}/request-deletion/`, {});
   },
 };
 
@@ -251,23 +251,23 @@ export const jobsApi = {
     page_size?: number;
     is_urgent?: boolean;
   }): Promise<PaginatedResponse<JobCard>> => {
-    return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/", params);
+    return apiGet<PaginatedResponse<JobCard>>("/jobs/", params);
   },
 
   get: async (id: string): Promise<JobCard> => {
-    return apiGet<JobCard>(`/jobs/jobs/${id}/`);
+    return apiGet<JobCard>(`/jobs/${id}/`);
   },
 
   create: async (data: CreateJobCardData): Promise<JobCard> => {
-    return apiPost<JobCard>("/jobs/jobs/", data);
+    return apiPost<JobCard>("/jobs/", data);
   },
 
   update: async (id: string, data: Partial<JobCard>): Promise<JobCard> => {
-    return apiPatch<JobCard>(`/jobs/jobs/${id}/`, data);
+    return apiPatch<JobCard>(`/jobs/${id}/`, data);
   },
 
   nextNumber: async (branchId: string): Promise<{ next_number: string }> => {
-    return apiGet<{ next_number: string }>(`/jobs/jobs/next_number/`, {
+    return apiGet<{ next_number: string }>(`/jobs/next-number/`, {
       branch: branchId,
     });
   },
@@ -278,7 +278,7 @@ export const jobsApi = {
     technicianId: string,
     notes?: string,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/assign_technician/`, {
+    return apiPost<JobCard>(`/jobs/${jobId}/assign-technician/`, {
       technician_id: technicianId,
       notes,
     });
@@ -296,7 +296,7 @@ export const jobsApi = {
       quantity?: number;
     }>,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/add_diagnosis/`, {
+    return apiPost<JobCard>(`/jobs/${jobId}/add-diagnosis/`, {
       diagnosis_notes: diagnosisNotes,
       estimated_cost: estimatedCost,
       estimated_completion_date: estimatedCompletionDate,
@@ -305,7 +305,7 @@ export const jobsApi = {
   },
 
   shareEstimate: async (jobId: string): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/share_estimate/`);
+    return apiPost<JobCard>(`/jobs/${jobId}/share-estimate/`);
   },
 
   recordCustomerResponse: async (
@@ -313,7 +313,7 @@ export const jobsApi = {
     approved: boolean,
     rejectionReason?: string,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/record_customer_response/`, {
+    return apiPost<JobCard>(`/jobs/${jobId}/record-customer-response/`, {
       approved,
       rejection_reason: rejectionReason,
     });
@@ -324,7 +324,7 @@ export const jobsApi = {
     newStatus: string,
     notes?: string,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/update_status/`, {
+    return apiPost<JobCard>(`/jobs/${jobId}/update-status/`, {
       new_status: newStatus,
       notes,
       is_override: true,
@@ -335,7 +335,7 @@ export const jobsApi = {
     jobId: string,
     completionNotes?: string,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/mark_ready/`, {
+    return apiPost<JobCard>(`/jobs/${jobId}/mark-ready/`, {
       completion_notes: completionNotes,
     });
   },
@@ -345,18 +345,18 @@ export const jobsApi = {
     otp: string,
     notes?: string,
   ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/jobs/${jobId}/deliver/`, { otp, notes });
+    return apiPost<JobCard>(`/jobs/${jobId}/deliver/`, { otp, notes });
   },
 
   resendDeliveryOtp: async (jobId: string): Promise<void> => {
-    return apiPost(`/jobs/jobs/${jobId}/resend_delivery_otp/`);
+    return apiPost(`/jobs/${jobId}/resend-delivery-otp/`);
   },
 
   accessDevicePassword: async (
     jobId: string,
     reason: string,
   ): Promise<{ password: string }> => {
-    return apiPost(`/jobs/jobs/${jobId}/access_device_password/`, { reason });
+    return apiPost(`/jobs/${jobId}/access-device-password/`, { reason });
   },
 
   requestPart: async (
@@ -365,7 +365,7 @@ export const jobsApi = {
     quantity: number,
     notes?: string,
   ): Promise<void> => {
-    return apiPost(`/jobs/jobs/${jobId}/request_part/`, {
+    return apiPost(`/jobs/${jobId}/request-part/`, {
       part_name: partName,
       quantity,
       notes,
@@ -377,7 +377,7 @@ export const jobsApi = {
     note: string,
     isInternal: boolean = true,
   ): Promise<void> => {
-    return apiPost(`/jobs/jobs/${jobId}/add_note/`, {
+    return apiPost(`/jobs/${jobId}/add-note/`, {
       note,
       is_internal: isInternal,
     });
@@ -393,7 +393,7 @@ export const jobsApi = {
       user_name: string;
     }>
   > => {
-    return apiGet(`/jobs/jobs/${jobId}/timeline/`);
+    return apiGet(`/jobs/${jobId}/timeline/`);
   },
 
   uploadPhoto: async (
@@ -402,7 +402,7 @@ export const jobsApi = {
     photoType: string,
     description?: string,
   ) => {
-    return apiUpload(`/jobs/jobs/${jobId}/add_photo/`, file, "photo", {
+    return apiUpload(`/jobs/${jobId}/add-photo/`, file, "photo", {
       photo_type: photoType,
       description: description || "",
     });
@@ -410,11 +410,11 @@ export const jobsApi = {
 
   // Lists
   getPending: async (): Promise<PaginatedResponse<JobCard>> => {
-    return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/pending/");
+    return apiGet<PaginatedResponse<JobCard>>("/jobs/pending/");
   },
 
   getMyJobs: async (): Promise<PaginatedResponse<JobCard>> => {
-    return apiGet<PaginatedResponse<JobCard>>("/jobs/jobs/my_jobs/");
+    return apiGet<PaginatedResponse<JobCard>>("/jobs/my-jobs/");
   },
 
   /**
@@ -429,7 +429,7 @@ export const jobsApi = {
     by_status: Record<string, number>;
     urgent?: number;
   }> => {
-    return apiGet("/jobs/jobs/stats/", params);
+    return apiGet("/jobs/stats/", params);
   },
 
   // Enums
@@ -440,7 +440,7 @@ export const jobsApi = {
   getDeviceTypes: async (): Promise<
     Array<{ value: string; label: string }>
   > => {
-    return apiGet("/jobs/enums/device_types/");
+    return apiGet("/jobs/enums/device-types/");
   },
 };
 
@@ -530,7 +530,7 @@ export const inventoryApi = {
     quantity: number,
     reason: string,
   ): Promise<InventoryItem> => {
-    return apiPost<InventoryItem>(`/inventory/items/${id}/add_stock/`, {
+    return apiPost<InventoryItem>(`/inventory/items/${id}/add-stock/`, {
       quantity,
       reason,
     });
@@ -542,7 +542,7 @@ export const inventoryApi = {
     reason: string,
     jobId?: string,
   ): Promise<InventoryItem> => {
-    return apiPost<InventoryItem>(`/inventory/items/${id}/deduct_stock/`, {
+    return apiPost<InventoryItem>(`/inventory/items/${id}/deduct-stock/`, {
       quantity,
       reason,
       job_id: jobId,
@@ -554,7 +554,7 @@ export const inventoryApi = {
     newQuantity: number,
     reason: string,
   ): Promise<InventoryItem> => {
-    return apiPost<InventoryItem>(`/inventory/items/${id}/adjust_stock/`, {
+    return apiPost<InventoryItem>(`/inventory/items/${id}/adjust-stock/`, {
       new_quantity: newQuantity,
       reason,
     });
@@ -568,11 +568,11 @@ export const inventoryApi = {
   },
 
   getLowStock: async (): Promise<InventoryItem[]> => {
-    return apiGet<InventoryItem[]>("/inventory/items/low_stock/");
+    return apiGet<InventoryItem[]>("/inventory/items/low-stock/");
   },
 
   getOutOfStock: async (): Promise<InventoryItem[]> => {
-    return apiGet<InventoryItem[]>("/inventory/items/out_of_stock/");
+    return apiGet<InventoryItem[]>("/inventory/items/out-of-stock/");
   },
 
   getStats: async (): Promise<{
@@ -595,7 +595,7 @@ export const inventoryApi = {
       total_quantity: number;
     }>
   > => {
-    return apiGet("/inventory/items/category_stats/", { branch: branchId });
+    return apiGet("/inventory/items/category-stats/", { branch: branchId });
   },
 
   listCategories: async (
@@ -632,7 +632,7 @@ export const purchasesApi = {
     branch?: string;
   }): Promise<{ total_outstanding: string }> => {
     return apiGet<{ total_outstanding: string }>(
-      "/inventory/purchases/outstanding_total/",
+      "/inventory/purchases/outstanding-total/",
       params,
     );
   },
@@ -650,7 +650,7 @@ export const purchasesApi = {
   },
 
   importExcel: async (file: File, vendorName: string, invoiceNumber: string, purchaseDate: string, paidAmount?: string, paymentMethod?: string) => {
-    return apiUpload<{ message: string; purchase_id: string; total_amount: number }>("/inventory/purchases/import_excel/", file, "file", {
+    return apiUpload<{ message: string; purchase_id: string; total_amount: number }>("/inventory/purchases/import-excel/", file, "file", {
       vendor_name: vendorName,
       invoice_number: invoiceNumber || "",
       purchase_date: purchaseDate,
@@ -661,7 +661,7 @@ export const purchasesApi = {
 
   recordPayment: async (id: string, amount: number, payment_method: string, notes: string = "") => {
     return apiPost<{ message: string; paid_amount: string; balance_due: string; status: string }>(
-      `/inventory/purchases/${id}/record_payment/`,
+      `/inventory/purchases/${id}/record-payment/`,
       { amount, payment_method, notes }
     );
   },
@@ -735,7 +735,7 @@ export const billingApi = {
     lineItem: Partial<InvoiceLineItem>,
   ): Promise<Invoice> => {
     return apiPost<Invoice>(
-      `/billing/invoices/${invoiceId}/add_line_item/`,
+      `/billing/invoices/${invoiceId}/add-line-item/`,
       lineItem,
     );
   },
@@ -751,7 +751,7 @@ export const billingApi = {
     reference?: string,
     notes?: string,
   ): Promise<Payment> => {
-    return apiPost<Payment>(`/billing/invoices/${invoiceId}/record_payment/`, {
+    return apiPost<Payment>(`/billing/invoices/${invoiceId}/record-payment/`, {
       amount,
       payment_method: paymentMethod,
       reference,
@@ -764,11 +764,11 @@ export const billingApi = {
   },
 
   getEditHistory: async (invoiceId: string): Promise<any[]> => {
-    return apiGet<any[]>(`/billing/invoices/${invoiceId}/edit_history/`);
+    return apiGet<any[]>(`/billing/invoices/${invoiceId}/edit-history/`);
   },
 
   logDownload: async (invoiceId: string): Promise<void> => {
-    return apiPost<void>(`/billing/invoices/${invoiceId}/log_download/`);
+    return apiPost<void>(`/billing/invoices/${invoiceId}/log-download/`);
   },
 
   downloadPdf: async (
@@ -776,7 +776,7 @@ export const billingApi = {
     invoiceNumber: string,
   ): Promise<void> => {
     return apiDownload(
-      `/billing/invoices/${invoiceId}/download_pdf/`,
+      `/billing/invoices/${invoiceId}/download-pdf/`,
       `${invoiceNumber}.pdf`,
     );
   },
@@ -810,7 +810,7 @@ export const billingApi = {
   getPaymentMethods: async (): Promise<
     Array<{ value: string; label: string }>
   > => {
-    return apiGet("/billing/payment-methods/list_methods/");
+    return apiGet("/billing/payment-methods/");
   },
 };
 
@@ -833,7 +833,7 @@ export const notificationsApi = {
   },
 
   createDefaultTemplates: async (branchId: string): Promise<void> => {
-    return apiPost("/notifications/templates/create_defaults/", {
+    return apiPost("/notifications/templates/create-defaults/", {
       branch_id: branchId,
     });
   },
@@ -861,11 +861,11 @@ export const notificationsApi = {
   },
 
   getUnreadCount: async (): Promise<{ count: number }> => {
-    return apiGet("/notifications/alerts/unread_count/");
+    return apiGet("/notifications/alerts/unread-count/");
   },
 
   markAllRead: async (): Promise<void> => {
-    return apiPost("/notifications/alerts/mark_all_read/");
+    return apiPost("/notifications/alerts/mark-all-read/");
   },
 
   retryLog: async (logId: string): Promise<void> => {
@@ -878,7 +878,7 @@ export const notificationsApi = {
     recipient_name: string;
     message: string;
   }): Promise<void> => {
-    return apiPost("/notifications/send/send/", data);
+    return apiPost("/notifications/send/", data);
   },
 };
 
@@ -910,7 +910,7 @@ export const reportsApi = {
     }>;
     by_age: Record<string, number>;
   }> => {
-    return apiGet("/reports/pending_jobs/", params);
+    return apiGet("/reports/pending-jobs/", params);
   },
 
   getTechnicianProductivity: async (params: {
@@ -922,7 +922,7 @@ export const reportsApi = {
     to_date: string;
     technicians: TechnicianProductivityData[];
   }> => {
-    return apiGet("/reports/technician_productivity/", params);
+    return apiGet("/reports/technician-productivity/", params);
   },
 
   getInventoryConsumption: async (params: {
@@ -957,11 +957,11 @@ export const reportsApi = {
       total_transactions: number;
     };
   }> => {
-    return apiGet("/reports/inventory_consumption/", params);
+    return apiGet("/reports/inventory-consumption/", params);
   },
 
   getLowStock: async (): Promise<InventoryItem[]> => {
-    return apiGet<InventoryItem[]>("/reports/low_stock/");
+    return apiGet<InventoryItem[]>("/reports/low-stock/");
   },
 
   getCustomerAnalysis: async (params: {
@@ -982,7 +982,7 @@ export const reportsApi = {
       invoice_count: number;
     }>;
   }> => {
-    return apiGet("/reports/customer_analysis/", params);
+    return apiGet("/reports/customer-analysis/", params);
   },
 
   getGstSummary: async (params: {
@@ -1014,7 +1014,7 @@ export const reportsApi = {
       total: number;
     }>;
   }> => {
-    return apiGet("/reports/gst_summary/", params);
+    return apiGet("/reports/gst-summary/", params);
   },
 
   exportExcel: async (
@@ -1023,7 +1023,7 @@ export const reportsApi = {
   ): Promise<void> => {
     const filename = `${reportType}_report_${params.from_date}_${params.to_date}.xlsx`;
     return apiDownload(
-      `/reports/export_excel/?report=${reportType}&from_date=${
+      `/reports/export-excel/?report=${reportType}&from_date=${
         params.from_date
       }&to_date=${params.to_date}${
         params.branch ? `&branch=${params.branch}` : ""
@@ -1044,7 +1044,7 @@ export const reportsApi = {
     net_profit: number;
     profit_margin: number;
   }> => {
-    return apiGet("/reports/net_profit/", params);
+    return apiGet("/reports/net-profit/", params);
   },
 
   gstr1Export: async (params: {
@@ -1054,7 +1054,7 @@ export const reportsApi = {
   }): Promise<void> => {
     const filename = `GSTR1_${params.from_date}_${params.to_date}.xlsx`;
     return apiDownload(
-      `/reports/gstr1_export/?from_date=${params.from_date}&to_date=${params.to_date}${
+      `/reports/gstr1-export/?from_date=${params.from_date}&to_date=${params.to_date}${
         params.branch ? `&branch=${params.branch}` : ""
       }`,
       filename,
@@ -1088,7 +1088,7 @@ export const auditApi = {
   },
 
   getForObject: async (model: string, id: string) => {
-    return apiGet("/audit/logs/for_object/", { model, id });
+    return apiGet("/audit/logs/for-object/", { model, id });
   },
 
   listPasswordAccess: async () => {
@@ -1096,7 +1096,7 @@ export const auditApi = {
   },
 
   getPasswordAccessForJob: async (jobId: string) => {
-    return apiGet("/audit/password-access/for_job/", { job_id: jobId });
+    return apiGet("/audit/password-access/for-job/", { job_id: jobId });
   },
 
   listLogins: async () => {
@@ -1158,7 +1158,7 @@ export const pickupsApi = {
     id: string,
     technicianId: string,
   ): Promise<PickupRequest> => {
-    return apiPost(`/jobs/pickups/${id}/assign_technician/`, {
+    return apiPost(`/jobs/pickups/${id}/assign-technician/`, {
       technician_id: technicianId,
     });
   },
@@ -1168,7 +1168,7 @@ export const pickupsApi = {
     newStatus: string,
     notes?: string,
   ): Promise<PickupRequest> => {
-    return apiPost(`/jobs/pickups/${id}/update_status/`, {
+    return apiPost(`/jobs/pickups/${id}/update-status/`, {
       new_status: newStatus,
       notes: notes || "",
     });
@@ -1182,7 +1182,7 @@ export const pickupsApi = {
     job_number: string;
     pickup_number: string;
   }> => {
-    return apiPost(`/jobs/pickups/${id}/convert_to_job/`, {});
+    return apiPost(`/jobs/pickups/${id}/convert-to-job/`, {});
   },
 
   track: async (
@@ -1209,23 +1209,23 @@ export const expensesApi = {
     search?: string;
     page?: number;
   }): Promise<PaginatedResponse<any>> => {
-    return apiGet("/expenses/expenses/", params);
+    return apiGet("/expenses/", params);
   },
 
   get: async (id: string) => {
-    return apiGet(`/expenses/expenses/${id}/`);
+    return apiGet(`/expenses/${id}/`);
   },
 
   create: async (data: Record<string, unknown>) => {
-    return apiPost("/expenses/expenses/", data);
+    return apiPost("/expenses/", data);
   },
 
   update: async (id: string, data: Record<string, unknown>) => {
-    return apiPatch(`/expenses/expenses/${id}/`, data);
+    return apiPatch(`/expenses/${id}/`, data);
   },
 
   delete: async (id: string) => {
-    return apiDelete(`/expenses/expenses/${id}/`);
+    return apiDelete(`/expenses/${id}/`);
   },
 
   getStats: async (params?: {
@@ -1233,11 +1233,11 @@ export const expensesApi = {
     date_to?: string;
     branch?: string;
   }) => {
-    return apiGet("/expenses/expenses/stats/", params);
+    return apiGet("/expenses/stats/", params);
   },
 
   getCategories: async (): Promise<Array<{ value: string; label: string }>> => {
-    return apiGet("/expenses/expenses/categories/");
+    return apiGet("/expenses/categories/");
   },
 };
 
@@ -1255,23 +1255,23 @@ export const enquiriesApi = {
     overdue?: string;
     page?: number;
   }): Promise<PaginatedResponse<any>> => {
-    return apiGet("/enquiries/enquiries/", params);
+    return apiGet("/enquiries/", params);
   },
 
   get: async (id: string) => {
-    return apiGet(`/enquiries/enquiries/${id}/`);
+    return apiGet(`/enquiries/${id}/`);
   },
 
   create: async (data: Record<string, unknown>) => {
-    return apiPost("/enquiries/enquiries/", data);
+    return apiPost("/enquiries/", data);
   },
 
   update: async (id: string, data: Record<string, unknown>) => {
-    return apiPatch(`/enquiries/enquiries/${id}/`, data);
+    return apiPatch(`/enquiries/${id}/`, data);
   },
 
   addNote: async (id: string, note: string) => {
-    return apiPost(`/enquiries/enquiries/${id}/add_note/`, { note });
+    return apiPost(`/enquiries/${id}/add-note/`, { note });
   },
 
   convertToJob: async (id: string): Promise<{
@@ -1280,11 +1280,11 @@ export const enquiriesApi = {
     job_number: string;
     customer_id: string;
   }> => {
-    return apiPost(`/enquiries/enquiries/${id}/convert_to_job/`, {});
+    return apiPost(`/enquiries/${id}/convert-to-job/`, {});
   },
 
   markLost: async (id: string, loss_reason: string) => {
-    return apiPost(`/enquiries/enquiries/${id}/mark_lost/`, { loss_reason });
+    return apiPost(`/enquiries/${id}/mark-lost/`, { loss_reason });
   },
 
   getStats: async (params?: {
@@ -1292,15 +1292,15 @@ export const enquiriesApi = {
     date_to?: string;
     branch?: string;
   }) => {
-    return apiGet("/enquiries/enquiries/stats/", params);
+    return apiGet("/enquiries/stats/", params);
   },
 
   getSources: async (): Promise<Array<{ value: string; label: string }>> => {
-    return apiGet("/enquiries/enquiries/sources/");
+    return apiGet("/enquiries/sources/");
   },
 
   getStatuses: async (): Promise<Array<{ value: string; label: string }>> => {
-    return apiGet("/enquiries/enquiries/statuses/");
+    return apiGet("/enquiries/statuses/");
   },
 };
 
@@ -1315,23 +1315,23 @@ export const suppliersApi = {
     page?: number;
     limit?: number;
   }): Promise<PaginatedResponse<any>> => {
-    return apiGet("/suppliers/suppliers/", params);
+    return apiGet("/suppliers/", params);
   },
 
   get: async (id: string) => {
-    return apiGet(`/suppliers/suppliers/${id}/`);
+    return apiGet(`/suppliers/${id}/`);
   },
 
   create: async (data: Record<string, unknown>) => {
-    return apiPost("/suppliers/suppliers/", data);
+    return apiPost("/suppliers/", data);
   },
 
   update: async (id: string, data: Record<string, unknown>) => {
-    return apiPatch(`/suppliers/suppliers/${id}/`, data);
+    return apiPatch(`/suppliers/${id}/`, data);
   },
 
   delete: async (id: string) => {
-    return apiDelete(`/suppliers/suppliers/${id}/`);
+    return apiDelete(`/suppliers/${id}/`);
   },
 };
 
@@ -1346,19 +1346,19 @@ export const ledgerApi = {
     page?: number;
     page_size?: number;
   }): Promise<PaginatedResponse<any>> => {
-    return apiGet("/marketing/ledger/", params);
+    return apiGet("/customers/ledger/", params);
   },
 
   create: async (data: Record<string, unknown>) => {
-    return apiPost("/marketing/ledger/", data);
+    return apiPost("/customers/ledger/", data);
   },
 
   getStatement: async (customerId: string) => {
-    return apiGet("/marketing/ledger/customer_statement/", { customer: customerId });
+    return apiGet("/customers/ledger/customer-statement/", { customer: customerId });
   },
 
   getOutstanding: async () => {
-    return apiGet("/marketing/ledger/outstanding/");
+    return apiGet("/customers/ledger/outstanding/");
   },
 };
 
@@ -1371,22 +1371,22 @@ export const gstApi = {
     apiGet("/gst/dashboard/", params),
 
   getITCRegister: (params: { from_date?: string; to_date?: string; source?: string; branch?: string }) =>
-    apiGet("/gst/itc_register/", params),
+    apiGet("/gst/itc-register/", params),
 
   getOutputRegister: (params: { from_date?: string; to_date?: string; branch?: string }) =>
-    apiGet("/gst/output_register/", params),
+    apiGet("/gst/output-register/", params),
 
   getGSTR1Data: (params: { from_date?: string; to_date?: string; branch?: string }) =>
-    apiGet("/gst/gstr1_data/", params),
+    apiGet("/gst/gstr1-data/", params),
 
   downloadGSTR1JSON: async (params: { from_date: string; to_date: string; branch?: string }) => {
     const query = new URLSearchParams(params as Record<string, string>).toString();
-    const url = `/gst/gstr1_json/?${query}`;
+    const url = `/gst/gstr1-json/?${query}`;
     return apiDownload(url, `GSTR1_${params.from_date}_${params.to_date}.json`);
   },
 
   getGSTR3BSummary: (params: { from_date?: string; to_date?: string; branch?: string }) =>
-    apiGet("/gst/gstr3b_summary/", params),
+    apiGet("/gst/gstr3b-summary/", params),
 
   getPayments: (params?: { branch?: string }) =>
     apiGet("/gst/payments/", params),
@@ -1395,15 +1395,15 @@ export const gstApi = {
     apiPost("/gst/payments/", data),
 
   getHSNCodes: (params?: { q?: string }) =>
-    apiGet("/gst/hsn_codes/", params),
+    apiGet("/gst/hsn-codes/", params),
 
   addHSNCode: (data: Record<string, unknown>) =>
-    apiPost("/gst/hsn_codes/", data),
+    apiPost("/gst/hsn-codes/", data),
 
   updateHSNCode: (id: string, data: Record<string, unknown>) =>
     apiPatch(`/gst/${id}/hsn/`, data),
 
   markFiled: (data: { period_month: string; return_type: "gstr1" | "gstr3b" }) =>
-    apiPost("/gst/mark_filed/", data),
+    apiPost("/gst/mark-filed/", data),
 };
 

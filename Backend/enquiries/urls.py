@@ -9,7 +9,7 @@ from enquiries.views import EnquiryViewSet
 app_name = 'enquiries'
 
 router = DefaultRouter()
-router.register(r'enquiries', EnquiryViewSet, basename='enquiry')
+router.register(r'', EnquiryViewSet, basename='enquiry')
 
 urlpatterns = [
     path('', include(router.urls)),

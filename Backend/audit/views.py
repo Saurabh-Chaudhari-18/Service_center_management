@@ -5,6 +5,7 @@ Audit ViewSets - read-only access to audit logs.
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
@@ -39,14 +40,14 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         org_users = user.organization.users.values_list('id', flat=True)
         return AuditLog.objects.filter(user__in=org_users)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='for-object')
     def for_object(self, request):
         """Get audit logs for a specific object."""
         model_name = request.query_params.get('model')
         object_id = request.query_params.get('id')
         
         if not model_name or not object_id:
-            return Response({'error': 'model and id parameters required'}, status=400)
+            raise ValidationError('model and id parameters required')
         
         logs = self.get_queryset().filter(
             model_name=model_name,
@@ -76,13 +77,13 @@ class DevicePasswordAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
             job__branch__in=user.get_accessible_branches()
         ).select_related('job', 'accessed_by')
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='for-job')
     def for_job(self, request):
         """Get password access logs for a specific job."""
         job_id = request.query_params.get('job_id')
         
         if not job_id:
-            return Response({'error': 'job_id parameter required'}, status=400)
+            raise ValidationError('job_id parameter required')
         
         logs = self.get_queryset().filter(job_id=job_id)
         serializer = self.get_serializer(logs, many=True)

@@ -5,6 +5,7 @@ Job Card ViewSets with lifecycle management and branch-scoped access.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -112,7 +113,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 "Cancel the job instead."
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='update-status')
     def update_status(self, request, pk=None):
         """
         Update job status with validation.
@@ -122,11 +123,8 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         # Allow Owner to update status even if terminal
         if job.is_terminal_status() and request.user.role != Role.OWNER:
-            return Response(
-                {'error': f'Job is in terminal status ({job.get_status_display()}) and cannot be modified.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError(f'Job is in terminal status ({job.get_status_display()}) and cannot be modified.')
+
         serializer = JobStatusUpdateSerializer(
             data=request.data,
             context={'job': job, 'request': request}
@@ -147,19 +145,16 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 'status_display': job.get_status_display()
             })
         except (JobReadOnlyError, InvalidStatusTransition) as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember], url_path='assign-technician')
     def assign_technician(self, request, pk=None):
         """Assign or reassign technician to job."""
         job = self.get_object()
         
         # Allow Owner to assign technician even if terminal
         if job.is_terminal_status() and request.user.role != Role.OWNER:
-            return Response(
-                {'error': 'Cannot assign technician to a completed job.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Cannot assign technician to a completed job.')
         
         serializer = JobAssignTechnicianSerializer(
             data=request.data,
@@ -194,7 +189,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             }
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove])
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='add-diagnosis')
     def add_diagnosis(self, request, pk=None):
         """Add or update diagnosis notes."""
         from jobs.services import apply_diagnosis
@@ -205,25 +200,19 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         try:
             result = apply_diagnosis(job, serializer.validated_data, request.user)
         except ValueError as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(exc)) from exc
         return Response(result)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember], url_path='share-estimate')
     def share_estimate(self, request, pk=None):
         """Share estimate with customer."""
         job = self.get_object()
         
         if job.status != JobStatus.DIAGNOSIS:
-            return Response(
-                {'error': 'Job must be diagnosed before sharing estimate.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('Job must be diagnosed before sharing estimate.')
+
         if not job.estimated_cost:
-            return Response(
-                {'error': 'Estimated cost must be set before sharing.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Estimated cost must be set before sharing.')
         
         with transaction.atomic():
             job.transition_status(
@@ -241,16 +230,13 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='record-customer-response')
     def record_customer_response(self, request, pk=None):
         """Record customer's approval or rejection of estimate."""
         job = self.get_object()
         
         if job.status != JobStatus.ESTIMATE_SHARED:
-            return Response(
-                {'error': 'Estimate must be shared before recording response.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Estimate must be shared before recording response.')
         
         serializer = JobEstimateApprovalSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -280,7 +266,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove])
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='mark-ready')
     def mark_ready(self, request, pk=None):
         """Mark job as ready for pickup."""
         job = self.get_object()
@@ -292,10 +278,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         # Let's keep this strict for workflow, Owner can use update_status for arbitrary jumps.
         
         if job.status not in [JobStatus.REPAIR_IN_PROGRESS, JobStatus.WAITING_FOR_PARTS]:
-            return Response(
-                {'error': 'Job must be in progress to mark as ready.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Job must be in progress to mark as ready.')
         
         completion_notes = request.data.get('completion_notes', '')
         
@@ -327,10 +310,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         job = self.get_object()
         
         if job.status != JobStatus.READY_FOR_DELIVERY:
-            return Response(
-                {'error': 'Job must be ready for pickup before delivery.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Job must be ready for pickup before delivery.')
         
         serializer = JobDeliverySerializer(
             data=request.data,
@@ -357,16 +337,13 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='resend-delivery-otp')
     def resend_delivery_otp(self, request, pk=None):
         """Resend delivery OTP to customer."""
         job = self.get_object()
         
         if job.status != JobStatus.READY_FOR_DELIVERY:
-            return Response(
-                {'error': 'Job must be ready for pickup.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Job must be ready for pickup.')
         
         otp = job.generate_delivery_otp()
         
@@ -375,7 +352,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'otp': otp if request.user.role in [Role.OWNER, Role.MANAGER] else '******'
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[CanAccessDevicePasswords])
+    @action(detail=True, methods=['post'], permission_classes=[CanAccessDevicePasswords], url_path='access-device-password')
     def access_device_password(self, request, pk=None):
         """
         Access device password with audit logging.
@@ -400,17 +377,14 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'warning': 'This access has been logged for security purposes.'
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove])
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='request-part')
     def request_part(self, request, pk=None):
         """Request a part for this job."""
         job = self.get_object()
         
         # Allow Owner to request parts even if terminal
         if job.is_terminal_status() and request.user.role != Role.OWNER:
-            return Response(
-                {'error': 'Cannot request parts for a completed job.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Cannot request parts for a completed job.')
         
         serializer = PartRequestSerializer(data={
             **request.data,
@@ -421,7 +395,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='part-requests')
     def part_requests(self, request, pk=None):
         """Get all part requests for this job."""
         job = self.get_object()
@@ -429,7 +403,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = PartRequestSerializer(requests, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='add-photo')
     def add_photo(self, request, pk=None):
         """Add a photo to the job."""
         job = self.get_object()
@@ -453,7 +427,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='add-note')
     def add_note(self, request, pk=None):
         """Add an internal note to the job."""
         job = self.get_object()
@@ -527,7 +501,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = JobCardListSerializer(queryset, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='my-jobs')
     def my_jobs(self, request):
         """Get jobs assigned to current user (for technicians).
 
@@ -535,10 +509,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         accumulate hundreds of historical jobs over time.
         """
         if request.user.role != Role.TECHNICIAN:
-            return Response(
-                {'error': 'This endpoint is for technicians only.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            raise PermissionDenied('This endpoint is for technicians only.')
 
         queryset = (
             JobCard.objects.filter(
@@ -579,21 +550,21 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'urgent': urgent,
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Predict next job number for a branch."""
         branch_id = request.query_params.get('branch')
         if not branch_id:
-             return Response({'error': 'Branch ID required'}, status=status.HTTP_400_BAD_REQUEST)
-        
+             raise ValidationError('Branch ID required')
+
         # Validate access
         try:
             branch = Branch.objects.get(pk=branch_id)
         except Branch.DoesNotExist:
-            return Response({'error': 'Branch not found'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound('Branch not found')
 
         if not request.user.has_branch_access(branch):
-             return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+             raise PermissionDenied('Access denied')
 
         # Predict
         fy = branch.get_current_financial_year()
@@ -619,16 +590,13 @@ class PartRequestViewSet(viewsets.ModelViewSet):
         part_request = self.get_object()
         
         if request.user.role not in [Role.OWNER, Role.MANAGER]:
-            return Response(
-                {'error': 'Only owners and managers can approve part requests.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+            raise PermissionDenied('Only owners and managers can approve part requests.')
+
         try:
             part_request.approve(request.user)
             return Response({'message': 'Part request approved.'})
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -636,17 +604,11 @@ class PartRequestViewSet(viewsets.ModelViewSet):
         part_request = self.get_object()
         
         if request.user.role not in [Role.OWNER, Role.MANAGER]:
-            return Response(
-                {'error': 'Only owners and managers can reject part requests.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+            raise PermissionDenied('Only owners and managers can reject part requests.')
+
         reason = request.data.get('reason', '')
         if not reason:
-            return Response(
-                {'error': 'Rejection reason is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Rejection reason is required.')
         
         part_request.status = 'REJECTED'
         part_request.rejection_reason = reason
@@ -659,7 +621,7 @@ class JobEnumsView(viewsets.ViewSet):
     """ViewSet for job-related enums."""
     permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='device-types')
     def device_types(self, request):
         """Get all device types."""
         types = [{'value': dt.value, 'label': dt.label} for dt in DeviceType]
@@ -767,27 +729,21 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             ).count(),
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='assign-technician')
     def assign_technician(self, request, pk=None):
         """Assign a technician for pickup."""
         pickup = self.get_object()
         technician_id = request.data.get('technician_id')
 
         if not technician_id:
-            return Response(
-                {'error': 'technician_id is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('technician_id is required.')
 
         try:
             technician = User.objects.get(
                 pk=technician_id, role=Role.TECHNICIAN, is_active=True
             )
         except User.DoesNotExist:
-            return Response(
-                {'error': 'Technician not found or inactive.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound('Technician not found or inactive.')
 
         pickup.assigned_technician = technician
         if pickup.status == PickupRequestStatus.REQUESTED:
@@ -797,7 +753,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(pickup)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='update-status')
     def update_status(self, request, pk=None):
         """Update pickup request status."""
         pickup = self.get_object()
@@ -810,14 +766,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if not pickup.can_transition_to(new_status):
             allowed = ALLOWED_PICKUP_TRANSITIONS.get(pickup.status, [])
             allowed_labels = [s.label for s in allowed]
-            return Response(
-                {
-                    'error': f'Cannot transition from {pickup.get_status_display()} '
-                             f'to {PickupRequestStatus(new_status).label}. '
-                             f'Allowed: {", ".join(allowed_labels)}'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError(f'Cannot transition from {pickup.get_status_display()} to {PickupRequestStatus(new_status).label}. Allowed: {", ".join(allowed_labels)}')
 
         pickup.status = new_status
         if notes:
@@ -826,7 +775,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
         return Response(PickupRequestSerializer(pickup).data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='convert-to-job')
     def convert_to_job(self, request, pk=None):
         """
         Convert a completed pickup request into a Job Card.
@@ -838,18 +787,10 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             PickupRequestStatus.DELIVERED_TO_CENTER,
             PickupRequestStatus.COMPLETED
         ]:
-            return Response(
-                {'error': 'Pickup must be at center before creating a job card.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Pickup must be at center before creating a job card.')
 
         if pickup.job:
-            return Response(
-                {'error': 'A job card already exists for this pickup.',
-                 'job_id': str(pickup.job.id),
-                 'job_number': pickup.job.job_number},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError({'detail': 'A job card already exists for this pickup.', 'job_id': str(pickup.job.id), 'job_number': pickup.job.job_number})
 
         with transaction.atomic():
             job = JobCard.objects.create(
@@ -890,7 +831,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         pickup = self.get_object()
         
         if not pickup.assigned_technician:
-            return Response({'error': 'No technician assigned yet.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('No technician assigned yet.')
         
         technician = pickup.assigned_technician
         return Response({
@@ -917,13 +858,13 @@ class PublicTrackingView(APIView):
         pin = (request.query_params.get('pin') or '').strip()
 
         if not phone:
-            return Response({'error': 'Phone number is required for verification.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('Phone number is required for verification.')
         if not pin or len(pin) != 4 or not pin.isdigit():
-            return Response({'error': 'A valid 4-digit PIN is required for verification.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('A valid 4-digit PIN is required for verification.')
 
         digits = ''.join(ch for ch in phone if ch.isdigit())
         if len(digits) < 10:
-            return Response({'error': self.TRACKING_ERROR}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound(self.TRACKING_ERROR)
 
         job = JobCard.objects.filter(
             job_number=job_number,
@@ -931,7 +872,7 @@ class PublicTrackingView(APIView):
             tracking_pin=pin,
         ).first()
         if not job:
-            return Response({'error': self.TRACKING_ERROR}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound(self.TRACKING_ERROR)
             
         timeline = []
         for history in job.status_history.all():

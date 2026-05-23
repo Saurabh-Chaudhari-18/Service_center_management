@@ -5,6 +5,7 @@ Supplier ViewSets with branch-scoped access.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -130,10 +131,7 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         po = self.get_object()
 
         if po.status in ['CANCELLED', 'RECEIVED']:
-            return Response(
-                {'error': f'Cannot receive items for {po.get_status_display()} PO.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError(f'Cannot receive items for {po.get_status_display()} PO.')
 
         items_received = request.data.get('items', [])
         

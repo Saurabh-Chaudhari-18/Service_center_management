@@ -5,6 +5,7 @@ Enquiry ViewSets with branch-scoped access.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -92,17 +93,14 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         else:
             serializer.save(created_by=self.request.user)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='add-note')
     def add_note(self, request, pk=None):
         """Add an interaction note to an enquiry."""
         enquiry = self.get_object()
         note_text = request.data.get('note', '')
         
         if not note_text:
-            return Response(
-                {'error': 'note is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('note is required')
         
         note = EnquiryNote.objects.create(
             enquiry=enquiry,
@@ -115,7 +113,7 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='convert-to-job')
     def convert_to_job(self, request, pk=None):
         """
         Convert an enquiry to a Job Card.
@@ -124,10 +122,7 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         enquiry = self.get_object()
 
         if enquiry.status == EnquiryStatus.CONVERTED:
-            return Response(
-                {'error': 'This enquiry is already converted.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('This enquiry is already converted.')
 
         from customers.models import Customer
         from jobs.models import JobCard
@@ -177,7 +172,7 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'customer_id': str(customer.id)
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='mark-lost')
     def mark_lost(self, request, pk=None):
         """Mark an enquiry as lost/declined."""
         enquiry = self.get_object()

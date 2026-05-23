@@ -9,7 +9,7 @@ from jobs.views import JobCardViewSet, PartRequestViewSet, JobEnumsView, PickupR
 app_name = 'jobs'
 
 router = DefaultRouter()
-router.register(r'jobs', JobCardViewSet, basename='job')
+router.register(r'', JobCardViewSet, basename='job')
 router.register(r'part-requests', PartRequestViewSet, basename='part-request')
 router.register(r'enums', JobEnumsView, basename='job-enum')
 router.register(r'pickups', PickupRequestViewSet, basename='pickup')

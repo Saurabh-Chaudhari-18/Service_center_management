@@ -9,7 +9,7 @@ from suppliers.views import SupplierViewSet, PurchaseOrderViewSet
 app_name = 'suppliers'
 
 router = DefaultRouter()
-router.register(r'suppliers', SupplierViewSet, basename='supplier')
+router.register(r'', SupplierViewSet, basename='supplier')
 router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchase-order')
 
 urlpatterns = [

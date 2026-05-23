@@ -9,7 +9,7 @@ from expenses.views import ExpenseViewSet
 app_name = 'expenses'
 
 router = DefaultRouter()
-router.register(r'expenses', ExpenseViewSet, basename='expense')
+router.register(r'', ExpenseViewSet, basename='expense')
 
 urlpatterns = [
     path('', include(router.urls)),
