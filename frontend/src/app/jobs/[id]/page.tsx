@@ -42,6 +42,7 @@ import { JobStatusTimeline } from "@/components/jobs/JobStatusTimeline";
 import { JobAssignTechnicianModal } from "@/components/jobs/JobAssignTechnicianModal";
 import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
 import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
+import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
 import { JobBrandLogo } from "@/components/jobs/JobBrandLogo";
 
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
@@ -61,6 +62,7 @@ export default function JobDetailPage() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
 
   // Hide print portal after printing is done
@@ -216,9 +218,21 @@ export default function JobDetailPage() {
                     </Button>
                   )}
 
+                {job.status === "READY_FOR_DELIVERY" &&
+                  hasPermission("canEditJobCards") && (
+                    <Button
+                      size="sm"
+                      leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                      onClick={() => setShowDeliveryModal(true)}
+                    >
+                      Deliver Device
+                    </Button>
+                  )}
+
                 {canEdit && (
                   <Button
                     size="sm"
+                    variant="secondary"
                     leftIcon={<CheckCircle2 className="w-4 h-4" />}
                     onClick={() => setShowStatusModal(true)}
                   >
@@ -606,6 +620,12 @@ export default function JobDetailPage() {
           onClose={() => setShowDiagnosisModal(false)}
           jobId={jobId}
           initialData={job}
+        />
+        <JobDeliveryModal
+          isOpen={showDeliveryModal}
+          onClose={() => setShowDeliveryModal(false)}
+          jobId={jobId}
+          customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
         />
 
         {/* PRINT-ONLY: Job Card Printable Template */}

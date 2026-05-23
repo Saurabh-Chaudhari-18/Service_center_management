@@ -14,7 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import models
-from django.db.models import Sum, Count, Avg, F, Q
+from django.db.models import Sum, Count, Avg, F, Q, ExpressionWrapper, DurationField
 from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 from datetime import timedelta
@@ -241,13 +241,22 @@ class ReportsViewSet(viewsets.ViewSet):
                 status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
             )
             
+            avg_result = completed.annotate(
+                days_taken=ExpressionWrapper(
+                    F('delivery_date') - F('created_at'),
+                    output_field=DurationField()
+                )
+            ).aggregate(avg_days=Avg('days_taken'))
+            avg_td = avg_result['avg_days']
+            avg_completion_days = round(avg_td.total_seconds() / 86400, 1) if avg_td else 0
+
             productivity_data.append({
                 'technician_id': str(tech.id),
                 'technician_name': tech.get_full_name(),
                 'assigned_jobs': assigned_jobs.count(),
                 'completed_jobs': completed.count(),
                 'pending_jobs': current.count(),
-                'avg_completion_days': 0,
+                'avg_completion_days': avg_completion_days,
             })
         
         # Sort by completed jobs

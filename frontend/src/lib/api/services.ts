@@ -854,6 +854,10 @@ export const notificationsApi = {
     return apiPost("/notifications/alerts/mark_all_read/");
   },
 
+  retryLog: async (logId: string): Promise<void> => {
+    return apiPost(`/notifications/logs/${logId}/retry/`, {});
+  },
+
   sendCustomNotification: async (data: {
     channel: "SMS" | "WHATSAPP";
     recipient_mobile: string;
