@@ -378,32 +378,88 @@ DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER', default='noreply@servicecenter.com')
 DATABASES['default']['CONN_MAX_AGE'] = env.int('CONN_MAX_AGE', default=60)
 
 # -----------------------------------------------------------------------
-# Cache — Redis (shared across all gunicorn workers / Celery workers).
-# Falls back to LocMemCache in development when REDIS_URL is not set.
+# Cache — Redis when reachable; LocMemCache as automatic fallback.
+#
+# WHY: every DRF UserRateThrottle check and every RolePermission cache
+# lookup goes through the cache backend.  If Django tries to reach a
+# Redis instance that accepts the TCP connection but never responds,
+# each operation blocks for SOCKET_TIMEOUT seconds — turning a 50 ms
+# API call into an 8-15 s one.  IGNORE_EXCEPTIONS only fires *after*
+# the timeout expires, so it does not help with latency.
+#
+# The robust solution is to probe Redis at startup with an actual PING
+# command (not just a TCP connect — a slow Redis can accept the socket
+# but never send a reply).  If the probe fails for any reason the app
+# falls back to LocMemCache automatically, in *every* environment.
 # -----------------------------------------------------------------------
-REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+import socket as _socket
+from urllib.parse import urlparse as _urlparse
+import logging as _logging
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'IGNORE_EXCEPTIONS': True,  # degrade gracefully if Redis is down
-        },
-        'KEY_PREFIX': 'scm',
-        'TIMEOUT': 300,
+_cache_log = _logging.getLogger('django')
+
+REDIS_URL = env('REDIS_URL', default='')
+
+
+def _redis_reachable(url: str, timeout: float = 1.0) -> bool:
+    """
+    Return True only when Redis answers a PING within *timeout* seconds.
+
+    A plain TCP-connect check is insufficient: a misconfigured Redis can
+    complete the handshake but then hang on the first command.  This
+    function sends the inline PING command and verifies the +PONG reply,
+    so it catches both "connection refused" and "connects but hangs".
+    """
+    try:
+        parsed = _urlparse(url)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 6379
+        with _socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.sendall(b'*1\r\n$4\r\nPING\r\n')
+            reply = sock.recv(7)
+            return reply == b'+PONG\r\n'
+    except Exception as exc:  # noqa: BLE001
+        _cache_log.warning('Redis probe failed (%s) — falling back to LocMemCache.', exc)
+        return False
+
+
+_use_redis = bool(REDIS_URL) and _redis_reachable(REDIS_URL)
+
+if _use_redis:
+    _cache_log.info('Redis reachable at %s — using RedisCache.', REDIS_URL)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 2,
+                'SOCKET_TIMEOUT': 2,
+                'IGNORE_EXCEPTIONS': True,  # degrade gracefully if Redis drops at runtime
+            },
+            'KEY_PREFIX': 'scm',
+            'TIMEOUT': 300,
+        }
     }
-}
+else:
+    if REDIS_URL:
+        _cache_log.warning(
+            'REDIS_URL is set but Redis did not respond — using LocMemCache. '
+            'Start Redis or unset REDIS_URL to suppress this warning.'
+        )
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'scm-default',
+        }
+    }
 
 # -----------------------------------------------------------------------
 # Celery — async task queue backed by Redis.
 # Workers are started separately: celery -A config worker -l info
 # -----------------------------------------------------------------------
-CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=REDIS_URL)
-CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=REDIS_URL)
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=REDIS_URL or 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=REDIS_URL or 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -433,20 +489,27 @@ X_FRAME_OPTIONS = 'DENY'
 
 # -----------------------------------------------------------------------
 # DRF Rate Limiting / Throttling
+# Only active in production (DEBUG=False).
+#
+# WHY: throttle classes call cache.get() + cache.set() on every request.
+# In development without Redis, even a refused connection is fast, but a
+# reachable-but-slow host drains SOCKET_CONNECT_TIMEOUT on every call.
+# Rate limiting has no value in local dev, so we skip it entirely.
 # -----------------------------------------------------------------------
-REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
-    'rest_framework.throttling.AnonRateThrottle',
-    'rest_framework.throttling.UserRateThrottle',
-    'rest_framework.throttling.ScopedRateThrottle',
-]
-REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-    'anon': '60/min',
-    'user': '1000/min',
-    'login': '10/min',
-    'token_refresh': '30/min',
-    'otp': '5/min',
-    'public_track': '30/min',
-}
+if not DEBUG:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ]
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+        'anon': '60/min',
+        'user': '1000/min',
+        'login': '10/min',
+        'token_refresh': '30/min',
+        'otp': '5/min',
+        'public_track': '30/min',
+    }
 
 # -----------------------------------------------------------------------
 # Sentry Error Tracking (backend)
