@@ -9,7 +9,7 @@ import {
   TrendingDown, Receipt, RefreshCw, BadgePercent,
 } from "lucide-react";
 import type { Expense } from "@/types";
-import { Modal, Button } from "@/components/ui";
+import { Modal, Button, Badge } from "@/components/ui";
 
 const EXPENSE_CATEGORIES = [
   { value: "RENT", label: "Rent" },
@@ -169,13 +169,9 @@ export default function ExpensesPage() {
         title="Expenses"
         subtitle="Track daily operational costs & calculate net profit"
         actions={
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-          >
-            <Plus className="w-4 h-4" /> Add Expense
-          </button>
+          <Button onClick={() => setShowForm(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            Add Expense
+          </Button>
         }
       />
 
@@ -281,9 +277,7 @@ export default function ExpensesPage() {
                       <td className="p-3 font-medium text-neutral-900 dark:text-white">
                         {exp.title}
                         {exp.is_recurring && (
-                          <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 font-semibold">
-                            Recurring
-                          </span>
+                          <Badge size="sm" className="ml-2">Recurring</Badge>
                         )}
                       </td>
                       <td className="p-3">

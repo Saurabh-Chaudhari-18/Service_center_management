@@ -12,6 +12,7 @@ import { useToast } from "@/context/ToastContext";
 import { Button, EmptyState, Input, LoadingState } from "@/components/ui";
 import { EntityTable, PageShell, RegisterToolbar } from "@/components/shell";
 import type { Purchase } from "@/types";
+import { PURCHASE_PAYMENT_STATUS_CONFIG, type PurchasePaymentStatus } from "@/types";
 
 export default function PurchasesPage() {
   const router = useRouter();
@@ -146,14 +147,8 @@ export default function PurchasesPage() {
                 <tbody className="text-neutral-800 dark:text-slate-200">
                   {purchases.map((purchase: Purchase) => {
                     const balance = parseFloat(String(purchase.balance_due));
-                    const statusCls =
-                      purchase.status === "PAID"
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
-                        : purchase.status === "PARTIAL"
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
-                          : purchase.status === "CANCELLED"
-                            ? "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300"
-                            : "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300";
+                    const statusKey = (purchase.status ?? "UNPAID") as PurchasePaymentStatus;
+                    const statusCfg = PURCHASE_PAYMENT_STATUS_CONFIG[statusKey] ?? PURCHASE_PAYMENT_STATUS_CONFIG.UNPAID;
                     const go = () => router.push(`/purchases/${purchase.id}`);
                     return (
                       <tr
@@ -187,8 +182,8 @@ export default function PurchasesPage() {
                           </span>
                         </td>
                         <td className="px-3 py-2 align-middle">
-                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCls}`}>
-                            {purchase.status || "UNPAID"}
+                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCfg.badgeClass}`}>
+                            {statusCfg.label}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right align-middle font-semibold tabular-nums">

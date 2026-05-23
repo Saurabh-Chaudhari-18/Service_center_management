@@ -457,15 +457,14 @@ function MarketingSection() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <button
+        <Button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all"
-          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+          isLoading={saving}
+          leftIcon={<Save className="w-4 h-4" />}
         >
-          <Save className="w-4 h-4" />
           {saving ? "Saving..." : saved ? "Saved ✓" : "Save Marketing Settings"}
-        </button>
+        </Button>
       </div>
     </div>
   );

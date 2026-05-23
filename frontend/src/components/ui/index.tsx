@@ -615,7 +615,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "4xl";
   footer?: React.ReactNode;
 }
 
@@ -643,7 +643,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
 
   if (!isOpen || !mounted) return null;
 
-  const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl" };
+  const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl", "4xl": "max-w-4xl" };
 
   return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onClose}>

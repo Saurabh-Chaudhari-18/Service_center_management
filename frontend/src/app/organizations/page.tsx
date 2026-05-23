@@ -25,7 +25,6 @@ import {
   Shield,
   Search,
   Eye,
-  X,
   Store,
 } from "lucide-react";
 import { useForm, type Resolver } from "react-hook-form";
@@ -274,36 +273,24 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
   const staffCount = orgUsers.filter((u: User) => u.role !== "OWNER").length;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white shadow-2xl overflow-y-auto animate-slide-in-right">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-900">
-              {org.name}
-            </h2>
-            <p className="text-sm text-neutral-500">{org.legal_name}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(org)}
-              leftIcon={<Edit2 className="w-4 h-4" />}
-            >
-              Edit
-            </Button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
-            >
-              <X className="w-5 h-5 text-neutral-500" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={org.name}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button
+            leftIcon={<Edit2 className="w-4 h-4" />}
+            onClick={() => { onEdit(org); onClose(); }}
+          >
+            Edit Organization
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-6">
           {/* Status */}
           <div className="flex items-center gap-2">
             <Badge variant={org.is_active ? "success" : "default"}>
@@ -471,8 +458,7 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
             </p>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

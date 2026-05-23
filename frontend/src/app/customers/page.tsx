@@ -23,7 +23,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer } from "@/types";
@@ -35,17 +34,16 @@ import { formatPhone } from "@/lib/formatters";
 
 interface CustomerCardProps {
   customer: Customer;
-  onViewDetails: (customer: Customer) => void;
 }
 
-function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
+function CustomerCard({ customer }: CustomerCardProps) {
   return (
-    <div
-      onClick={() => onViewDetails(customer)}
-      className="p-5 bg-white border border-neutral-100 rounded-xl hover:border-primary-200 hover:shadow-md transition-all cursor-pointer"
+    <Link
+      href={`/customers/${customer.id}`}
+      className="block p-5 bg-white dark:bg-slate-800 border border-neutral-100 dark:border-slate-700 rounded-xl hover:border-primary-200 dark:hover:border-primary-700 hover:shadow-md transition-all"
     >
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-lg font-medium flex-shrink-0">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-lg font-medium flex-shrink-0 dark:text-white">
           {customer.first_name?.[0] || "?"}
           {customer.last_name?.[0]}
         </div>
@@ -90,7 +88,7 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
           </p>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -122,127 +120,6 @@ function AddCustomerModal({
 }
 
 // =====================================================
-// Customer Details Modal
-// =====================================================
-
-interface CustomerDetailsModalProps {
-  customer: Customer | null;
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-function CustomerDetailsModal({
-  customer,
-  isOpen,
-  onClose,
-}: CustomerDetailsModalProps) {
-  const { data: serviceHistory } = useQuery({
-    queryKey: ["customer-history", customer?.id],
-    queryFn: () => customersApi.getServiceHistory(customer!.id),
-    enabled: !!customer?.id && isOpen,
-  });
-
-  if (!customer) return null;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Customer Details" size="xl">
-      <div className="space-y-6">
-        {/* Customer Info */}
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-2xl font-medium">
-            {customer.first_name?.[0] || "?"}
-            {customer.last_name?.[0]}
-          </div>
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-neutral-900">
-              {customer.first_name} {customer.last_name}
-            </h2>
-            <div className="mt-2 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-neutral-500">Mobile</p>
-                <p className="font-medium">{formatPhone(customer.mobile)}</p>
-              </div>
-              {customer.email && (
-                <div>
-                  <p className="text-sm text-neutral-500">Email</p>
-                  <p className="font-medium">{customer.email}</p>
-                </div>
-              )}
-              {customer.city && (
-                <div>
-                  <p className="text-sm text-neutral-500">Location</p>
-                  <p className="font-medium">
-                    {customer.city}, {customer.state} - {customer.pincode}
-                  </p>
-                </div>
-              )}
-              {customer.total_spent && (
-                <div>
-                  <p className="text-sm text-neutral-500">Total Spent</p>
-                  <p className="font-medium text-green-600">
-                    ₹{customer.total_spent.toLocaleString("en-IN")}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Service History */}
-        <div>
-          <h3 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary-500" />
-            Service History
-          </h3>
-          {serviceHistory && serviceHistory.length > 0 ? (
-            <div className="space-y-2">
-              {serviceHistory.slice(0, 5).map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/jobs/${job.id}`}
-                  className="block p-3 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-mono text-sm font-medium">
-                        {job.job_number}
-                      </span>
-                      <span className="text-neutral-500 mx-2">•</span>
-                      <span className="text-sm text-neutral-600">
-                        {job.brand} {job.model}
-                      </span>
-                    </div>
-                    <Badge
-                      variant={
-                        job.status === "DELIVERED"
-                          ? "success"
-                          : job.status === "CANCELLED"
-                            ? "danger"
-                            : "default"
-                      }
-                      size="sm"
-                    >
-                      {job.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-neutral-500 mt-1 line-clamp-1">
-                    {job.customer_complaint}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-neutral-500 text-center py-4">
-              No service history found
-            </p>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// =====================================================
 // Main Customers Page
 // =====================================================
 
@@ -250,9 +127,6 @@ export default function CustomersPage() {
   const { currentBranch } = useAuth();
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
-  );
 
   const { data, isLoading } = useQuery({
     queryKey: ["customers", currentBranch?.id, search],
@@ -326,11 +200,7 @@ export default function CustomersPage() {
             ) : (
               <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 md:p-6">
                 {customers.map((customer) => (
-                  <CustomerCard
-                    key={customer.id}
-                    customer={customer}
-                    onViewDetails={setSelectedCustomer}
-                  />
+                  <CustomerCard key={customer.id} customer={customer} />
                 ))}
               </div>
             )}
@@ -346,11 +216,6 @@ export default function CustomersPage() {
           />
         )}
 
-        <CustomerDetailsModal
-          customer={selectedCustomer}
-          isOpen={!!selectedCustomer}
-          onClose={() => setSelectedCustomer(null)}
-        />
       </AppLayout>
     </ProtectedRoute>
   );

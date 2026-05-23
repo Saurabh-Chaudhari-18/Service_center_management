@@ -106,13 +106,9 @@ export default function ReceiptsPage() {
         title="Receipts (Accounts Receivable)"
         subtitle="Manage incoming payments from customers"
         actions={
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-          >
-            <IndianRupee className="w-4 h-4" /> Receive Payment
-          </button>
+          <Button onClick={() => setShowForm(true)} leftIcon={<IndianRupee className="w-4 h-4" />}>
+            Receive Payment
+          </Button>
         }
       />
 
@@ -268,13 +264,15 @@ export default function ReceiptsPage() {
                     />
                   </div>
 
-                  <button
-                    type="submit" disabled={saving || !form.amount}
-                    className="w-full mt-4 px-4 py-3 rounded-xl text-white font-bold text-base shadow-lg transition-all disabled:opacity-50 hover:scale-[1.02]"
-                    style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                  <Button
+                    type="submit"
+                    disabled={saving || !form.amount}
+                    isLoading={saving}
+                    className="w-full mt-4"
+                    size="lg"
                   >
                     {saving ? "Processing..." : "Confirm Payment"}
-                  </button>
+                  </Button>
                 </form>
               </div>
             ) : (

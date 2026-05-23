@@ -277,9 +277,9 @@ export default function PaymentsPage() {
                               <p className="mb-0.5 text-xs font-medium text-neutral-500">Paid Amount</p>
                               <p className="font-bold text-neutral-900 dark:text-white">₹{parseFloat(String(purchase.paid_amount || 0)).toLocaleString()}</p>
                             </div>
-                            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              PAID
+                              Paid
                             </span>
                           </div>
                         ) : (

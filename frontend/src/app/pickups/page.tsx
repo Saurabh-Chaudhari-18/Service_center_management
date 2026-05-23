@@ -11,6 +11,7 @@ import {
   EmptyState,
   Button,
   Input,
+  Badge,
   PickupStatusBadge,
 } from "@/components/ui";
 import {
@@ -221,10 +222,10 @@ export default function PickupsPage() {
                             </span>
                             <PickupStatusBadge status={pickup.status} />
                             {pickup.is_urgent && (
-                              <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              <Badge variant="danger" size="sm" className="flex items-center gap-1">
                                 <AlertTriangle className="h-3 w-3" />
-                                URGENT
-                              </span>
+                                Urgent
+                              </Badge>
                             )}
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">

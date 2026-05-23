@@ -6,7 +6,7 @@ import { ArrowLeft, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle2, Fil
 import { purchasesApi, inventoryApi, suppliersApi } from "@/lib/api/services";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { Select } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { InventoryItem } from "@/types";
 
 export default function NewPurchasePage() {
@@ -492,20 +492,14 @@ export default function NewPurchasePage() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <button
+                <Button
                   type="submit"
                   disabled={isUploading || (entryMode === "excel" && !file)}
-                  className="px-8 py-3 bg-gradient-to-r from-primary-600 to-primary-500 dark:from-emerald-500 dark:to-teal-500 text-white font-medium rounded-xl hover:shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-sm focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  isLoading={isUploading}
+                  size="lg"
                 >
-                  {isUploading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    entryMode === "excel" ? "Import Purchase & Add Stock" : "Save Manual Purchase"
-                  )}
-                </button>
+                  {isUploading ? "Processing..." : (entryMode === "excel" ? "Import Purchase & Add Stock" : "Save Manual Purchase")}
+                </Button>
               </div>
             </form>
           </div>

@@ -89,13 +89,9 @@ export default function SuppliersPage() {
         title="Suppliers"
         subtitle="Manage vendors & spare parts suppliers"
         actions={
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-          >
-            <Plus className="w-4 h-4" /> Add Supplier
-          </button>
+          <Button onClick={() => setShowForm(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            Add Supplier
+          </Button>
         }
       />
 

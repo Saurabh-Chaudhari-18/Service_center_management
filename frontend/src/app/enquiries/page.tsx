@@ -6,7 +6,7 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { enquiriesApi } from "@/lib/api/services";
-import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState } from "@/components/ui";
+import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState, Badge } from "@/components/ui";
 import {
   Plus, UserSearch, Phone, Calendar, ArrowRightCircle,
   XCircle, Search, RefreshCw,
@@ -329,9 +329,7 @@ export default function EnquiriesPage() {
                           {statusConfig.label}
                         </span>
                         {enq.source_display && (
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-slate-700 dark:text-neutral-300">
-                            {enq.source_display}
-                          </span>
+                          <Badge size="sm">{enq.source_display}</Badge>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">

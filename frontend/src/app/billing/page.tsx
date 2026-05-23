@@ -226,8 +226,8 @@ function InvoiceRow({
           {invoice.invoice_number}
         </span>
         {!invoice.branch_name && (
-          <span className="inline-flex mt-1.5 items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">
-            🌍 Universal
+          <span className="inline-flex mt-1.5 items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600 dark:bg-slate-700 dark:text-slate-300">
+            Universal
           </span>
         )}
       </td>

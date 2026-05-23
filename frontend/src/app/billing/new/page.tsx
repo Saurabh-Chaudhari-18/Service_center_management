@@ -15,7 +15,8 @@ import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
-import { Card, Button, Input, Alert, Modal, Select } from "@/components/ui";
+import { Card, Button, Input, Select } from "@/components/ui";
+import { NewCustomerModal } from "@/components/customers/NewCustomerModal";
 import {
   jobsApi,
   billingApi,
@@ -207,117 +208,6 @@ function CustomerSearch({
         initialMobile={search}
       />
     </div>
-  );
-}
-
-// =====================================================
-// New Customer Modal
-// =====================================================
-
-const customerSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().optional(),
-  mobile: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit mobile number"),
-  email: z.string().email().optional().or(z.literal("")),
-  city: z.string().optional(),
-  state: z.string().optional(),
-});
-
-type CustomerFormData = z.infer<typeof customerSchema>;
-
-interface NewCustomerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCustomerCreated: (customer: Customer) => void;
-  branchId: string;
-  initialMobile: string;
-}
-
-function NewCustomerModal({
-  isOpen,
-  onClose,
-  onCustomerCreated,
-  branchId,
-  initialMobile,
-}: NewCustomerModalProps) {
-  const {
-    register: registerCustomer,
-    handleSubmit: handleCustomerSubmit,
-    formState: { errors: customerErrors },
-    reset: resetCustomer,
-  } = useForm<CustomerFormData>({
-    resolver: zodResolver(customerSchema),
-    defaultValues: { mobile: initialMobile.replace(/\D/g, "").slice(-10) },
-  });
-
-  const {
-    mutate: createCustomer,
-    isPending: isCreating,
-    error: createError,
-  } = useMutation({
-    mutationFn: (data: CustomerFormData) =>
-      customersApi.create({ ...data, branch: branchId }),
-    onSuccess: (customer) => {
-      onCustomerCreated(customer);
-      resetCustomer();
-    },
-  });
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Add New Customer"
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCustomerSubmit((d) => createCustomer(d))}
-            isLoading={isCreating}
-          >
-            Add Customer
-          </Button>
-        </>
-      }
-    >
-      {createError && (
-        <Alert variant="error" className="mb-4">
-          {(createError as Error).message}
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          label="First Name"
-          {...registerCustomer("first_name")}
-          error={customerErrors.first_name?.message}
-          required
-        />
-        <Input
-          label="Last Name"
-          {...registerCustomer("last_name")}
-          error={customerErrors.last_name?.message}
-        />
-        <Input
-          label="Mobile Number"
-          {...registerCustomer("mobile")}
-          error={customerErrors.mobile?.message}
-          required
-          placeholder="10-digit mobile number"
-        />
-        <Input
-          label="Email"
-          type="email"
-          {...registerCustomer("email")}
-          error={customerErrors.email?.message}
-        />
-        <Input label="City" {...registerCustomer("city")} />
-        <Input label="State" {...registerCustomer("state")} />
-      </div>
-    </Modal>
   );
 }
 
@@ -633,60 +523,67 @@ function InvoicePreviewModal({
   grandTotal,
   customer,
 }: InvoicePreviewModalProps) {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto print:hidden">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      {/* Screen-only overlay — hidden from print */}
+      <div className="modal-overlay print:hidden" onClick={onClose}>
+        <div
+          className="modal-content max-w-4xl w-full max-h-[90vh] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-neutral-100 dark:border-slate-800 shrink-0">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Invoice Preview
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Review details before creating the invoice.
+            </p>
+          </div>
 
-        {/* Modal Container */}
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Screen Header */}
-            <div className="px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-semibold text-neutral-900">
-                Invoice Preview
-              </h2>
-              <p className="text-sm text-neutral-500">
-                Review details before creating the invoice.
-              </p>
-            </div>
+          {/* Scrollable template */}
+          <div className="overflow-y-auto flex-1">
+            <InvoiceTemplate
+              formData={formData}
+              jobDetails={jobDetails}
+              subtotal={subtotal}
+              totalTax={totalTax}
+              grandTotal={grandTotal}
+              customer={customer}
+            />
+          </div>
 
-            {/* Template Rendered for Screen */}
-            <div className="p-0">
-              <InvoiceTemplate
-                formData={formData}
-                jobDetails={jobDetails}
-                subtotal={subtotal}
-                totalTax={totalTax}
-                grandTotal={grandTotal}
-                customer={customer}
-              />
-            </div>
-
-            {/* Footer Actions */}
-            <div className="sticky bottom-0 bg-white border-t border-neutral-200 p-4 flex justify-end gap-3 rounded-b-xl">
-              <Button variant="secondary" onClick={onClose}>
-                Back to Edit
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                disabled={isSubmitting}
-              >
-                Print
-              </Button>
-              <Button
-                onClick={onConfirm}
-                isLoading={isSubmitting}
-                leftIcon={<Save className="w-4 h-4" />}
-              >
-                Confirm & Create Invoice
-              </Button>
-            </div>
+          {/* Footer Actions */}
+          <div className="border-t border-neutral-100 dark:border-slate-800 p-4 flex justify-end gap-3 shrink-0">
+            <Button variant="secondary" onClick={onClose}>
+              Back to Edit
+            </Button>
+            <Button
+              onClick={() => window.print()}
+              variant="secondary"
+              leftIcon={<Printer className="w-4 h-4" />}
+              disabled={isSubmitting}
+            >
+              Print
+            </Button>
+            <Button
+              onClick={onConfirm}
+              isLoading={isSubmitting}
+              leftIcon={<Save className="w-4 h-4" />}
+            >
+              Confirm & Create Invoice
+            </Button>
           </div>
         </div>
       </div>
@@ -1121,7 +1018,9 @@ function CreateInvoiceContent() {
                       <div>
                         <Select
                           value={rowState.categoryId}
-                          onChange={(e) => handleCategoryChange(index, e.target.value)}
+                          onChange={(e) =>
+                            handleCategoryChange(index, e.target.value)
+                          }
                           options={categories.map((cat) => ({
                             value: cat.id,
                             label: cat.name,
@@ -1134,7 +1033,9 @@ function CreateInvoiceContent() {
                       <div>
                         <Select
                           value={rowState.itemId}
-                          onChange={(e) => handleItemSelect(index, e.target.value)}
+                          onChange={(e) =>
+                            handleItemSelect(index, e.target.value)
+                          }
                           options={filteredItems.map((item) => ({
                             value: item.id,
                             label: `${item.name} ${item.quantity > 0 ? `(${item.quantity})` : "(Out)"}`,

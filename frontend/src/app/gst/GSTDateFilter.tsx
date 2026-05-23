@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Calendar, ChevronDown } from "lucide-react";
 import {
   startOfMonth, endOfMonth, subMonths,
@@ -68,6 +68,18 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
   const [active, setActive] = useState<string>("this_month");
   const [range, setRange] = useState<DateRange>(PRESETS[0].getRange());
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   // Emit initial value
   useEffect(() => {
@@ -97,7 +109,7 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
   };
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={containerRef}>
       {/* Trigger button */}
       <button
         onClick={() => setOpen((o) => !o)}
@@ -111,9 +123,6 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
       {/* Dropdown */}
       {open && (
         <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-
           <div className="absolute left-0 top-full mt-2 z-40 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden min-w-[260px]">
             {/* Preset pills */}
             <div className="p-3 border-b border-neutral-100">
