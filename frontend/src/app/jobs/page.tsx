@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
@@ -33,12 +34,23 @@ import {
   User,
   Laptop,
   AlertTriangle,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import type { JobCard } from "@/types";
 import { formatDate, formatPhone } from "@/lib/formatters";
 
 const JOB_LIST_PAGE_SIZE = 10;
+const MY_JOBS_TAB = "MY_JOBS";
+
+// One-click status transitions that need no extra data entry
+const QUICK_ACTIONS: Partial<Record<string, { toStatus: string; label: string; className: string }>> = {
+  RECEIVED:           { toStatus: "DIAGNOSIS",          label: "Start Diagnosis",   className: "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100" },
+  APPROVED:           { toStatus: "REPAIR_IN_PROGRESS", label: "Start Repair",      className: "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100" },
+  WAITING_FOR_PARTS:  { toStatus: "REPAIR_IN_PROGRESS", label: "Parts In → Repair", className: "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100" },
+  REPAIR_IN_PROGRESS: { toStatus: "READY_FOR_DELIVERY", label: "Mark Ready ✓",      className: "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" },
+};
 
 // =====================================================
 // Job Card Item Component
@@ -46,9 +58,11 @@ const JOB_LIST_PAGE_SIZE = 10;
 
 interface JobCardItemProps {
   job: JobCard;
+  isUpdating?: boolean;
+  onQuickUpdate?: (jobId: string, toStatus: string) => void;
 }
 
-function JobCardItem({ job }: JobCardItemProps) {
+function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
   const daysSinceCreated = Math.floor(
     (new Date().getTime() - new Date(job.created_at).getTime()) /
       (1000 * 60 * 60 * 24),
@@ -110,21 +124,30 @@ function JobCardItem({ job }: JobCardItemProps) {
             </p>
 
             {/* Footer Info */}
-            <div className="mt-3 flex items-center gap-4 text-xs text-neutral-400">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>{formatDate(job.created_at)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span>
-                  {daysSinceCreated} day{daysSinceCreated !== 1 ? "s" : ""} ago
-                </span>
-              </div>
-              {job.assigned_technician_name && (
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs text-neutral-400">
                 <div className="flex items-center gap-1">
-                  <User className="w-3.5 h-3.5" />
-                  <span>Assigned to {job.assigned_technician_name}</span>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{formatDate(job.created_at)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{daysSinceCreated}d ago</span>
+                </div>
+                {job.assigned_technician_name && (
+                  <div className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    <span>{job.assigned_technician_name}</span>
+                  </div>
+                )}
+              </div>
+              {onQuickUpdate && (
+                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  <QuickStatusButton
+                    job={job}
+                    isUpdating={isUpdating ?? false}
+                    onUpdate={onQuickUpdate}
+                  />
                 </div>
               )}
             </div>
@@ -134,6 +157,43 @@ function JobCardItem({ job }: JobCardItemProps) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// =====================================================
+// Inline Quick-Status Button
+// =====================================================
+
+function QuickStatusButton({
+  job,
+  isUpdating,
+  onUpdate,
+}: {
+  job: JobCard;
+  isUpdating: boolean;
+  onUpdate: (jobId: string, toStatus: string) => void;
+}) {
+  const action = QUICK_ACTIONS[job.status];
+  if (!action) return null;
+
+  return (
+    <button
+      type="button"
+      disabled={isUpdating}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onUpdate(job.id, action.toStatus);
+      }}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all whitespace-nowrap ${action.className} ${isUpdating ? "opacity-60 cursor-not-allowed" : ""}`}
+    >
+      {isUpdating ? (
+        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <Zap className="w-3 h-3" />
+      )}
+      {action.label}
+    </button>
   );
 }
 
@@ -149,6 +209,7 @@ interface StatusTabsProps {
   jobCounts: Record<string, number>;
   totalJobs: number;
   urgentCount: number;
+  showMyJobs?: boolean;
 }
 
 function StatusTabs({
@@ -157,6 +218,7 @@ function StatusTabs({
   jobCounts,
   totalJobs,
   urgentCount,
+  showMyJobs,
 }: StatusTabsProps) {
   const statusTabs = [
     { value: null, label: "All" },
@@ -170,6 +232,21 @@ function StatusTabs({
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      {showMyJobs && (
+        <button
+          key="my-jobs"
+          type="button"
+          onClick={() => onStatusChange(MY_JOBS_TAB)}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+            selectedStatus === MY_JOBS_TAB
+              ? "bg-primary-500 text-white shadow-md"
+              : "status-tab-inactive"
+          }`}
+        >
+          <User className="w-3.5 h-3.5" />
+          My Jobs
+        </button>
+      )}
       {statusTabs.slice(0, 1).map((tab) => {
         const isActive = selectedStatus === tab.value;
         const count = totalJobs;
@@ -250,27 +327,46 @@ function StatusTabs({
 // =====================================================
 
 export default function JobsPage() {
-  const { currentBranch, hasPermission } = useAuth();
+  const { currentBranch, hasPermission, user, isRole } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
+
+  const { mutate: quickUpdateStatus } = useMutation({
+    mutationFn: ({ jobId, toStatus }: { jobId: string; toStatus: string }) =>
+      jobsApi.updateStatus(jobId, toStatus),
+    onMutate: ({ jobId }) => setUpdatingJobId(jobId),
+    onSettled: () => setUpdatingJobId(null),
+    onSuccess: (_, { toStatus }) => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs-stats"] });
+      const label = toStatus.replace(/_/g, " ").toLowerCase();
+      toast.success(`Job moved to ${label}`);
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update status"),
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs", currentBranch?.id, statusFilter, search, page],
     queryFn: () => {
-      const params: Parameters<typeof jobsApi.list>[0] = {
+      const params: Parameters<typeof jobsApi.list>[0] & { assigned_technician?: string } = {
         branch: currentBranch?.id,
         search: search || undefined,
         page,
         page_size: JOB_LIST_PAGE_SIZE,
       };
-      if (statusFilter === URGENT_TAB) {
+      if (statusFilter === MY_JOBS_TAB) {
+        if (user?.id) params.assigned_technician = user.id;
+      } else if (statusFilter === URGENT_TAB) {
         params.is_urgent = true;
       } else if (statusFilter) {
         params.status = statusFilter;
       }
-      return jobsApi.list(params);
+      return jobsApi.list(params as Parameters<typeof jobsApi.list>[0]);
     },
     enabled: !!currentBranch,
   });
@@ -341,6 +437,7 @@ export default function JobsPage() {
             jobCounts={jobCounts}
             totalJobs={totalJobsStat}
             urgentCount={urgentCount}
+            showMyJobs={isRole("TECHNICIAN", "MANAGER", "OWNER")}
           />
 
           <WorkspaceSurface>
@@ -394,6 +491,9 @@ export default function JobsPage() {
                         <th scope="col" className="px-4 py-3">Complaint</th>
                         <th scope="col" className="px-4 py-3">Date</th>
                         <th scope="col" className="px-4 py-3">Technician</th>
+                        {hasPermission("canEditJobCards") && (
+                          <th scope="col" className="px-4 py-3">Quick Action</th>
+                        )}
                         <th scope="col" className="w-8 px-2 py-3" aria-label="Open" />
                       </tr>
                     </thead>
@@ -455,6 +555,15 @@ export default function JobsPage() {
                               {job.assigned_technician_name || <span className="text-neutral-300 dark:text-slate-600">—</span>}
                             </span>
                           </td>
+                          {hasPermission("canEditJobCards") && (
+                            <td className="px-4 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
+                              <QuickStatusButton
+                                job={job}
+                                isUpdating={updatingJobId === job.id}
+                                onUpdate={(id, st) => quickUpdateStatus({ jobId: id, toStatus: st })}
+                              />
+                            </td>
+                          )}
                           <td className="px-2 py-2.5 align-middle">
                             <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
                           </td>
@@ -479,7 +588,12 @@ export default function JobsPage() {
                 {/* Mobile cards — below lg */}
                 <div className="min-w-0 space-y-3 p-4 lg:hidden">
                   {jobs.map((job) => (
-                    <JobCardItem key={job.id} job={job} />
+                    <JobCardItem
+                      key={job.id}
+                      job={job}
+                      isUpdating={updatingJobId === job.id}
+                      onQuickUpdate={hasPermission("canEditJobCards") ? (id, st) => quickUpdateStatus({ jobId: id, toStatus: st }) : undefined}
+                    />
                   ))}
                   {(hasPrevPage || hasNextPage) && (
                     <PaginationFooter

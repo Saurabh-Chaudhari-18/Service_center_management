@@ -492,7 +492,6 @@ export default function CreateJobCardPage() {
           )}
 
           <form onSubmit={handleSubmit((d) => mutate(d))}>
-            {/* 2-Column Extra Wide Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8">
               
               {/* LEFT COLUMN */}
@@ -550,21 +549,21 @@ export default function CreateJobCardPage() {
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
                       <Select
-                        label="Device Type"
+                        label="Device Type *"
                         options={deviceTypes}
                         {...register("device_type")}
                         error={errors.device_type?.message}
                         required
                       />
                       <Input
-                        label="Brand"
+                        label="Brand *"
                         placeholder="e.g., Dell, Apple"
                         {...register("brand")}
                         error={errors.brand?.message}
                         required
                       />
                       <Input
-                        label="Model"
+                        label="Model *"
                         placeholder="e.g., XPS 15"
                         {...register("model")}
                         error={errors.model?.message}
@@ -572,7 +571,7 @@ export default function CreateJobCardPage() {
                       />
                       <Input
                         label="Serial Number"
-                        placeholder="(Optional)"
+                        placeholder="Optional"
                         {...register("serial_number")}
                       />
                       <div className="sm:col-span-2">
@@ -581,7 +580,7 @@ export default function CreateJobCardPage() {
                           type="text"
                           placeholder="Login passcode (if applicable)"
                           {...register("device_password")}
-                          helperText="Stored securely and only visible to authorized personnel."
+                          helperText="Stored securely, visible only to authorized staff."
                         />
                       </div>
                     </div>
@@ -589,47 +588,39 @@ export default function CreateJobCardPage() {
                     <div className="mt-6 pt-5 border-t border-neutral-100">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                         <span className="text-sm font-semibold text-neutral-800">Is this a warranty repair?</span>
-                          <div className="flex bg-neutral-100/80 rounded-lg p-1 border border-neutral-200/50">
-                            <button
-                              type="button"
-                              className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${
-                                watch("is_warranty_repair") === true
-                                  ? "bg-white text-primary-700 shadow-sm ring-1 ring-black/5"
-                                  : "text-neutral-500 hover:text-neutral-700"
-                              }`}
-                              onClick={() => setValue("is_warranty_repair", true)}
-                            >
-                              Yes
-                            </button>
-                            <button
-                              type="button"
-                              className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${
-                                !watch("is_warranty_repair")
-                                  ? "bg-white text-neutral-800 shadow-sm ring-1 ring-black/5"
-                                  : "text-neutral-500 hover:text-neutral-700"
-                              }`}
-                              onClick={() => setValue("is_warranty_repair", false)}
-                            >
-                              No
-                            </button>
-                          </div>
+                        <div className="flex bg-neutral-100/80 rounded-lg p-1 border border-neutral-200/50">
+                          <button type="button" className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${watch("is_warranty_repair") === true ? "bg-white text-primary-700 shadow-sm ring-1 ring-black/5" : "text-neutral-500 hover:text-neutral-700"}`} onClick={() => setValue("is_warranty_repair", true)}>Yes</button>
+                          <button type="button" className={`px-5 py-1.5 text-sm font-bold rounded-md transition-all ${!watch("is_warranty_repair") ? "bg-white text-neutral-800 shadow-sm ring-1 ring-black/5" : "text-neutral-500 hover:text-neutral-700"}`} onClick={() => setValue("is_warranty_repair", false)}>No</button>
+                        </div>
                       </div>
                       {watch("is_warranty_repair") && (
                         <div className="mt-3 animate-in fade-in slide-in-from-top-1">
-                            <Input
-                              placeholder="Enter warranty card #, dates, coverage details..."
-                              {...register("warranty_details")}
-                            />
+                          <Input placeholder="Warranty card #, dates, coverage details..." {...register("warranty_details")} />
                         </div>
                       )}
                     </div>
+                </Card>
+
+                {/* Customer Complaint — always visible, moved to left column */}
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                  <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
+                    <HelpCircle className="w-5 h-5 text-primary-500" />
+                    Customer Complaint <span className="text-red-500 ml-0.5">*</span>
+                  </h3>
+                  <Textarea
+                    placeholder="Describe the issue reported by the customer..."
+                    {...register("customer_complaint")}
+                    error={errors.customer_complaint?.message}
+                    rows={3}
+                    className="text-sm shadow-inner bg-white"
+                  />
                 </Card>
 
               </div>
 
               {/* RIGHT COLUMN */}
               <div className="space-y-6">
-                
+
                 <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
                   <h3 className="text-base font-bold text-neutral-900 mb-4">
                     Items & Condition
@@ -711,18 +702,8 @@ export default function CreateJobCardPage() {
                       <HelpCircle className="w-5 h-5 text-primary-500" />
                       Diagnosis & Remarks
                   </h3>
-                  
-                  <div className="space-y-5">
-                    <Textarea
-                      label="Customer Complaint"
-                      placeholder="Describe the issue reported by the customer..."
-                      {...register("customer_complaint")}
-                      error={errors.customer_complaint?.message}
-                      required
-                      rows={3}
-                      className="text-sm shadow-inner bg-white"
-                    />
 
+                  <div className="space-y-5">
                     {/* Engineer Diagnosis Chips */}
                     <div>
                       <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
