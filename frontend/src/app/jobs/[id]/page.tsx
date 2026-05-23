@@ -695,7 +695,7 @@ export default function JobDetailPage() {
                         job.status === 'READY_FOR_DELIVERY' ? 'Ready for Delivery' :
                         job.status === 'DELIVERED' ? 'Delivered' :
                         job.status === 'CANCELLED' ? 'Cancelled' :
-                        job.status?.replace(/_/g, ' ')
+                        (job.status as string)?.replace(/_/g, ' ')
                       }
                     </p>
                   </div>
