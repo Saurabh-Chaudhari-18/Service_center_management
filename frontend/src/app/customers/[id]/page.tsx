@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { ProtectedRoute } from "@/context/AuthContext";
-import { Button, Badge, LoadingState, EmptyState } from "@/components/ui";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { Button, Badge, LoadingState, EmptyState, ConfirmDialog } from "@/components/ui";
 import {
   PageShell,
   RecordLayout,
@@ -105,6 +106,9 @@ function InfoRow({
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { isRole } = useAuth();
+  const { toast } = useToast();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ["customer", id],
@@ -116,6 +120,19 @@ export default function CustomerDetailPage() {
     queryKey: ["customer-history", id],
     queryFn: () => customersApi.getServiceHistory(id),
     enabled: !!id,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => customersApi.requestDeletion(id),
+    onSuccess: () => {
+      toast.success("Customer data anonymised. Redirecting…");
+      router.push("/customers");
+    },
+    onError: (err: { response?: { data?: { error?: string } }; message?: string }) => {
+      toast.error(
+        err.response?.data?.error || err.message || "Failed to delete customer data.",
+      );
+    },
   });
 
   const initials =
@@ -304,12 +321,32 @@ export default function CustomerDetailPage() {
                         Edit Customer
                       </Button>
                     </Link>
+                    {isRole("OWNER", "MANAGER") && (
+                      <Button
+                        variant="danger"
+                        className="w-full"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        Erase Customer Data
+                      </Button>
+                    )}
                   </div>
                 </>
               }
             />
           )}
         </PageShell>
+        <ConfirmDialog
+          isOpen={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={() => deleteMutation.mutate()}
+          title="Erase Customer Data"
+          message={`This will permanently anonymise all personal information for ${fullName}. Job history and invoices are retained for GST compliance but the customer's name, mobile, and address will be replaced with placeholders. This cannot be undone.`}
+          confirmText="Erase Data"
+          cancelText="Cancel"
+          variant="danger"
+          isLoading={deleteMutation.isPending}
+        />
       </AppLayout>
     </ProtectedRoute>
   );

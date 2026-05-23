@@ -220,6 +220,10 @@ export const customersApi = {
   getServiceHistory: async (id: string): Promise<JobCard[]> => {
     return apiGet<JobCard[]>(`/customers/customers/${id}/service_history/`);
   },
+
+  requestDeletion: async (id: string): Promise<{ message: string }> => {
+    return apiPost(`/customers/customers/${id}/request_deletion/`, {});
+  },
 };
 
 // =====================================================

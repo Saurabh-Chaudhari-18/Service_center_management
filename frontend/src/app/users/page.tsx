@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -31,7 +34,7 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
-import type { User, UserRole } from "@/types";
+import type { User } from "@/types";
 
 // =====================================================
 // Role Badge Colors
@@ -81,28 +84,59 @@ function RoleBadge({ role }: { role: string }) {
 // Create/Edit User Modal
 // =====================================================
 
-interface UserFormData {
-  email: string;
+const ROLES = [
+  "SUPER_ADMIN",
+  "OWNER",
+  "MANAGER",
+  "TECHNICIAN",
+  "RECEPTIONIST",
+  "ACCOUNTANT",
+] as const;
+
+const makeUserSchema = (isEditing: boolean) =>
+  z
+    .object({
+      first_name: z.string().min(1, "First name is required"),
+      last_name: z.string().min(1, "Last name is required"),
+      email: isEditing
+        ? z.string().optional()
+        : z.string().min(1, "Email is required").email("Invalid email"),
+      phone: z.string().optional(),
+      password: z.string().optional(),
+      password_confirm: z.string().optional(),
+      role: z.enum(ROLES),
+      branch_ids: z.array(z.string()),
+      is_active: z.boolean(),
+    })
+    .superRefine((data, ctx) => {
+      if (!isEditing) {
+        if (!data.password || data.password.length < 8) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Password must be at least 8 characters",
+            path: ["password"],
+          });
+        }
+        if (data.password !== data.password_confirm) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Passwords do not match",
+            path: ["password_confirm"],
+          });
+        }
+      }
+    });
+
+type UserFormData = {
   first_name: string;
   last_name: string;
-  phone: string;
-  password: string;
-  password_confirm: string;
-  role: UserRole;
+  email: string | undefined;
+  phone?: string;
+  password?: string;
+  password_confirm?: string;
+  role: (typeof ROLES)[number];
   branch_ids: string[];
   is_active: boolean;
-}
-
-const EMPTY_FORM: UserFormData = {
-  email: "",
-  first_name: "",
-  last_name: "",
-  phone: "",
-  password: "",
-  password_confirm: "",
-  role: "TECHNICIAN" as UserRole,
-  branch_ids: [],
-  is_active: true,
 };
 
 interface UserFormModalProps {
@@ -116,29 +150,37 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const { toast } = useToast();
   const isEditing = !!user;
 
-  const [form, setForm] = useState<UserFormData>(() => {
-    if (user) {
-      return {
-        email: user.email || "",
-        first_name: user.first_name || "",
-        last_name: user.last_name || "",
-        phone: user.phone || "",
-        password: "",
-        password_confirm: "",
-        role: (user.role as UserRole) || "TECHNICIAN",
-        branch_ids:
-          (user.branches as unknown as Array<{ id: string }>)?.map(
-            (b) => b.id,
-          ) || [],
-        is_active: user.is_active !== false,
-      };
-    }
-    return { ...EMPTY_FORM };
+  const schema = useMemo(() => makeUserSchema(isEditing), [isEditing]);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    setError,
+    formState: { errors },
+  } = useForm<UserFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      first_name: user?.first_name || "",
+      last_name: user?.last_name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      password: "",
+      password_confirm: "",
+      role: ((user?.role as (typeof ROLES)[number]) || "TECHNICIAN"),
+      branch_ids:
+        (user?.branches as unknown as Array<{ id: string }>)?.map(
+          (b) => b.id,
+        ) || [],
+      is_active: user?.is_active !== false,
+    },
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const branchIds = watch("branch_ids");
+  const isActive = watch("is_active");
 
-  // Fetch branches for the multi-select
   const { data: branchesData } = useQuery({
     queryKey: ["branches-list"],
     queryFn: () => branchesApi.list(),
@@ -147,33 +189,37 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const branches =
     branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
 
-  const parseApiErrors = (error: unknown): Record<string, string> => {
-    const apiErrors: Record<string, string> = {};
+  const parseAndSetApiErrors = (error: unknown): boolean => {
     const raw = (error as { response?: { data?: unknown } })?.response?.data;
-    if (!raw || typeof raw !== "object") return apiErrors;
+    if (!raw || typeof raw !== "object") return false;
     const data = raw as Record<string, unknown>;
     const errBlock = data.error as Record<string, unknown> | undefined;
-
-    // Backend format: { error: { fields: { field: [msgs] } } } (legacy: field_errors)
     const fieldErrors =
       (errBlock?.fields as Record<string, unknown> | undefined) ||
       (errBlock?.field_errors as Record<string, unknown> | undefined) ||
       (data.fields as Record<string, unknown> | undefined) ||
-      (data.field_errors as Record<string, unknown> | undefined) ||
-      data;
-    if (fieldErrors && typeof fieldErrors === "object" && !Array.isArray(fieldErrors)) {
+      (data.field_errors as Record<string, unknown> | undefined);
+
+    if (
+      fieldErrors &&
+      typeof fieldErrors === "object" &&
+      !Array.isArray(fieldErrors)
+    ) {
+      let hasFields = false;
       Object.entries(fieldErrors).forEach(([key, val]) => {
-        apiErrors[key] = Array.isArray(val) ? val.join(", ") : String(val);
+        const msg = Array.isArray(val) ? val.join(", ") : String(val);
+        setError(key as keyof UserFormData, { type: "server", message: msg });
+        hasFields = true;
       });
+      if (hasFields) return true;
     }
 
-    // Capture general message if no field errors found
-    if (Object.keys(apiErrors).length === 0) {
-      const msg = errBlock?.message ?? data.detail ?? data.message;
-      if (msg != null) apiErrors.detail = String(msg);
+    const msg = errBlock?.message ?? data.detail ?? data.message;
+    if (msg != null) {
+      setError("root", { type: "server", message: String(msg) });
+      return true;
     }
-
-    return apiErrors;
+    return false;
   };
 
   const createMutation = useMutation({
@@ -185,10 +231,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       toast.success("Staff member created successfully.");
     },
     onError: (error: unknown) => {
-      const parsed = parseApiErrors(error);
-      if (Object.keys(parsed).length > 0) {
-        setErrors(parsed);
-      } else {
+      if (!parseAndSetApiErrors(error)) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         toast.error("Failed to create user: " + msg);
       }
@@ -204,70 +247,47 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       toast.success("Staff member updated successfully.");
     },
     onError: (error: unknown) => {
-      const parsed = parseApiErrors(error);
-      if (Object.keys(parsed).length > 0) {
-        setErrors(parsed);
-      } else {
+      if (!parseAndSetApiErrors(error)) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         toast.error("Failed to update user: " + msg);
       }
     },
   });
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!form.first_name.trim())
-      newErrors.first_name = "First name is required";
-    if (!form.last_name.trim()) newErrors.last_name = "Last name is required";
-    if (!isEditing) {
-      if (!form.email.trim()) newErrors.email = "Email is required";
-      if (!form.password) newErrors.password = "Password is required";
-      if (form.password.length < 8)
-        newErrors.password = "Password must be at least 8 characters";
-      if (form.password !== form.password_confirm)
-        newErrors.password_confirm = "Passwords do not match";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e?: React.FormEvent | React.MouseEvent) => {
-    if (e) e.preventDefault();
-    if (!validate()) return;
-
+  const onSubmit = (data: UserFormData) => {
     if (isEditing && user) {
       updateMutation.mutate({
         id: user.id,
         payload: {
-          first_name: form.first_name,
-          last_name: form.last_name,
-          phone: form.phone,
-          role: form.role,
-          branch_ids: form.branch_ids,
-          is_active: form.is_active,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          role: data.role,
+          branch_ids: data.branch_ids,
+          is_active: data.is_active,
         },
       });
     } else {
       createMutation.mutate({
-        email: form.email,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        phone: form.phone,
-        password: form.password,
-        password_confirm: form.password_confirm,
-        role: form.role,
-        branch_ids: form.branch_ids,
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        password: data.password,
+        password_confirm: data.password_confirm,
+        role: data.role,
+        branch_ids: data.branch_ids,
       });
     }
   };
 
   const toggleBranch = (branchId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      branch_ids: prev.branch_ids.includes(branchId)
-        ? prev.branch_ids.filter((id) => id !== branchId)
-        : [...prev.branch_ids, branchId],
-    }));
+    setValue(
+      "branch_ids",
+      branchIds.includes(branchId)
+        ? branchIds.filter((id) => id !== branchId)
+        : [...branchIds, branchId],
+    );
   };
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -279,33 +299,29 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       title={isEditing ? "Edit Staff Member" : "Add New Staff Member"}
       size="lg"
     >
-      <div className="space-y-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Name Row */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               First Name *
             </label>
-            <Input
-              value={form.first_name}
-              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-              placeholder="John"
-            />
+            <Input {...register("first_name")} placeholder="John" />
             {errors.first_name && (
-              <p className="text-red-500 text-xs mt-1">{errors.first_name}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.first_name.message}
+              </p>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Last Name *
             </label>
-            <Input
-              value={form.last_name}
-              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-              placeholder="Doe"
-            />
+            <Input {...register("last_name")} placeholder="Doe" />
             {errors.last_name && (
-              <p className="text-red-500 text-xs mt-1">{errors.last_name}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.last_name.message}
+              </p>
             )}
           </div>
         </div>
@@ -318,12 +334,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
             </label>
             <Input
               type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              {...register("email")}
               placeholder="john@example.com"
             />
             {errors.email && (
-              <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.email.message}
+              </p>
             )}
           </div>
         )}
@@ -333,11 +350,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Phone Number
           </label>
-          <Input
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            placeholder="+91 9876543210"
-          />
+          <Input {...register("phone")} placeholder="+91 9876543210" />
         </div>
 
         {/* Password - only for create */}
@@ -349,12 +362,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               </label>
               <Input
                 type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                {...register("password")}
                 placeholder="Min 8 characters"
               />
               {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.password.message}
+                </p>
               )}
             </div>
             <div>
@@ -363,15 +377,12 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               </label>
               <Input
                 type="password"
-                value={form.password_confirm}
-                onChange={(e) =>
-                  setForm({ ...form, password_confirm: e.target.value })
-                }
+                {...register("password_confirm")}
                 placeholder="Re-enter password"
               />
               {errors.password_confirm && (
                 <p className="text-red-500 text-xs mt-1">
-                  {errors.password_confirm}
+                  {errors.password_confirm.message}
                 </p>
               )}
             </div>
@@ -383,19 +394,23 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Role *
           </label>
-          <Select
-            value={form.role}
-            onChange={(e) =>
-              setForm({ ...form, role: e.target.value as UserRole })
-            }
-            options={[
-              { value: "TECHNICIAN", label: "Technician" },
-              { value: "RECEPTIONIST", label: "Receptionist" },
-              { value: "ACCOUNTANT", label: "Accountant" },
-              { value: "MANAGER", label: "Manager" },
-              { value: "SUPER_ADMIN", label: "Super Admin" },
-              { value: "OWNER", label: "Owner" },
-            ]}
+          <Controller
+            name="role"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value)}
+                options={[
+                  { value: "TECHNICIAN", label: "Technician" },
+                  { value: "RECEPTIONIST", label: "Receptionist" },
+                  { value: "ACCOUNTANT", label: "Accountant" },
+                  { value: "MANAGER", label: "Manager" },
+                  { value: "SUPER_ADMIN", label: "Super Admin" },
+                  { value: "OWNER", label: "Owner" },
+                ]}
+              />
+            )}
           />
         </div>
 
@@ -416,7 +431,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
                   >
                     <input
                       type="checkbox"
-                      checked={form.branch_ids.includes(branch.id)}
+                      checked={branchIds.includes(branch.id)}
                       onChange={() => toggleBranch(branch.id)}
                       className="w-4 h-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
                     />
@@ -445,17 +460,17 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
                 Account Status
               </p>
               <p className="text-xs text-neutral-500">
-                {form.is_active
+                {isActive
                   ? "User can login and access the system"
                   : "User is deactivated"}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setForm({ ...form, is_active: !form.is_active })}
+              onClick={() => setValue("is_active", !isActive)}
               className="focus:outline-none"
             >
-              {form.is_active ? (
+              {isActive ? (
                 <ToggleRight className="w-8 h-8 text-green-500" />
               ) : (
                 <ToggleLeft className="w-8 h-8 text-neutral-400" />
@@ -464,15 +479,10 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           </div>
         )}
 
-        {/* API Errors */}
-        {errors.non_field_errors && (
+        {/* Root / server errors */}
+        {errors.root && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {errors.non_field_errors}
-          </div>
-        )}
-        {errors.detail && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {errors.detail}
+            {errors.root.message}
           </div>
         )}
 
@@ -481,7 +491,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" disabled={isSubmitting} onClick={handleSubmit}>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting
               ? isEditing
                 ? "Updating..."
@@ -491,7 +501,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
                 : "Create Staff"}
           </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
