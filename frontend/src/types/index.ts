@@ -755,7 +755,7 @@ export const JOB_STATUS_CONFIG: Record<
   }
 > = {
   RECEIVED: {
-    label: "Received",
+    label: "Inward Received",
     color: "#6366f1",
     bgColor: "#eef2ff",
     textColor: "#4338ca",

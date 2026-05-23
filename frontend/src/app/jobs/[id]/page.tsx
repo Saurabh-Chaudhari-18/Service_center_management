@@ -391,6 +391,17 @@ export default function JobDetailPage() {
                       </p>
                     </div>
                   )}
+
+                  {job.additional_comments && (
+                    <div>
+                      <p className="text-sm font-medium text-neutral-500 mb-1">
+                        Internal Notes
+                      </p>
+                      <p className="text-neutral-900 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                        {job.additional_comments}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Card>
 
@@ -673,7 +684,19 @@ export default function JobDetailPage() {
                       Date: {formatDateLong(job.created_at)}
                     </p>
                     <p className="text-[10pt] font-medium text-neutral-600">
-                      Status: {job.status?.replace(/_/g, " ")}
+                      Status: {
+                        job.status === 'RECEIVED' ? 'Inward Received' :
+                        job.status === 'DIAGNOSIS' ? 'Under Diagnosis' :
+                        job.status === 'ESTIMATE_SHARED' ? 'Estimate Shared' :
+                        job.status === 'APPROVED' ? 'Customer Approved' :
+                        job.status === 'REJECTED' ? 'Customer Rejected' :
+                        job.status === 'WAITING_FOR_PARTS' ? 'Waiting for Parts' :
+                        job.status === 'REPAIR_IN_PROGRESS' ? 'Repair in Progress' :
+                        job.status === 'READY_FOR_DELIVERY' ? 'Ready for Delivery' :
+                        job.status === 'DELIVERED' ? 'Delivered' :
+                        job.status === 'CANCELLED' ? 'Cancelled' :
+                        job.status?.replace(/_/g, ' ')
+                      }
                     </p>
                   </div>
                 </div>
@@ -776,14 +799,9 @@ export default function JobDetailPage() {
                     <p>
                       <b>Customer Complaint:</b> {job.customer_complaint}
                     </p>
-                    {job.diagnosis_notes && (
-                      <p>
-                        <b>Diagnosis Notes:</b> {job.diagnosis_notes}
-                      </p>
-                    )}
                     {job.additional_comments && (
                       <p>
-                        <b>Additional Comments:</b> {job.additional_comments}
+                        <b>Internal Notes:</b> {job.additional_comments}
                       </p>
                     )}
                   </div>

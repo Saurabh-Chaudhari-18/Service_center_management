@@ -24,7 +24,7 @@ class JobStatus(models.TextChoices):
     Job status enum with enforced sequential transitions.
     Based on FRD Section 8.1, with additional states for complete workflow coverage.
     """
-    RECEIVED = 'RECEIVED', 'Received'  # Initial status when device is received
+    RECEIVED = 'RECEIVED', 'Inward Received'  # Initial status when device is received
     DIAGNOSIS = 'DIAGNOSIS', 'Under Diagnosis'  # Technician is diagnosing (FRD: DIAGNOSIS)
     ESTIMATE_SHARED = 'ESTIMATE_SHARED', 'Estimate Shared'  # Estimate shared with customer
     APPROVED = 'APPROVED', 'Customer Approved'  # Customer approved repair

@@ -542,7 +542,7 @@ export default function CreateJobCardPage() {
               description: description || v.condition,
             };
           }),
-        diagnosis_notes: data.diagnosis_notes || accessoryManualDetails,
+        diagnosis_notes: data.diagnosis_notes || undefined,
       }),
     onSuccess: (job) => {
       router.push(`/jobs/${job.id}`);
