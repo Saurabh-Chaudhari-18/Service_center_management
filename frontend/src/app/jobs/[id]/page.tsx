@@ -898,20 +898,20 @@ export default function JobDetailPage() {
                         </span>
                       </p>
                       <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                        <span>Parts/Spares:</span>
+                        <span>Estimate:</span>
                         <span className="w-24 border-b border-black text-right px-1">
                           {job.total_parts_cost
                             ? `₹ ${Number(job.total_parts_cost).toFixed(0)}`
                             : "₹"}
                         </span>
                       </p>
-                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                        <span>Discount:</span>
-                        <span className="w-24 border-b border-black">₹</span>
-                      </p>
                       <p className="flex justify-between font-bold text-lg pt-1">
                         <span>FINAL COST:</span>
-                        <span className="w-24 border-b-2 border-black">₹</span>
+                        <span className="w-24 border-b-2 border-black text-right px-1">
+                          {(job.estimated_cost || job.total_parts_cost)
+                            ? `₹ ${(Number(job.estimated_cost || 0) + Number(job.total_parts_cost || 0)).toFixed(0)}`
+                            : "₹"}
+                        </span>
                       </p>
                     </div>
                   </div>
