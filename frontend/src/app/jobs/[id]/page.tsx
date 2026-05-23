@@ -790,22 +790,48 @@ export default function JobDetailPage() {
                   </div>
                 </div>
 
-                {/* Issue Details */}
+                {/* Customer Complaint */}
                 <div className="print-section border border-black p-2 mb-2">
                   <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                    ISSUE DETAILS
+                    CUSTOMER COMPLAINT
                   </p>
-                  <div className="space-y-2">
-                    <p>
-                      <b>Customer Complaint:</b> {job.customer_complaint}
+                  <p>{job.customer_complaint}</p>
+                </div>
+
+                {/* Engineer Diagnosis */}
+                {((job as any).engineer_diagnosis_display || job.diagnosis_notes) && (
+                  <div className="print-section border border-black p-2 mb-2">
+                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                      ENGINEER DIAGNOSIS
                     </p>
-                    {job.additional_comments && (
+                    <div className="space-y-2">
+                      {(job as any).engineer_diagnosis_display && (
+                        <p>
+                          <b>Diagnosis:</b> {(job as any).engineer_diagnosis_display}
+                        </p>
+                      )}
+                      {job.diagnosis_notes && (
+                        <p>
+                          <b>Diagnosis Notes:</b> {job.diagnosis_notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Issue Details / Internal Notes */}
+                {job.additional_comments && (
+                  <div className="print-section border border-black p-2 mb-2">
+                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
+                      ISSUE DETAILS
+                    </p>
+                    <div className="space-y-2">
                       <p>
                         <b>Internal Notes:</b> {job.additional_comments}
                       </p>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Terms & Conditions */}
                 <div className="print-section border border-black p-2 terms-text mb-2">
