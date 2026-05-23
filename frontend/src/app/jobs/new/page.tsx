@@ -291,7 +291,7 @@ export default function CreateJobCardPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     setValue,
     watch,
   } = useForm<CreateJobFormData>({
@@ -327,6 +327,18 @@ export default function CreateJobCardPage() {
     setSelectedDiagnoses([]);
     setDiagnosisOtherText("");
   }, [watchDeviceType]);
+
+  // Warn before navigating away with unsaved changes
+  useEffect(() => {
+    const hasUnsavedData = isDirty || selectedCustomer !== null || serviceCharge !== "";
+    if (!hasUnsavedData) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty, selectedCustomer, serviceCharge]);
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],

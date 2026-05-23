@@ -264,17 +264,18 @@ function InvoiceRow({
           onClick={(e) => e.stopPropagation()}
         >
           <Link href={`/billing/${invoice.id}`}>
-            <Button variant="secondary" className="!px-3 !py-2">
-              <Eye className="w-4 h-4" />
+            <Button variant="secondary" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
+              View
             </Button>
           </Link>
           {invoice.status !== "CANCELLED" && (
             <Button
               variant="secondary"
-              className="!px-3 !py-2"
+              size="sm"
+              leftIcon={<Download className="w-4 h-4" />}
               onClick={() => onDownload(invoice)}
             >
-              <Download className="w-4 h-4" />
+              PDF
             </Button>
           )}
         </div>

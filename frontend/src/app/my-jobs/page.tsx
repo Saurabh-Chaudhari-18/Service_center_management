@@ -313,16 +313,16 @@ function TechnicianStatusModal({
 
         {actions.length === 0 && (
           <div className="text-center py-6">
-            <div className="text-gray-400 mb-2">
+            <div className="text-neutral-400 mb-2">
               <CheckCircle className="h-8 w-8 mx-auto" />
             </div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
               {isTerminalStatus(job.status)
                 ? "This job is complete — no further updates needed."
                 : "No actions available for your role at this stage."}
             </p>
             {isTerminalStatus(job.status) && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-neutral-400 mt-1">
                 Status: <span className="font-mono">{job.status}</span>
               </p>
             )}

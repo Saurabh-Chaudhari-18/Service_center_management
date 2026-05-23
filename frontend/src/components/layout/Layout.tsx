@@ -344,15 +344,38 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         {/* Dark Mode Toggle */}
         <ThemeToggle />
 
-        {/* Global Search Hint */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-slate-800 rounded-lg border border-neutral-200 dark:border-slate-700 text-xs text-neutral-500 font-medium">
+        {/* Global Search Hint — desktop full, mobile icon-only */}
+        <button
+          aria-label="Open search"
+          onClick={() =>
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+            )
+          }
+          className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-slate-800 rounded-lg border border-neutral-200 dark:border-slate-700 text-xs text-neutral-500 font-medium hover:bg-neutral-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+        >
           <Search className="w-3.5 h-3.5" />
           <span>Search</span>
           <kbd className="ml-1 font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-neutral-200 dark:border-slate-700 shadow-sm text-[10px]">Ctrl K</kbd>
-        </div>
+        </button>
+        <button
+          aria-label="Open search"
+          onClick={() =>
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+            )
+          }
+          className="lg:hidden p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+        >
+          <Search className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
+        </button>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10">
+        <button
+          aria-label="Notifications"
+          title="Notifications"
+          className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+        >
           <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
           {notificationCount > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium">

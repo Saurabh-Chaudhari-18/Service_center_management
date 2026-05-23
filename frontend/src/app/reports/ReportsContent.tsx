@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { Card, Button, Input, LoadingState } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
 import { reportsApi } from "@/lib/api";
 import type { InventoryItem, TechnicianProductivityData } from "@/types";
 import {
@@ -824,7 +825,28 @@ export default function ReportsContent() {
           }
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell>
+          {/* Section Navigation */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {[
+              { label: "Revenue",      href: "#rpt-revenue" },
+              { label: "Jobs",         href: "#rpt-jobs" },
+              { label: "Technicians",  href: "#rpt-technicians" },
+              { label: "Customers",    href: "#rpt-customers" },
+              { label: "Inventory",    href: "#rpt-inventory" },
+              { label: "GST",          href: "#rpt-gst" },
+              { label: "Low Stock",    href: "#rpt-lowstock" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+
           {/* Date Range Selector */}
           <Card padding="md">
             <div className="flex flex-wrap items-center gap-4">
@@ -883,32 +905,37 @@ export default function ReportsContent() {
             </div>
           </Card>
 
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue + Jobs by Status */}
+          <div id="rpt-revenue" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
             <RevenueChart fromDate={dateRange.from} toDate={dateRange.to} />
-            <JobsByStatusChart />
+            <div id="rpt-jobs" className="scroll-mt-4">
+              <JobsByStatusChart />
+            </div>
           </div>
 
+          {/* Technicians + Customers */}
+          <div id="rpt-technicians" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
+            <TechnicianProductivity fromDate={dateRange.from} toDate={dateRange.to} />
+            <div id="rpt-customers" className="scroll-mt-4">
+              <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
+            </div>
+          </div>
+
+          {/* Inventory Overview — full width */}
+          <div id="rpt-inventory" className="scroll-mt-4">
+            <InventoryOverview fromDate={dateRange.from} toDate={dateRange.to} />
+          </div>
+
+          {/* GST Summary + Low Stock */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TechnicianProductivity
-              fromDate={dateRange.from}
-              toDate={dateRange.to}
-            />
-            <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
+            <div id="rpt-gst" className="scroll-mt-4">
+              <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
+            </div>
+            <div id="rpt-lowstock" className="scroll-mt-4">
+              <LowStockList />
+            </div>
           </div>
-
-          {/* Inventory Overview - full width */}
-          <InventoryOverview
-            fromDate={dateRange.from}
-            toDate={dateRange.to}
-          />
-
-          {/* GST Summary + Low Stock side-by-side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
-            <LowStockList />
-          </div>
-        </div>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

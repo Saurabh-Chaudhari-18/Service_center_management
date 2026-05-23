@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
+import { PageShell } from "@/components/shell/PageShell";
 import {
   Card,
   JobStatusBadge,
@@ -481,11 +482,11 @@ function RevenueTrendChart() {
       </div>
 
       {isLoading ? (
-        <div className="flex-1 min-h-[16rem] flex items-center justify-center">
+        <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] flex items-center justify-center">
           <LoadingState />
         </div>
       ) : chartData.length === 0 ? (
-        <div className="flex-1 min-h-[16rem] flex items-center justify-center">
+        <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] flex items-center justify-center">
           <EmptyState
             icon={<TrendingUp className="w-8 h-8 text-neutral-400" />}
             title="No revenue data"
@@ -493,7 +494,7 @@ function RevenueTrendChart() {
           />
         </div>
       ) : (
-        <div className="flex-1 min-h-[16rem] relative">
+        <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] relative">
           <div className="absolute inset-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
@@ -765,7 +766,7 @@ function JobStatusChart() {
           <LoadingState />
         </div>
       ) : chartData.length === 0 ? (
-        <div className="h-36 flex items-center justify-center">
+        <div className="h-28 sm:h-36 flex items-center justify-center">
           <EmptyState
             icon={<FileText className="w-8 h-8 text-neutral-400" />}
             title="No active jobs"
@@ -773,7 +774,7 @@ function JobStatusChart() {
           />
         </div>
       ) : (
-        <div className="h-40">
+        <div className="h-32 sm:h-40">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -916,52 +917,46 @@ function QuickActions() {
       label: "New Job Card",
       icon: <Plus className="w-5 h-5" />,
       href: "/jobs/new",
-      iconBg: "background:linear-gradient(135deg,#818cf8,#6366f1)",
-      textColor: "#4f46e5",
+      iconClass: "bg-gradient-to-br from-indigo-500 to-violet-600",
       visible: hasPermission("canCreateJobCards"),
     },
     {
       label: "Add Customer",
       icon: <Users className="w-5 h-5" />,
       href: "/customers/new",
-      iconBg: "background:linear-gradient(135deg,#60a5fa,#3b82f6)",
-      textColor: "#2563eb",
+      iconClass: "bg-gradient-to-br from-blue-500 to-indigo-600",
       visible: isRole("SUPER_ADMIN", "OWNER", "MANAGER", "RECEPTIONIST"),
     },
     {
       label: "Create Invoice",
       icon: <FileText className="w-5 h-5" />,
       href: "/billing/new",
-      iconBg: "background:linear-gradient(135deg,#4ade80,#22c55e)",
-      textColor: "#16a34a",
+      iconClass: "bg-gradient-to-br from-violet-500 to-purple-600",
       visible: hasPermission("canCreateInvoices"),
     },
     {
       label: "View Reports",
       icon: <TrendingUp className="w-5 h-5" />,
       href: "/reports",
-      iconBg: "background:linear-gradient(135deg,#e879f9,#a855f7)",
-      textColor: "#9333ea",
+      iconClass: "bg-gradient-to-br from-blue-500 to-cyan-600",
       visible: hasPermission("canViewReports"),
     },
     {
       label: "New Pickup",
       icon: <Truck className="w-5 h-5" />,
       href: "/pickups/new",
-      iconBg: "background:linear-gradient(135deg,#22d3ee,#06b6d4)",
-      textColor: "#0891b2",
+      iconClass: "bg-gradient-to-br from-cyan-500 to-blue-600",
       visible: hasPermission("canViewPickups"),
     },
   ].filter((a) => a.visible);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {actions.map((action) => (
         <Link key={action.label} href={action.href} className="block group">
-          <Card className="h-full hover:border-[color:var(--tw-prose-links)] hover:shadow-md transition-all flex flex-col items-center justify-center p-5 text-center dark:hover:border-indigo-500/50">
+          <Card className="h-full hover:border-primary-200 hover:shadow-md transition-all flex flex-col items-center justify-center p-5 text-center dark:hover:border-indigo-500/50">
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-white mb-3 shadow-inner group-hover:scale-105 transition-transform"
-              style={{ background: action.iconBg.replace("background:", "") }}
+              className={`w-12 h-12 rounded-xl flex items-center justify-center text-white mb-3 shadow-sm group-hover:scale-105 transition-transform ${action.iconClass}`}
             >
               {action.icon}
             </div>
@@ -1197,6 +1192,8 @@ function TechnicianJobs() {
 export default function DashboardPage() {
   const { user, currentBranch, hasPermission, isRole, organizationBranding } =
     useAuth();
+  const [revenueOpen, setRevenueOpen] = useState(true);
+  const [alertsOpen, setAlertsOpen] = useState(true);
 
   return (
     <ProtectedRoute requiredPermission="canViewDashboard">
@@ -1226,56 +1223,93 @@ export default function DashboardPage() {
           }
         />
 
-        <div className="p-6 space-y-5">
-          {/* Dashboard Overview Title */}
-          <div>
-            <h2 className="text-2xl font-bold text-neutral-900">Dashboard Overview</h2>
-            <p className="text-sm text-neutral-500 mt-0.5">
-              Welcome back, {user?.first_name}. Here&apos;s what&apos;s happening today.
-            </p>
-          </div>
-
+        <PageShell className="space-y-5">
           {/* Shop Briefing — actionable status overview */}
           {hasPermission("canViewJobCards") && <ShopBriefing />}
 
           {/* Onboarding checklist — only for new accounts */}
           <OnboardingChecklist />
 
-          {/* Top Quick Actions */}
-          <QuickActions />
+          {/* Quick Actions */}
+          <section aria-label="Quick actions">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+              Quick Actions
+            </p>
+            <QuickActions />
+          </section>
 
-          {/* Recent Jobs + Right panel (Job Status) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 min-w-0">
-              {hasPermission("canViewJobCards") && <RecentJobs />}
-              {isRole("TECHNICIAN") && <TechnicianJobs />}
+          {/* Jobs & Stats */}
+          <section aria-label="Jobs and statistics">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+              Jobs &amp; Activity
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 min-w-0">
+                {hasPermission("canViewJobCards") && <RecentJobs />}
+                {isRole("TECHNICIAN") && <TechnicianJobs />}
+              </div>
+              <div className="space-y-5">
+                <DashboardStats />
+                {hasPermission("canViewJobCards") && <JobStatusChart />}
+              </div>
             </div>
-            <div className="space-y-5">
-              {/* Stats Table moved above Job Status Chart for better layout balancing */}
-              <DashboardStats />
-              {hasPermission("canViewJobCards") && <JobStatusChart />}
-            </div>
-          </div>
+          </section>
 
-          {/* Revenue Chart + Financial Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 min-w-0">
-              {hasPermission("canViewReports") && <RevenueTrendChart />}
-            </div>
-            <div className="space-y-5">
-              {hasPermission("canViewReports") && <RevenueSummary />}
-              {hasPermission("canViewReports") && <NetProfitWidget />}
-            </div>
-          </div>
-
-          {/* Bottom Alerts Row */}
-          {(hasPermission("canViewPickups") || hasPermission("canViewInventory")) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {hasPermission("canViewInventory") && <LowStockAlerts />}
-              {hasPermission("canViewPickups") && <PendingPickups />}
-            </div>
+          {/* Revenue & Financials — collapsible */}
+          {hasPermission("canViewReports") && (
+            <section aria-label="Revenue and financials">
+              <button
+                type="button"
+                onClick={() => setRevenueOpen((v) => !v)}
+                aria-expanded={revenueOpen}
+                className="mb-3 flex w-full items-center gap-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
+              >
+                <p className="flex-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                  Revenue &amp; Financials
+                </p>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 ${revenueOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {revenueOpen && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  <div className="lg:col-span-2 min-w-0">
+                    <RevenueTrendChart />
+                  </div>
+                  <div className="space-y-5">
+                    <RevenueSummary />
+                    <NetProfitWidget />
+                  </div>
+                </div>
+              )}
+            </section>
           )}
-        </div>
+
+          {/* Alerts Row — collapsible */}
+          {(hasPermission("canViewPickups") || hasPermission("canViewInventory")) && (
+            <section aria-label="Alerts">
+              <button
+                type="button"
+                onClick={() => setAlertsOpen((v) => !v)}
+                aria-expanded={alertsOpen}
+                className="mb-3 flex w-full items-center gap-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
+              >
+                <p className="flex-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                  Alerts
+                </p>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 ${alertsOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {alertsOpen && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {hasPermission("canViewInventory") && <LowStockAlerts />}
+                  {hasPermission("canViewPickups") && <PendingPickups />}
+                </div>
+              )}
+            </section>
+          )}
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

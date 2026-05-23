@@ -10,7 +10,6 @@ import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
   Badge,
   Input,
@@ -19,7 +18,10 @@ import {
   Modal,
   EmptyState,
 } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
+import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
 import { usersApi, branchesApi } from "@/lib/api";
+import { formatDateLong } from "@/lib/formatters";
 import {
   UserPlus,
   Search,
@@ -31,7 +33,6 @@ import {
   MapPin,
   ToggleLeft,
   ToggleRight,
-  X,
   AlertTriangle,
 } from "lucide-react";
 import type { User } from "@/types";
@@ -40,43 +41,22 @@ import type { User } from "@/types";
 // Role Badge Colors
 // =====================================================
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> =
-  {
-    SUPER_ADMIN: {
-      bg: "bg-red-100",
-      text: "text-red-700",
-      label: "Super Admin",
-    },
-    OWNER: { bg: "bg-purple-100", text: "text-purple-700", label: "Owner" },
-    MANAGER: { bg: "bg-blue-100", text: "text-blue-700", label: "Manager" },
-    TECHNICIAN: {
-      bg: "bg-green-100",
-      text: "text-green-700",
-      label: "Technician",
-    },
-    RECEPTIONIST: {
-      bg: "bg-orange-100",
-      text: "text-orange-700",
-      label: "Receptionist",
-    },
-    ACCOUNTANT: {
-      bg: "bg-gray-100",
-      text: "text-gray-700",
-      label: "Accountant",
-    },
-  };
+const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  SUPER_ADMIN:  { bg: "bg-slate-100",   text: "text-slate-700",   label: "Super Admin"  },
+  OWNER:        { bg: "bg-purple-100",  text: "text-purple-700",  label: "Owner"        },
+  MANAGER:      { bg: "bg-blue-100",    text: "text-blue-700",    label: "Manager"      },
+  TECHNICIAN:   { bg: "bg-emerald-100", text: "text-emerald-700", label: "Technician"   },
+  RECEPTIONIST: { bg: "bg-orange-100",  text: "text-orange-700",  label: "Receptionist" },
+  ACCOUNTANT:   { bg: "bg-teal-100",    text: "text-teal-700",    label: "Accountant"   },
+};
 
 function RoleBadge({ role }: { role: string }) {
-  const config = ROLE_COLORS[role] || {
-    bg: "bg-gray-100",
-    text: "text-gray-700",
-    label: role,
-  };
+  const config = ROLE_COLORS[role] || { bg: "bg-neutral-100", text: "text-neutral-700", label: role };
   return (
-    <Badge className={`!${config.bg} !${config.text} inline-flex items-center gap-1`}>
+    <span className={`badge ${config.bg} ${config.text} inline-flex items-center gap-1`}>
       <Shield className="w-3 h-3" />
       {config.label}
-    </Badge>
+    </span>
   );
 }
 
@@ -159,7 +139,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
     watch,
     setValue,
     setError,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<UserFormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -292,14 +272,32 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+  // Warn before closing tab/navigating away with unsaved changes
+  React.useEffect(() => {
+    if (!isOpen || !isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isOpen, isDirty]);
+
+  const USER_FORM_ID = "user-form";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Edit Staff Member" : "Add New Staff Member"}
       size="lg"
+      footer={
+        <>
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form={USER_FORM_ID} isLoading={isSubmitting}>
+            {isEditing ? "Update Staff" : "Create Staff"}
+          </Button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <form id={USER_FORM_ID} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Name Row */}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -487,20 +485,6 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting
-              ? isEditing
-                ? "Updating..."
-                : "Creating..."
-              : isEditing
-                ? "Update Staff"
-                : "Create Staff"}
-          </Button>
-        </div>
       </form>
     </Modal>
   );
@@ -597,39 +581,40 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${user.is_active ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-500"}`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${user.is_active ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-500"}`}
           >
             {initials}
           </div>
           <div>
-            <h4 className="font-semibold text-neutral-900">
-              {user.first_name} {user.last_name}
-            </h4>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h4 className="font-semibold text-neutral-900 leading-tight">
+                {user.first_name} {user.last_name}
+              </h4>
+              {!user.is_active && <Badge variant="danger" size="sm">Inactive</Badge>}
+            </div>
             <RoleBadge role={user.role} />
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          {!user.is_active && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium mr-2">
-              Inactive
-            </span>
-          )}
-          <button
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onEdit(user)}
-            className="p-2 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-            title="Edit"
+            leftIcon={<Edit3 className="w-3 h-3" />}
           >
-            <Edit3 className="w-4 h-4" />
-          </button>
+            Edit
+          </Button>
           {user.is_active && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onDelete(user)}
-              className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Deactivate"
+              leftIcon={<Trash2 className="w-3 h-3" />}
+              className="text-red-600 hover:bg-red-50"
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              Deactivate
+            </Button>
           )}
         </div>
       </div>
@@ -667,11 +652,7 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
       {user.last_login && (
         <p className="text-xs text-neutral-400 mt-3">
           Last login:{" "}
-          {new Date(user.last_login).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
+          {formatDateLong(user.last_login)}
         </p>
       )}
     </div>
@@ -750,11 +731,13 @@ export default function StaffManagementPage() {
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div
-              className={`p-4 rounded-xl border transition-all cursor-pointer ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
+        <PageShell>
+          {/* Role filter chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <button
+              type="button"
+              aria-pressed={!roleFilter}
+              className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
               onClick={() => setRoleFilter("")}
             >
               <p className="text-2xl font-bold text-neutral-900">
@@ -763,11 +746,13 @@ export default function StaffManagementPage() {
               <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
                 All Staff
               </p>
-            </div>
+            </button>
             {Object.entries(ROLE_COLORS).map(([role, config]) => (
-              <div
+              <button
                 key={role}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
+                type="button"
+                aria-pressed={roleFilter === role}
+                className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
                 onClick={() => setRoleFilter(roleFilter === role ? "" : role)}
               >
                 <p className={`text-2xl font-bold ${config.text}`}>
@@ -776,60 +761,50 @@ export default function StaffManagementPage() {
                 <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
                   {config.label}s
                 </p>
-              </div>
+              </button>
             ))}
           </div>
 
           {/* Search & Filters */}
-          <Card padding="sm">
-            <div className="flex flex-col md:flex-row gap-4 bg-white/50 backdrop-blur-xl">
-              <div className="relative flex-1 min-w-[250px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+          <RegisterToolbar
+            search={
+              <Input
+                placeholder="Search by name, email, or phone..."
+                leftIcon={<Search className="w-4 h-4" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            }
+            secondaryActions={
+              <>
+                {canManageBranches && (
+                  <Select
+                    value={branchFilter}
+                    onChange={(e) => setBranchFilter(e.target.value)}
+                    className="w-48"
+                    placeholder="All Branches"
+                    options={[
+                      { value: "", label: "All Branches" },
+                      ...branchesList.map((b: { id: string; name: string }) => ({
+                        value: b.id,
+                        label: b.name,
+                      })),
+                    ]}
+                  />
                 )}
-              </div>
-
-              {canManageBranches && (
                 <Select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="w-48"
-                  placeholder="All Branches"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-40"
+                  placeholder="All Status"
                   options={[
-                    { value: "", label: "All Branches" },
-                    ...branchesList.map((b: { id: string; name: string }) => ({
-                      value: b.id,
-                      label: b.name,
-                    })),
+                    { value: "true", label: "Active" },
+                    { value: "false", label: "Inactive" },
                   ]}
                 />
-              )}
-
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-40"
-                placeholder="All Status"
-                options={[
-                  { value: "true", label: "Active" },
-                  { value: "false", label: "Inactive" },
-                ]}
-              />
-            </div>
-          </Card>
+              </>
+            }
+          />
 
           {/* Users Grid */}
           {isLoading ? (
@@ -869,7 +844,7 @@ export default function StaffManagementPage() {
                 ` · Filtered by ${ROLE_COLORS[roleFilter]?.label || roleFilter}`}
             </p>
           )}
-        </div>
+        </PageShell>
 
         {/* Modals */}
         {showCreateModal && (

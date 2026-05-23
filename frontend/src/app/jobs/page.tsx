@@ -70,7 +70,7 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
 
   return (
     <Link href={`/jobs/${job.id}`} className="block">
-      <div className="glass-card p-5 hover:shadow-lg transition-all duration-200 cursor-pointer">
+      <div className="card p-5 hover:shadow-lg transition-all duration-200 cursor-pointer">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {/* Header Row */}
@@ -280,7 +280,7 @@ function StatusTabs({
         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
           selectedStatus === URGENT_TAB
             ? "border-b-2 border-red-500 text-red-600 bg-red-50/80"
-            : "text-gray-600 hover:text-red-500"
+            : "text-neutral-600 hover:text-red-500"
         }`}
       >
         <AlertTriangle className="w-3.5 h-3.5" />
@@ -339,15 +339,40 @@ export default function JobsPage() {
   const { mutate: quickUpdateStatus } = useMutation({
     mutationFn: ({ jobId, toStatus }: { jobId: string; toStatus: string }) =>
       jobsApi.updateStatus(jobId, toStatus),
-    onMutate: ({ jobId }) => setUpdatingJobId(jobId),
-    onSettled: () => setUpdatingJobId(null),
+    onMutate: async ({ jobId, toStatus }) => {
+      setUpdatingJobId(jobId);
+      // Cancel in-flight refetches so they don't overwrite optimistic data
+      await queryClient.cancelQueries({ queryKey: ["jobs"] });
+      // Snapshot current data for rollback on error
+      const activeKey = ["jobs", currentBranch?.id, statusFilter, search, page];
+      const previousData = queryClient.getQueryData(activeKey);
+      // Optimistically update the job's status in the list
+      queryClient.setQueryData(activeKey, (old: unknown) => {
+        const data = old as { results?: JobCard[]; count?: number } | undefined;
+        if (!data) return old;
+        return {
+          ...data,
+          results: data.results?.map((j: JobCard) =>
+            j.id === jobId ? { ...j, status: toStatus } : j,
+          ),
+        };
+      });
+      return { activeKey, previousData };
+    },
+    onError: (err: Error, _, context) => {
+      // Restore the snapshot on failure
+      if (context) queryClient.setQueryData(context.activeKey, context.previousData);
+      toast.error(err.message || "Failed to update status");
+    },
     onSuccess: (_, { toStatus }) => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["jobs-stats"] });
       const label = toStatus.replace(/_/g, " ").toLowerCase();
       toast.success(`Job moved to ${label}`);
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to update status"),
+    onSettled: () => {
+      setUpdatingJobId(null);
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["jobs-stats"] });
+    },
   });
 
   const { data, isLoading, error } = useQuery({

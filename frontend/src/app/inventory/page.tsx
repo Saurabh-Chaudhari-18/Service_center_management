@@ -160,9 +160,9 @@ const CATEGORY_COLORS: Record<
     gradient: "from-rose-500 to-rose-600",
   },
   Other: {
-    bg: "bg-gray-50",
-    text: "text-gray-600",
-    gradient: "from-gray-500 to-gray-600",
+    bg: "bg-neutral-50",
+    text: "text-neutral-600",
+    gradient: "from-neutral-500 to-neutral-600",
   },
 };
 
@@ -210,9 +210,9 @@ interface CategoryChipProps {
 function CategoryChip({ category, isActive, onClick }: CategoryChipProps) {
   const icon = CATEGORY_ICONS[category.name] || <Package className="w-5 h-5" />;
   const colors = CATEGORY_COLORS[category.name] || {
-    bg: "bg-gray-50",
-    text: "text-gray-600",
-    gradient: "from-gray-500 to-gray-600",
+    bg: "bg-neutral-50",
+    text: "text-neutral-600",
+    gradient: "from-neutral-500 to-neutral-600",
   };
 
   return (
@@ -363,7 +363,7 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
               <StockBadge item={item} />
               {item.category_name && (
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                 >
                   {CATEGORY_ICONS[item.category_name] && (
                     <span className="[&>svg]:w-3 [&>svg]:h-3">
@@ -1256,7 +1256,7 @@ export default function InventoryPage() {
                             <td className="px-4 py-3">
                               {item.category_name ? (
                                 <span
-                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                                 >
                                   {item.category_name}
                                 </span>
@@ -1325,7 +1325,7 @@ export default function InventoryPage() {
                         </div>
                         {item.category_name && (
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                            className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                           >
                             {item.category_name}
                           </span>

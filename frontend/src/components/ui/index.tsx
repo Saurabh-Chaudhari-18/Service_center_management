@@ -35,9 +35,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const sizeClasses = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-4 py-2.5 text-sm",
-    lg: "px-6 py-3 text-base",
+    sm: "px-3 py-1.5 text-xs min-h-[2.25rem]",
+    md: "px-4 py-2.5 text-sm min-h-[2.75rem]",
+    lg: "px-6 py-3 text-base min-h-[3rem]",
   };
 
   const showLeading = isLoading || leftIcon != null;

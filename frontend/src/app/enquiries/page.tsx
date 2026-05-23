@@ -15,6 +15,7 @@ import {
 import { formatDateLong, formatPhone } from "@/lib/formatters";
 import { ENQUIRY_STATUS_CONFIG } from "@/types";
 import type { Enquiry, EnquiryStatus } from "@/types";
+import { SemanticStatusBadge, getEnquiryStatusPresentation } from "@/platform/semantics";
 import {
   ActionBar,
   EntityCards,
@@ -308,7 +309,6 @@ export default function EnquiriesPage() {
           ) : (
             <EntityCards columns="single" compact>
             {enquiries.map((enq) => {
-              const statusConfig = ENQUIRY_STATUS_CONFIG[enq.status as EnquiryStatus] || ENQUIRY_STATUS_CONFIG.NEW;
               return (
                 <div
                   key={enq.id}
@@ -322,12 +322,10 @@ export default function EnquiriesPage() {
                     <div className="min-w-[200px] flex-1">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-neutral-900 dark:text-white">{enq.customer_name}</h3>
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{ backgroundColor: statusConfig.bgColor, color: statusConfig.textColor }}
-                        >
-                          {statusConfig.label}
-                        </span>
+                        <SemanticStatusBadge
+                          presentation={getEnquiryStatusPresentation(enq.status as EnquiryStatus)}
+                          size="sm"
+                        />
                         {enq.source_display && (
                           <Badge size="sm">{enq.source_display}</Badge>
                         )}
@@ -382,9 +380,9 @@ export default function EnquiriesPage() {
                         </>
                       )}
                       {enq.converted_job_number && (
-                        <span className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                        <Badge variant="success" size="sm">
                           → Job #{enq.converted_job_number}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -558,7 +556,7 @@ export default function EnquiriesPage() {
             </div>
           }
         >
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
             This will create a new job card from this enquiry. The enquiry will be
             marked as Converted. Continue?
           </p>
@@ -617,7 +615,7 @@ export default function EnquiriesPage() {
             </div>
           }
         >
-          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
             Please provide a reason for marking this enquiry as lost.
           </p>
           <Textarea
