@@ -3,6 +3,7 @@
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
+import { PageShell } from "@/components/shell/PageShell";
 import { ProtectedRoute } from "@/context/AuthContext";
 import { Card, Button, Input, LoadingState } from "@/components/ui";
 import { authApi, notificationsApi } from "@/lib/api";
@@ -356,7 +357,7 @@ export default function SettingsPage() {
           subtitle="Manage your account and preferences"
         />
 
-        <div className="p-6 max-w-5xl mx-auto">
+        <PageShell>
           <div className="flex flex-col md:flex-row gap-6">
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 flex-shrink-0">
@@ -389,7 +390,7 @@ export default function SettingsPage() {
               {activeTab === "marketing" && <MarketingSection />}
             </div>
           </div>
-        </div>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

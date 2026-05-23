@@ -11,7 +11,7 @@ import {
   TrendingDown, Receipt, RefreshCw, BadgePercent,
 } from "lucide-react";
 import type { Expense } from "@/types";
-import { Modal, Button, Badge, Input, Select, ConfirmDialog } from "@/components/ui";
+import { Modal, Button, Badge, Input, Select, ConfirmDialog, StatsCard } from "@/components/ui";
 import { PageShell, RegisterToolbar, WorkspaceSurface } from "@/components/shell";
 
 const EXPENSE_CATEGORIES = [
@@ -166,47 +166,26 @@ export default function ExpensesPage() {
       <PageShell width="fluid">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-slate-800 border border-neutral-100 dark:border-slate-700 rounded-xl p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100 dark:bg-red-900/30">
-                <TrendingDown className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Total Expenses</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">
-                  ₹{Number(stats?.total_amount || 0).toLocaleString("en-IN")}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-800 border border-neutral-100 dark:border-slate-700 rounded-xl p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-100 dark:bg-violet-900/30">
-                <Receipt className="w-5 h-5 text-violet-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Expense Count</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">
-                  {stats?.expense_count || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-800 border border-neutral-100 dark:border-slate-700 rounded-xl p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
-                <IndianRupee className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Top Category</p>
-                <p className="text-base font-bold text-neutral-900 dark:text-white">
-                  {stats?.by_category?.[0]
-                    ? `${stats.by_category[0].category_display} (₹${Number(stats.by_category[0].total).toLocaleString("en-IN")})`
-                    : "N/A"}
-                </p>
-              </div>
-            </div>
-          </div>
+          <StatsCard
+            label="Total Expenses"
+            value={`₹${Number(stats?.total_amount || 0).toLocaleString("en-IN")}`}
+            icon={<TrendingDown className="w-5 h-5" />}
+            variant="warning"
+          />
+          <StatsCard
+            label="Expense Count"
+            value={stats?.expense_count || 0}
+            icon={<Receipt className="w-5 h-5" />}
+            variant="accent"
+          />
+          <StatsCard
+            label="Top Category"
+            value={stats?.by_category?.[0]
+              ? stats.by_category[0].category_display
+              : "N/A"}
+            icon={<IndianRupee className="w-5 h-5" />}
+            variant="warning"
+          />
         </div>
 
         <RegisterToolbar

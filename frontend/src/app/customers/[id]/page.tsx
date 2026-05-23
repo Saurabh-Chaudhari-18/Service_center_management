@@ -7,6 +7,7 @@ import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { Button, Badge, LoadingState, EmptyState, ConfirmDialog } from "@/components/ui";
+import { CardTitle } from "@/components/ui";
 import {
   PageShell,
   RecordLayout,
@@ -24,10 +25,46 @@ import {
   Hash,
   MessageSquare,
   Briefcase,
+  MoreVertical,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { formatPhone, formatDateLong } from "@/lib/formatters";
 import type { JobCard } from "@/types";
+
+// =====================================================
+// Overflow Menu (destructive action hidden here)
+// =====================================================
+
+function MoreMenu({ onErase }: { onErase: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <Button
+        variant="secondary"
+        aria-label="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1.5 z-20 min-w-[11rem] rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1 overflow-hidden">
+            <button
+              onClick={() => { setOpen(false); onErase(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Erase Customer Data
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // =====================================================
 // Service History Row
@@ -46,14 +83,14 @@ function ServiceHistoryRow({ job }: { job: JobCard }) {
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="flex items-start justify-between gap-4 rounded-lg border border-neutral-100 p-3 transition-colors hover:border-primary-200 hover:bg-primary-50/40 dark:border-slate-700 dark:hover:bg-slate-700/40"
+      className="flex items-start justify-between gap-4 rounded-lg border border-neutral-100 dark:border-slate-700 p-3 transition-colors hover:border-primary-200 dark:hover:border-primary-500/40 hover:bg-primary-50/40 dark:hover:bg-primary-500/5"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm font-semibold text-neutral-900 dark:text-neutral-100">
             {job.job_number}
           </span>
-          <span className="text-neutral-400 dark:text-neutral-500">·</span>
+          <span className="text-neutral-300 dark:text-neutral-600">·</span>
           <span className="text-sm text-neutral-600 dark:text-neutral-300">
             {job.brand} {job.model}
           </span>
@@ -73,28 +110,30 @@ function ServiceHistoryRow({ job }: { job: JobCard }) {
 }
 
 // =====================================================
-// Info Row helper
+// Sidebar detail row (label + value, flat)
 // =====================================================
 
-function InfoRow({
-  icon,
+function DetailRow({
   label,
   value,
+  icon,
+  mono = false,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value?: string | null | number;
+  value?: string | number | null;
+  icon?: React.ReactNode;
+  mono?: boolean;
 }) {
-  if (!value) return null;
+  if (!value && value !== 0) return null;
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 shrink-0 text-neutral-400 dark:text-neutral-500">{icon}</span>
-      <div>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">{label}</p>
-        <p className="mt-0.5 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-          {value}
-        </p>
-      </div>
+    <div className="flex items-start justify-between gap-3 py-2 border-b border-neutral-100 dark:border-slate-700/60 last:border-0">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide shrink-0">
+        {icon}
+        {label}
+      </span>
+      <span className={`text-sm text-neutral-900 dark:text-neutral-100 text-right ${mono ? "font-mono" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -148,6 +187,8 @@ export default function CustomerDetailPage() {
     .filter(Boolean)
     .join(", ");
 
+  const canErase = isRole("OWNER", "MANAGER");
+
   return (
     <ProtectedRoute requiredPermission="canViewPickups">
       <AppLayout>
@@ -155,13 +196,32 @@ export default function CustomerDetailPage() {
           title={loadingCustomer ? "Loading…" : fullName}
           subtitle={customer?.mobile ? formatPhone(customer.mobile) : undefined}
           actions={
-            <Button
-              variant="secondary"
-              leftIcon={<ArrowLeft className="h-4 w-4" />}
-              onClick={() => router.back()}
-            >
-              Back
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                leftIcon={<ArrowLeft className="h-4 w-4" />}
+                onClick={() => router.back()}
+              >
+                Customers
+              </Button>
+              {customer && (
+                <>
+                  <Link href={`/jobs/new?customer=${customer.id}`}>
+                    <Button leftIcon={<Hash className="h-4 w-4" />}>
+                      New Job Card
+                    </Button>
+                  </Link>
+                  <Link href={`/customers/${customer.id}/edit`}>
+                    <Button variant="secondary" leftIcon={<Pencil className="h-4 w-4" />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  {canErase && (
+                    <MoreMenu onErase={() => setShowDeleteDialog(true)} />
+                  )}
+                </>
+              )}
+            </>
           }
         />
 
@@ -186,111 +246,101 @@ export default function CustomerDetailPage() {
           ) : (
             <RecordLayout
               main={
-                <>
-                  {/* Service History */}
-                  <WorkspaceSurface>
-                    <div className="p-4 md:p-6">
-                      <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-neutral-900 dark:text-neutral-100">
-                        <FileText className="h-4 w-4 text-primary-500" />
+                <WorkspaceSurface>
+                  <div className="p-4 md:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <CardTitle icon={<FileText className="h-4 w-4 text-primary-500" />}>
                         Service History
-                        {serviceHistory && serviceHistory.length > 0 && (
-                          <span className="ml-auto text-sm font-normal text-neutral-500">
-                            {serviceHistory.length} job{serviceHistory.length !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </h2>
-
-                      {loadingHistory ? (
-                        <LoadingState />
-                      ) : serviceHistory && serviceHistory.length > 0 ? (
-                        <div className="space-y-2">
-                          {serviceHistory.map((job) => (
-                            <ServiceHistoryRow key={job.id} job={job} />
-                          ))}
-                        </div>
-                      ) : (
-                        <EmptyState
-                          icon={<Briefcase className="h-7 w-7 text-neutral-300 dark:text-slate-600" />}
-                          title="No service history"
-                          description="This customer has no job cards yet."
-                        />
+                      </CardTitle>
+                      {serviceHistory && serviceHistory.length > 0 && (
+                        <span className="text-sm text-neutral-400 dark:text-neutral-500">
+                          {serviceHistory.length} job{serviceHistory.length !== 1 ? "s" : ""}
+                        </span>
                       )}
                     </div>
-                  </WorkspaceSurface>
-                </>
+
+                    {loadingHistory ? (
+                      <LoadingState />
+                    ) : serviceHistory && serviceHistory.length > 0 ? (
+                      <div className="space-y-2">
+                        {serviceHistory.map((job) => (
+                          <ServiceHistoryRow key={job.id} job={job} />
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        icon={<Briefcase className="h-7 w-7 text-neutral-300 dark:text-slate-600" />}
+                        title="No service history"
+                        description="This customer has no job cards yet."
+                      />
+                    )}
+                  </div>
+                </WorkspaceSurface>
               }
               sidebar={
                 <>
-                  {/* Profile card */}
+                  {/* Customer Info */}
                   <WorkspaceSurface>
                     <div className="p-4">
-                      <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-xl font-semibold text-white">
+                      {/* Avatar + name */}
+                      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-neutral-100 dark:border-slate-700/60">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-lg font-semibold text-white">
                           {initials}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-neutral-900 dark:text-neutral-100">
+                          <p className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                             {fullName}
                           </p>
                           {customer.company_name && (
-                            <p className="truncate text-sm text-neutral-500 dark:text-neutral-400">
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate">
                               {customer.company_name}
                             </p>
                           )}
+                          {customer.pending_jobs_count && customer.pending_jobs_count > 0 ? (
+                            <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              {customer.pending_jobs_count} pending job{customer.pending_jobs_count !== 1 ? "s" : ""}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <InfoRow
-                          icon={<Phone className="h-4 w-4" />}
+                      {/* Contact & meta */}
+                      <div>
+                        <DetailRow
                           label="Mobile"
+                          icon={<Phone className="h-3 w-3" />}
                           value={formatPhone(customer.mobile)}
                         />
                         {customer.alternate_mobile && (
-                          <InfoRow
-                            icon={<Phone className="h-4 w-4" />}
+                          <DetailRow
                             label="Alternate"
+                            icon={<Phone className="h-3 w-3" />}
                             value={formatPhone(customer.alternate_mobile)}
                           />
                         )}
-                        <InfoRow
-                          icon={<Mail className="h-4 w-4" />}
+                        <DetailRow
                           label="Email"
+                          icon={<Mail className="h-3 w-3" />}
                           value={customer.email}
                         />
-                        <InfoRow
-                          icon={<MapPin className="h-4 w-4" />}
+                        <DetailRow
                           label="Location"
+                          icon={<MapPin className="h-3 w-3" />}
                           value={location || undefined}
                         />
-                        <InfoRow
-                          icon={<Building2 className="h-4 w-4" />}
+                        <DetailRow
                           label="GSTIN"
+                          icon={<Building2 className="h-3 w-3" />}
                           value={customer.gstin}
                         />
+                        {customer.total_spent ? (
+                          <DetailRow
+                            label="Total Spent"
+                            value={`₹${customer.total_spent.toLocaleString("en-IN")}`}
+                          />
+                        ) : null}
                       </div>
-
-                      {customer.total_spent ? (
-                        <div className="mt-4 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-500/10">
-                          <p className="mb-0.5 text-xs text-emerald-600 dark:text-emerald-400">
-                            Total Spent
-                          </p>
-                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                            ₹{customer.total_spent.toLocaleString("en-IN")}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {customer.pending_jobs_count && customer.pending_jobs_count > 0 ? (
-                        <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-500/30 dark:bg-amber-500/10">
-                          <span className="text-sm text-amber-700 dark:text-amber-400">
-                            Pending jobs
-                          </span>
-                          <Badge variant="warning" size="sm">
-                            {customer.pending_jobs_count}
-                          </Badge>
-                        </div>
-                      ) : null}
                     </div>
                   </WorkspaceSurface>
 
@@ -298,44 +348,24 @@ export default function CustomerDetailPage() {
                   {customer.notes && (
                     <WorkspaceSurface>
                       <div className="p-4">
-                        <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                          <MessageSquare className="h-4 w-4" />
+                        <CardTitle
+                          icon={<MessageSquare className="h-4 w-4 text-neutral-400" />}
+                          className="mb-3"
+                        >
                           Notes
-                        </h3>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-line">
+                        </CardTitle>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-line border-l-2 border-neutral-200 dark:border-neutral-600 pl-3 py-0.5">
                           {customer.notes}
                         </p>
                       </div>
                     </WorkspaceSurface>
                   )}
-
-                  {/* Actions */}
-                  <div className="space-y-2">
-                    <Link href={`/jobs/new?customer=${customer.id}`} className="block">
-                      <Button className="w-full" leftIcon={<Hash className="h-4 w-4" />}>
-                        New Job Card
-                      </Button>
-                    </Link>
-                    <Link href={`/customers/${customer.id}/edit`} className="block">
-                      <Button variant="secondary" className="w-full" leftIcon={<User className="h-4 w-4" />}>
-                        Edit Customer
-                      </Button>
-                    </Link>
-                    {isRole("OWNER", "MANAGER") && (
-                      <Button
-                        variant="danger"
-                        className="w-full"
-                        onClick={() => setShowDeleteDialog(true)}
-                      >
-                        Erase Customer Data
-                      </Button>
-                    )}
-                  </div>
                 </>
               }
             />
           )}
         </PageShell>
+
         <ConfirmDialog
           isOpen={showDeleteDialog}
           onClose={() => setShowDeleteDialog(false)}

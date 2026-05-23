@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Edit,
   History,
+  MoreVertical,
 } from "lucide-react";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
@@ -366,6 +367,67 @@ function EditHistory({ invoiceId }: { invoiceId: string }) {
 }
 
 // =====================================================
+// MoreMenu — overflow action dropdown
+// =====================================================
+
+interface MenuAction {
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+}
+
+function MoreMenu({ actions }: { actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  if (actions.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <Button
+        variant="secondary"
+        aria-label="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1.5 z-20 min-w-[11rem] rounded-xl border border-neutral-200 bg-white shadow-lg py-1 overflow-hidden">
+            {actions.map((item) =>
+              item.href ? (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </a>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    item.onClick?.();
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </button>
+              ),
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================
 // Main Page Component
 // =====================================================
 
@@ -453,37 +515,13 @@ export default function InvoiceDetailsPage() {
           title={`Invoice ${invoice.invoice_number}`}
           subtitle={formatDateLong(invoice.invoice_date)}
           actions={
-            <div className="flex flex-wrap gap-2 items-center justify-end">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
                 onClick={() => router.push("/billing")}
               >
-                Back
-              </Button>
-              <InvoiceStatusBadge status={invoice.status} />
-
-              <Button
-                variant="secondary"
-                leftIcon={<Edit className="w-4 h-4" />}
-                onClick={() => router.push(`/billing/${id}/edit`)}
-              >
-                Edit Invoice
-              </Button>
-
-              <Button
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                onClick={handlePrint}
-              >
-                Print
-              </Button>
-              <Button
-                variant="secondary"
-                leftIcon={<Download className="w-4 h-4" />}
-                onClick={handleDownload}
-              >
-                Download PDF
+                Billing
               </Button>
               {Number(invoice.balance_due) > 0 &&
                 invoice.status !== "CANCELLED" && (
@@ -494,11 +532,35 @@ export default function InvoiceDetailsPage() {
                     Record Payment
                   </Button>
                 )}
+              <MoreMenu
+                actions={[
+                  {
+                    label: "Edit Invoice",
+                    icon: <Edit className="w-4 h-4" />,
+                    onClick: () => router.push(`/billing/${id}/edit`),
+                  },
+                  {
+                    label: "Print",
+                    icon: <Printer className="w-4 h-4" />,
+                    onClick: handlePrint,
+                  },
+                  {
+                    label: "Download PDF",
+                    icon: <Download className="w-4 h-4" />,
+                    onClick: handleDownload,
+                  },
+                ]}
+              />
             </div>
           }
         />
 
         <div className="p-6 max-w-5xl mx-auto">
+          {/* Status strip */}
+          <div className="mb-6 print:hidden">
+            <InvoiceStatusBadge status={invoice.status} />
+          </div>
+
           <Card padding="none" className="overflow-hidden">
             <InvoiceTemplate invoice={invoice} />
           </Card>

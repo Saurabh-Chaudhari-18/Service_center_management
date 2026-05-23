@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
+import { PageShell } from "@/components/shell/PageShell";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
@@ -200,7 +201,7 @@ function TemplatesTab() {
             )}
 
             {!isEditing && (
-              <p className="mt-3 text-xs text-neutral-500 bg-neutral-50 rounded-lg p-3 font-mono break-words">
+              <p className="mt-3 text-xs text-neutral-500 border-l-2 border-neutral-200 dark:border-neutral-600 pl-3 py-0.5 font-mono break-words">
                 {template.template_text}
               </p>
             )}
@@ -365,7 +366,7 @@ export default function NotificationsPage() {
           subtitle="Manage automated customer messages and view delivery history"
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell>
           {/* Tab bar */}
           <div className="flex gap-1 p-1 bg-neutral-100 rounded-xl w-fit">
             {TABS.map((tab) => {
@@ -389,7 +390,7 @@ export default function NotificationsPage() {
 
           {activeTab === "templates" && <TemplatesTab />}
           {activeTab === "logs" && <LogsTab />}
-        </div>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

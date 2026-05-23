@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
-import { Card, Button, Input, Select } from "@/components/ui";
+import { Card, Button, Input, Select, CardTitle } from "@/components/ui";
 import {
   jobsApi,
   billingApi,
@@ -350,10 +350,9 @@ function CreateInvoiceContent() {
             {/* Branch Selection (Owners Only) */}
             {hasPermission("canManageBranches") && (
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-primary-500" />
+                <CardTitle icon={<Printer className="w-4 h-4 text-neutral-400" />} className="mb-4">
                   Branch Assignment
-                </h3>
+                </CardTitle>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Select
                     label="Assign to Branch"
@@ -384,10 +383,9 @@ function CreateInvoiceContent() {
 
             {/* Customer Section */}
             <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                <User className="w-5 h-5 text-primary-600" />
+              <CardTitle icon={<User className="w-4 h-4 text-neutral-400" />} className="mb-3">
                 Bill To
-              </h3>
+              </CardTitle>
 
               {/* Path 1: Job exists — show customer from job (read-only) */}
               {job && job.customer ? (
@@ -433,9 +431,7 @@ function CreateInvoiceContent() {
 
             {/* Line Items Editor */}
             <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Invoice Items
-              </h3>
+              <CardTitle className="mb-4">Invoice Items</CardTitle>
               <div className="space-y-4">
                 {/* Header Row */}
                 <div className="grid grid-cols-[9rem_9rem_1fr_4.5rem_6rem_4.5rem_2rem] gap-3 text-xs font-semibold text-neutral-400 uppercase tracking-wider px-1">

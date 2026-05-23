@@ -142,13 +142,13 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
                 )}
               </div>
               {onQuickUpdate && (
-                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                   <QuickStatusButton
                     job={job}
                     isUpdating={isUpdating ?? false}
                     onUpdate={onQuickUpdate}
                   />
-                </div>
+                </button>
               )}
             </div>
           </div>

@@ -12,6 +12,7 @@ import {
   MapPin,
   Star,
   Trash2,
+  ChevronRight,
 } from "lucide-react";
 import type { Supplier } from "@/types";
 import {
@@ -166,7 +167,67 @@ export default function SuppliersPage() {
               />
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 md:p-6">
+            <>
+            {/* Desktop table — lg and above */}
+            <div className="hidden lg:block">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                    <th className="px-4 py-3">Supplier</th>
+                    <th className="px-4 py-3">Phone</th>
+                    <th className="px-4 py-3">City</th>
+                    <th className="px-4 py-3">Categories</th>
+                    <th className="px-4 py-3">Rating</th>
+                    <th className="w-10 px-2 py-3" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody className="text-neutral-800 dark:text-slate-200">
+                  {suppliers.map((sup) => (
+                    <tr key={sup.id} className="border-b border-neutral-100 last:border-b-0 dark:border-slate-800/80">
+                      <td className="px-4 py-3 align-middle">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white">
+                            {sup.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-neutral-900 dark:text-white">{sup.name}</p>
+                            {sup.contact_person && <p className="text-xs text-neutral-500 dark:text-neutral-400">{sup.contact_person}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">{sup.phone || "—"}</td>
+                      <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">{sup.city || "—"}</td>
+                      <td className="px-4 py-3 align-middle">
+                        {sup.categories ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sup.categories.split(",").slice(0, 3).map((cat, i) => (
+                              <span key={i} className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600 dark:bg-slate-700 dark:text-neutral-300">
+                                {cat.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        ) : <span className="text-neutral-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star key={s} className={`h-3 w-3 ${s <= (sup.rating || 0) ? "fill-amber-400 text-amber-400" : "text-neutral-300 dark:text-slate-600"}`} />
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-2 py-3 align-middle">
+                        <button type="button" onClick={() => setPendingDeleteId(sup.id)} className="rounded-lg p-1.5 text-neutral-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors" aria-label="Delete supplier">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile / tablet cards — below lg */}
+            <div className="lg:hidden grid grid-cols-1 gap-4 p-4 md:grid-cols-2 md:p-6">
               {suppliers.map((sup) => (
                 <div
                   key={sup.id}
@@ -240,6 +301,7 @@ export default function SuppliersPage() {
                 </div>
               ))}
             </div>
+            </>
           )}
         </WorkspaceSurface>
       </PageShell>

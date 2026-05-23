@@ -9,20 +9,12 @@ import { TrendingUp, TrendingDown, CheckCircle2, AlertCircle, FileText, BarChart
 import { Button } from "@/components/ui";
 import { GSTDateFilter, type DateRange } from "./GSTDateFilter";
 
-function StatCard({ label, value, sub, color = "neutral" }: {
-  label: string; value: string; sub?: string; color?: "green" | "blue" | "red" | "neutral";
-}) {
-  const colors = {
-    green: "bg-green-50 border-green-200 text-green-700",
-    blue: "bg-blue-50 border-blue-200 text-blue-700",
-    red: "bg-red-50 border-red-200 text-red-700",
-    neutral: "bg-white border-neutral-200 text-neutral-700",
-  };
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className={`rounded-xl border p-5 ${colors[color]}`}>
-      <p className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs mt-1 opacity-60">{sub}</p>}
+    <div className="rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">{label}</p>
+      <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{value}</p>
+      {sub && <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">{sub}</p>}
     </div>
   );
 }
@@ -129,11 +121,11 @@ export default function GSTDashboardPage() {
               <TrendingUp className="w-4 h-4 text-blue-500" /> Output Tax (Collected)
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Taxable Amount" value={fmt(data.output?.taxable)} color="neutral" />
-              <StatCard label="CGST Collected" value={fmt(data.output?.cgst)} color="blue" />
-              <StatCard label="SGST Collected" value={fmt(data.output?.sgst)} color="blue" />
+              <StatCard label="Taxable Amount" value={fmt(data.output?.taxable)} />
+              <StatCard label="CGST Collected" value={fmt(data.output?.cgst)} />
+              <StatCard label="SGST Collected" value={fmt(data.output?.sgst)} />
               <StatCard label="Total Output" value={fmt(data.output?.total)}
-                sub={`${data.output?.invoice_count} invoices`} color="blue" />
+                sub={`${data.output?.invoice_count} invoices`} />
             </div>
           </div>
 
@@ -143,10 +135,10 @@ export default function GSTDashboardPage() {
               <TrendingDown className="w-4 h-4 text-green-500" /> Input Tax Credit (Purchases + Expenses)
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Purchase CGST" value={fmt(data.itc?.purchases_cgst)} color="green" />
-              <StatCard label="Purchase SGST" value={fmt(data.itc?.purchases_sgst)} color="green" />
-              <StatCard label="Expense CGST" value={fmt(data.itc?.expenses_cgst)} color="green" />
-              <StatCard label="Total ITC" value={fmt(data.itc?.total)} color="green" />
+              <StatCard label="Purchase CGST" value={fmt(data.itc?.purchases_cgst)} />
+              <StatCard label="Purchase SGST" value={fmt(data.itc?.purchases_sgst)} />
+              <StatCard label="Expense CGST" value={fmt(data.itc?.expenses_cgst)} />
+              <StatCard label="Total ITC" value={fmt(data.itc?.total)} />
             </div>
           </div>
         </>

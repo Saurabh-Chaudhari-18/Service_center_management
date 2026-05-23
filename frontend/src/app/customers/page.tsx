@@ -14,7 +14,7 @@ import {
   EmptyState,
   Badge,
 } from "@/components/ui";
-import { PageShell, RegisterToolbar, WorkspaceSurface } from "@/components/shell";
+import { PageShell, RegisterToolbar, WorkspaceSurface, PaginationFooter } from "@/components/shell";
 import { customersApi } from "@/lib/api";
 import { CustomerCreateForm } from "./CustomerCreateForm";
 import {
@@ -24,6 +24,7 @@ import {
   Phone,
   Mail,
   MapPin,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer } from "@/types";
@@ -49,11 +50,11 @@ function CustomerCard({ customer }: CustomerCardProps) {
           {customer.last_name?.[0]}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-neutral-900 truncate flex items-center gap-2">
+          <h3 className="font-medium text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-2">
             {customer.first_name} {customer.last_name}
             {!customer.branch_name && (
-              <Badge size="sm" className="!bg-purple-600 !text-white font-semibold">
-                🌍 Universal
+              <Badge size="sm" variant="default" className="bg-purple-600 text-white font-semibold">
+                Universal
               </Badge>
             )}
           </h3>
@@ -124,30 +125,42 @@ function AddCustomerModal({
 // Main Customers Page
 // =====================================================
 
+const PAGE_SIZE = 25;
+
 export default function CustomersPage() {
   const { currentBranch } = useAuth();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Reset to page 1 when search changes
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", currentBranch?.id, search],
+    queryKey: ["customers", currentBranch?.id, search, page],
     queryFn: () =>
       customersApi.list({
         branch: currentBranch?.id,
         search: search || undefined,
+        page,
+        page_size: PAGE_SIZE,
       }),
     enabled: !!currentBranch,
   });
 
   const customers = data?.results || [];
+  const totalCount = data?.count ?? 0;
 
   return (
     <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "RECEPTIONIST"]}>
       <AppLayout>
         <Header
           title="Customers"
-          subtitle={`${data?.count || 0} total customers`}
+          subtitle={totalCount > 0 ? `${totalCount.toLocaleString()} customers` : "No customers yet"}
           actions={
             <Button
               leftIcon={<Plus className="w-4 h-4" />}
@@ -165,7 +178,7 @@ export default function CustomersPage() {
                 placeholder="Search by name or mobile number..."
                 leftIcon={<Search className="h-5 w-5" />}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 aria-label="Search customers"
                 className="py-3 text-sm"
               />
@@ -256,7 +269,7 @@ export default function CustomersPage() {
                             )}
                           </td>
                           <td className="px-2 py-3 align-middle">
-                            <MapPin className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
+                            <ChevronRight className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
                           </td>
                         </tr>
                       ))}
@@ -270,6 +283,17 @@ export default function CustomersPage() {
                     <CustomerCard key={customer.id} customer={customer} />
                   ))}
                 </div>
+
+                {/* Pagination */}
+                {totalCount > PAGE_SIZE && (
+                  <PaginationFooter
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    totalCount={totalCount}
+                    onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setPage((p) => p + 1)}
+                  />
+                )}
               </>
             )}
           </WorkspaceSurface>

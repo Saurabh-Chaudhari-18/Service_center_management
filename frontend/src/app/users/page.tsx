@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { PageShell } from "@/components/shell/PageShell";
 import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
+import { WorkspaceSurface } from "@/components/shell";
 import { usersApi, branchesApi } from "@/lib/api";
 import { formatDateLong } from "@/lib/formatters";
 import {
@@ -733,37 +734,39 @@ export default function StaffManagementPage() {
 
         <PageShell>
           {/* Role filter chips */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <button
-              type="button"
-              aria-pressed={!roleFilter}
-              className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
-              onClick={() => setRoleFilter("")}
-            >
-              <p className="text-2xl font-bold text-neutral-900">
-                {users.length}
-              </p>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                All Staff
-              </p>
-            </button>
-            {Object.entries(ROLE_COLORS).map(([role, config]) => (
+          <WorkspaceSurface className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
               <button
-                key={role}
                 type="button"
-                aria-pressed={roleFilter === role}
-                className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
-                onClick={() => setRoleFilter(roleFilter === role ? "" : role)}
+                aria-pressed={!roleFilter}
+                className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
+                onClick={() => setRoleFilter("")}
               >
-                <p className={`text-2xl font-bold ${config.text}`}>
-                  {roleCounts[role] || 0}
+                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                  {users.length}
                 </p>
                 <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                  {config.label}s
+                  All Staff
                 </p>
               </button>
-            ))}
-          </div>
+              {Object.entries(ROLE_COLORS).map(([role, config]) => (
+                <button
+                  key={role}
+                  type="button"
+                  aria-pressed={roleFilter === role}
+                  className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
+                  onClick={() => setRoleFilter(roleFilter === role ? "" : role)}
+                >
+                  <p className={`text-2xl font-bold ${config.text} dark:text-neutral-100`}>
+                    {roleCounts[role] || 0}
+                  </p>
+                  <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
+                    {config.label}s
+                  </p>
+                </button>
+              ))}
+            </div>
+          </WorkspaceSurface>
 
           {/* Search & Filters */}
           <RegisterToolbar

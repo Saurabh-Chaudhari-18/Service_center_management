@@ -22,6 +22,7 @@ import {
   FormSection,
   OperationalSectionLabel,
   PageShell,
+  PaginationFooter,
   RegisterToolbar,
 } from "@/components/shell";
 import { EnquiryStatsStrip } from "@/components/domain/enquiries/EnquiryStatsStrip";
@@ -68,6 +69,8 @@ export default function EnquiriesPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = React.useState(1);
+  const PAGE_SIZE = 20;
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [lostTarget, setLostTarget] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
@@ -87,14 +90,14 @@ export default function EnquiriesPage() {
   });
 
   const listQueryKey = useMemo(
-    () => ["enquiries", "list", currentBranch?.id, search, statusFilter] as const,
-    [currentBranch?.id, search, statusFilter],
+    () => ["enquiries", "list", currentBranch?.id, search, statusFilter, page] as const,
+    [currentBranch?.id, search, statusFilter, page],
   );
 
   const errorToastRef = React.useRef(false);
 
   const {
-    data: enquiries = [],
+    data,
     isLoading: listLoading,
     isError: listError,
     refetch: refetchList,
@@ -105,6 +108,10 @@ export default function EnquiriesPage() {
       if (currentBranch) params.branch = currentBranch.id;
       if (search) params.search = search;
       if (statusFilter && statusFilter !== "OVERDUE") params.status = statusFilter;
+      if (statusFilter !== "OVERDUE") {
+        params.page = String(page);
+        params.page_size = String(PAGE_SIZE);
+      }
       const res = await enquiriesApi.list(params);
       let rows: Enquiry[] = (res.results || []) as Enquiry[];
       if (statusFilter === "OVERDUE") {
@@ -112,10 +119,13 @@ export default function EnquiriesPage() {
           isOverdue(enq.follow_up_date ?? null, enq.status),
         );
       }
-      return rows;
+      return { rows, count: res.count ?? 0 };
     },
     staleTime: 15_000,
   });
+
+  const enquiries = data?.rows ?? [];
+  const totalCount = data?.count ?? 0;
 
   const {
     data: stats = EMPTY_STATS,
@@ -250,7 +260,7 @@ export default function EnquiriesPage() {
               placeholder="All Statuses"
               value={statusFilter}
               options={statusFilterOptions}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="text-sm py-2"
             />
           }
@@ -259,7 +269,7 @@ export default function EnquiriesPage() {
               type="text"
               placeholder="Search by name, mobile, brand..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               leftIcon={<Search className="h-4 w-4" />}
               aria-label="Search enquiries"
               className="py-2 text-sm"
@@ -390,6 +400,15 @@ export default function EnquiriesPage() {
               );
             })}
             </EntityCards>
+          )}
+          {statusFilter !== "OVERDUE" && totalCount > PAGE_SIZE && (
+            <PaginationFooter
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalCount={totalCount}
+              onPrevious={() => setPage(p => Math.max(1, p - 1))}
+              onNext={() => setPage(p => p + 1)}
+            />
           )}
         </div>
       </PageShell>

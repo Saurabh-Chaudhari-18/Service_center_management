@@ -382,7 +382,7 @@ export default function EditJobPage() {
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                        className="w-4 h-4 text-primary-600 rounded border-neutral-300 focus:ring-primary-500"
                         {...register("is_warranty_repair")}
                       />
                       <span className="text-sm font-medium text-neutral-700">

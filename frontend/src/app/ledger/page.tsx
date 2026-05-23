@@ -187,7 +187,7 @@ export default function LedgerPage() {
         title={
           <span>
             Ledger{" "}
-            <span className="text-base font-normal text-gray-400">(Khata)</span>
+            <span className="text-base font-normal text-neutral-400">(Khata)</span>
           </span>
         }
         subtitle="Track customer balances, credits & payment history"
@@ -546,7 +546,7 @@ export default function LedgerPage() {
                   <span className="text-red-500">*</span>
                   <span
                     title="Amount Added to Bill: customer owes more. Payment Received: customer paid you."
-                    className="cursor-help text-gray-400"
+                    className="cursor-help text-neutral-400"
                   >
                     <HelpCircle className="h-3.5 w-3.5" />
                   </span>

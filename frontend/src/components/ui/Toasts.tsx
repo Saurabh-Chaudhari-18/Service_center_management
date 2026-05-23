@@ -12,16 +12,16 @@ const TYPE_STYLES: Record<ToastItem["type"], { bar: string; icon: string }> = {
 function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
   const { bar, icon } = TYPE_STYLES[toast.type];
   return (
-    <div className="flex min-w-[280px] max-w-sm overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-black/5 dark:bg-gray-800 dark:ring-white/10">
+    <div className="flex min-w-[280px] max-w-sm overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-white/10">
       <div className={`w-1.5 flex-shrink-0 ${bar}`} />
       <div className="flex flex-1 items-start gap-3 px-4 py-3">
         <span className={`mt-0.5 text-sm font-bold ${bar.replace("bg-", "text-")}`}>
           {icon}
         </span>
-        <p className="flex-1 text-sm text-gray-800 dark:text-gray-100">{toast.message}</p>
+        <p className="flex-1 text-sm text-neutral-800 dark:text-neutral-100">{toast.message}</p>
         <button
           onClick={onDismiss}
-          className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          className="ml-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
           aria-label="Dismiss"
         >
           ✕

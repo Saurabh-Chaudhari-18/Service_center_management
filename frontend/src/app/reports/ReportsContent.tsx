@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, Input, LoadingState } from "@/components/ui";
+import { Card, Button, Input, LoadingState, CardTitle } from "@/components/ui";
 import { PageShell } from "@/components/shell/PageShell";
 import { reportsApi } from "@/lib/api";
 import type { InventoryItem, TechnicianProductivityData } from "@/types";
@@ -145,9 +145,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
     <Card className="h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-900">
-            Revenue Overview
-          </h3>
+          <CardTitle>Revenue Overview</CardTitle>
           <p className="text-sm text-neutral-500">Daily revenue breakdown</p>
         </div>
         <div className="text-right">
@@ -232,9 +230,7 @@ function JobsByStatusChart() {
     <Card className="h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-900">
-            Pending Jobs
-          </h3>
+          <CardTitle>Pending Jobs</CardTitle>
           <p className="text-sm text-neutral-500">Jobs by current status</p>
         </div>
         <div className="text-right">
@@ -315,9 +311,7 @@ function TechnicianProductivity({
   if (!data || !data.technicians || data.technicians.length === 0) {
     return (
       <Card>
-        <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-          Technician Productivity
-        </h3>
+        <CardTitle className="mb-4">Technician Productivity</CardTitle>
         <p className="text-neutral-500 text-center py-8">
           No technician data available
         </p>
@@ -327,10 +321,9 @@ function TechnicianProductivity({
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Users className="w-5 h-5 text-primary-500" />
+      <CardTitle icon={<Users className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Technician Productivity
-      </h3>
+      </CardTitle>
 
       <div className="space-y-4">
         {data.technicians.map((tech: TechnicianProductivityData) => {
@@ -441,10 +434,9 @@ function InventoryOverview({ fromDate, toDate }: InventoryOverviewProps) {
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Package className="w-5 h-5 text-primary-500" />
+      <CardTitle icon={<Package className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Inventory Overview
-      </h3>
+      </CardTitle>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {chartData.length > 0 ? (
@@ -552,10 +544,9 @@ function CustomerInsights({ fromDate, toDate }: CustomerInsightsProps) {
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Users className="w-5 h-5 text-blue-500" />
+      <CardTitle icon={<Users className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Customer Insights
-      </h3>
+      </CardTitle>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-blue-50 rounded-lg text-center">
@@ -650,10 +641,9 @@ function GstSummary({ fromDate, toDate }: GstSummaryProps) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-500" />
+        <CardTitle icon={<DollarSign className="w-4 h-4 text-neutral-400" />}>
           GST Summary
-        </h3>
+        </CardTitle>
         {invoiceCount > 0 && (
           <span className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded-full">
             {invoiceCount} invoice{invoiceCount !== 1 ? "s" : ""}
@@ -714,10 +704,9 @@ function LowStockList() {
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Activity className="w-5 h-5 text-red-500" />
+      <CardTitle icon={<Activity className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Low Stock Alerts
-      </h3>
+      </CardTitle>
 
       <div className="space-y-4">
         {items.slice(0, 5).map(

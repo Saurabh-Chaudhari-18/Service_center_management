@@ -181,8 +181,7 @@ export function Sidebar() {
           <div className="relative">
             <button
               onClick={() => setBranchMenuOpen(!branchMenuOpen)}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors"
-              style={{ background: "rgba(255,255,255,0.08)" }}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors bg-white/[0.08]"
             >
               <div className="text-left">
                 <p className="text-[10px] text-violet-300/60 uppercase tracking-widest font-medium">Branch</p>
@@ -192,14 +191,12 @@ export function Sidebar() {
             </button>
 
             {branchMenuOpen && (
-              <div className="absolute left-0 right-0 mt-2 py-1 rounded-xl shadow-2xl z-50 border border-white/10 overflow-hidden"
-                   style={{ background: "rgba(30,24,80,0.98)", backdropFilter: "blur(16px)" }}>
+              <div className="absolute left-0 right-0 mt-2 py-1 rounded-xl shadow-2xl z-50 border border-white/10 overflow-hidden bg-[rgba(30,24,80,0.98)] backdrop-blur-md">
                 {accessibleBranches.map((branch) => (
                   <button
                     key={branch.id}
                     onClick={() => handleBranchSwitch(branch.id)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-violet-200 hover:text-white transition-colors"
-                    style={{ background: branch.id === currentBranch?.id ? "rgba(255,255,255,0.08)" : "transparent" }}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-violet-200 hover:text-white transition-colors ${branch.id === currentBranch?.id ? "bg-white/[0.08]" : "bg-transparent"}`}
                   >
                     <span>{branch.name}</span>
                     {branch.id === currentBranch?.id && <Check className="w-3.5 h-3.5 text-violet-300" />}
@@ -228,7 +225,7 @@ export function Sidebar() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className="w-4.5 h-4.5 shrink-0 text-violet-300" style={{ width: "1.1rem", height: "1.1rem" }} />
+                    <Icon className="w-4.5 h-4.5 shrink-0 text-violet-300" />
                     <span>{item.name}</span>
                   </div>
                   <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
@@ -268,7 +265,7 @@ export function Sidebar() {
               className={`sidebar-item ${isActive ? "active" : ""}`}
               onClick={closeMobile}
             >
-              <Icon className="w-4.5 h-4.5 shrink-0" style={{ width: "1.1rem", height: "1.1rem" }} />
+              <Icon className="w-4.5 h-4.5 shrink-0" />
               <span>{item.name}</span>
             </Link>
           );
@@ -277,9 +274,8 @@ export function Sidebar() {
 
       {/* User Profile */}
       <div className="p-3 border-t border-white/10">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1" style={{ background: "rgba(255,255,255,0.07)" }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-               style={{ background: "linear-gradient(135deg, #818cf8, #a78bfa)" }}>
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 bg-white/[0.07]">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 bg-gradient-to-br from-indigo-400 to-violet-400">
             {user.first_name?.[0]}{user.last_name?.[0]}
           </div>
           <div className="flex-1 min-w-0">
@@ -453,7 +449,7 @@ export function AppLayout({ children }: LayoutProps) {
 
   return (
     <MobileSidebarContext.Provider value={{ isOpen: sidebarOpen, toggle, close }}>
-      <div className="min-h-screen" style={{ background: "transparent" }}>
+      <div className="min-h-screen bg-transparent">
         {/* Desktop sidebar – always visible ≥ lg */}
         <div className="hidden lg:block">
           <Sidebar />

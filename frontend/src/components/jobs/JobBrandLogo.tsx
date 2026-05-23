@@ -91,7 +91,7 @@ export function JobBrandLogo({ brand }: JobBrandLogoProps) {
       const initials =
         key.length >= 2 ? key.slice(0, 2) : key.length === 1 ? key : "?";
       return (
-        <div className="w-8 h-8 shrink-0 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+        <div className="w-8 h-8 shrink-0 rounded-full bg-neutral-200 flex items-center justify-center text-xs font-bold text-neutral-600">
           {initials}
         </div>
       );

@@ -81,26 +81,24 @@ export default function PurchasesPage() {
         />
 
         <PageShell width="fluid" className="font-sans">
-          <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">
-            <RegisterToolbar
-              search={
-                <Input
-                  type="text"
-                  placeholder="Search by vendor name or invoice number..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  leftIcon={<Search className="h-5 w-5" />}
-                  aria-label="Search purchases"
-                  className="text-sm dark:bg-slate-900/60"
-                />
-              }
-              secondaryActions={
-                isFetching && !isLoading ? (
-                  <span className="text-xs text-neutral-500 dark:text-slate-400">Updating…</span>
-                ) : null
-              }
-            />
-          </div>
+          <RegisterToolbar
+            search={
+              <Input
+                type="text"
+                placeholder="Search by vendor name or invoice number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                leftIcon={<Search className="h-5 w-5" />}
+                aria-label="Search purchases"
+                className="text-sm dark:bg-slate-900/60"
+              />
+            }
+            secondaryActions={
+              isFetching && !isLoading ? (
+                <span className="text-xs text-neutral-500 dark:text-slate-400">Updating…</span>
+              ) : null
+            }
+          />
 
           <EntityTable
             loading={showInitialLoading}

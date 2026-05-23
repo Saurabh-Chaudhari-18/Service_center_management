@@ -155,7 +155,7 @@ export default function TrackJobPage() {
                 required
               />
 
-              <p className="text-xs text-gray-400 mt-[-8px]">
+              <p className="text-xs text-neutral-400 mt-[-8px]">
                 PIN was sent via SMS when your device was registered. Contact the
                 service center if you don&apos;t have it.
               </p>
@@ -211,7 +211,7 @@ export default function TrackJobPage() {
                     {data.estimated_cost && (
                       <div className="grid grid-cols-3 gap-2">
                         <dt className="text-neutral-500">Est. Cost:</dt>
-                        <dd className="col-span-2 font-medium text-green-600">₹{data.estimated_cost}</dd>
+                        <dd className="col-span-2 font-semibold text-neutral-900">₹{data.estimated_cost}</dd>
                       </div>
                     )}
                     {data.estimated_completion_date && (

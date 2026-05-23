@@ -253,7 +253,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
                 APPROX REPAIR CHARGES
               </p>
               <div className="space-y-3 text-[11pt]">
-                <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                <p className="flex justify-between border-b border-dotted border-neutral-400 pb-1">
                   <span>Service Charges:</span>
                   <span className="w-24 border-b border-black text-right px-1">
                     {job.estimated_cost
@@ -261,7 +261,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
                       : "₹"}
                   </span>
                 </p>
-                <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                <p className="flex justify-between border-b border-dotted border-neutral-400 pb-1">
                   <span>Parts/Spares:</span>
                   <span className="w-24 border-b border-black text-right px-1">
                     {job.total_parts_cost
@@ -269,7 +269,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
                       : "₹"}
                   </span>
                 </p>
-                <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                <p className="flex justify-between border-b border-dotted border-neutral-400 pb-1">
                   <span>Discount:</span>
                   <span className="w-24 border-b border-black">₹</span>
                 </p>

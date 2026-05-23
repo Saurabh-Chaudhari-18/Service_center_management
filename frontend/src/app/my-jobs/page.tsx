@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
+import { PageShell } from "@/components/shell/PageShell";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
   EmptyState,
   Badge,
   Alert,
+  StatsCard,
 } from "@/components/ui";
 import { jobsApi, usersApi } from "@/lib/api";
 import {
@@ -559,51 +561,30 @@ export default function MyJobsPage() {
           subtitle={`${totalJobs} jobs assigned to you`}
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell>
           {/* Live Location Sharing Banner */}
           <LiveLocationBanner />
 
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card padding="md" className="stats-card stats-card-accent">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {inProgress.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">In Progress</p>
-                </div>
-              </div>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-warning">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {pending.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">Pending</p>
-                </div>
-              </div>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-success">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {ready.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">Ready for Delivery</p>
-                </div>
-              </div>
-            </Card>
+            <StatsCard
+              label="In Progress"
+              value={inProgress.length}
+              icon={<Wrench className="w-5 h-5" />}
+              variant="accent"
+            />
+            <StatsCard
+              label="Pending"
+              value={pending.length}
+              icon={<Clock className="w-5 h-5" />}
+              variant="warning"
+            />
+            <StatsCard
+              label="Ready for Delivery"
+              value={ready.length}
+              icon={<CheckCircle2 className="w-5 h-5" />}
+              variant="success"
+            />
           </div>
 
           {isLoading ? (
@@ -762,7 +743,7 @@ export default function MyJobsPage() {
               </div>
             </>
           )}
-        </div>
+        </PageShell>
 
         {/* Modals */}
         <TechnicianStatusModal

@@ -30,7 +30,7 @@ export function JobDiagnosisPartsSection({
   onPartChange,
 }: JobDiagnosisPartsSectionProps) {
   return (
-    <div className="space-y-3 pt-4 border-t border-gray-100">
+    <div className="space-y-3 pt-4 border-t border-neutral-100">
       <div className="flex items-center justify-between">
         <h4 className="font-medium text-neutral-900">Spare Parts</h4>
         <Button
