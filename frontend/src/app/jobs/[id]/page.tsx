@@ -46,7 +46,7 @@ import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
 export default function JobDetailPage() {
   const params = useParams();
   const jobId = params.id as string;
-  const { hasPermission, isRole } = useAuth();
+  const { hasPermission, isRole, accessibleBranches } = useAuth();
 
   // Modal states
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -613,7 +613,12 @@ export default function JobDetailPage() {
         />
 
         {/* PRINT-ONLY: Job Card Printable Template */}
-        {showPrintView && <JobCardPrintTemplate job={job} />}
+        {showPrintView && (
+          <JobCardPrintTemplate
+            job={job}
+            branchDetails={accessibleBranches.find((b) => b.id === job.branch) ?? null}
+          />
+        )}
       </AppLayout>
     </ProtectedRoute>
   );

@@ -78,6 +78,14 @@ export const authApi = {
       new_password_confirm: newPassword,
     });
   },
+
+  updateMe: async (data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+  }): Promise<AuthUser> => {
+    return apiPatch<AuthUser>("/core/users/update_me/", data);
+  },
 };
 
 // =====================================================
@@ -195,6 +203,8 @@ export const customersApi = {
     branch?: string;
     search?: string;
     page?: number;
+    page_size?: number;
+    is_active?: boolean;
   }): Promise<PaginatedResponse<Customer>> => {
     return apiGet<PaginatedResponse<Customer>>("/customers/customers/", params);
   },

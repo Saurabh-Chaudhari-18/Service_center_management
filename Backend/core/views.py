@@ -275,7 +275,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ['me', 'change_password', 'set_current_branch', 'my_branches', 'update_location']:
+        if self.action in ['me', 'update_me', 'change_password', 'set_current_branch', 'my_branches', 'update_location']:
             return [IsAuthenticated()]
         return super().get_permissions()
 
@@ -323,6 +323,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         """Get current user's profile."""
         serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['patch'])
+    def update_me(self, request):
+        """Update own first_name, last_name, phone."""
+        allowed = {k: v for k, v in request.data.items() if k in ('first_name', 'last_name', 'phone')}
+        serializer = UserSerializer(request.user, data=allowed, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])

@@ -32,6 +32,11 @@ import {
   Truck,
   Package,
   ChevronDown,
+  X,
+  CheckCircle2,
+  Sparkles,
+  Wrench,
+  PackageSearch,
 } from "lucide-react";
 import Link from "next/link";
 import { format, subDays, startOfMonth, startOfYear } from "date-fns";
@@ -74,6 +79,241 @@ const PERIOD_OPTIONS: { value: DatePeriod; label: string }[] = [
   { value: "last_30", label: "Last 30 Days" },
   { value: "this_year", label: "This Year" },
 ];
+
+// =====================================================
+// Shop Briefing — "what's happening right now"
+// =====================================================
+
+function ShopBriefing() {
+  const { currentBranch, hasPermission } = useAuth();
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const dayLabel = format(new Date(), "EEEE, d MMM");
+
+  const { data } = useQuery({
+    queryKey: ["pending-jobs-report", currentBranch?.id],
+    queryFn: () => reportsApi.getPendingJobs({ branch: currentBranch?.id }),
+    enabled: !!currentBranch,
+  });
+
+  const { data: lowStockItems } = useQuery({
+    queryKey: ["low-stock", currentBranch?.id],
+    queryFn: () => inventoryApi.getLowStock(),
+    enabled: !!currentBranch && hasPermission("canViewInventory"),
+  });
+
+  const byStatus = useMemo(() => {
+    if (!data?.by_status) return {} as Record<string, number>;
+    return Object.fromEntries(
+      data.by_status.map((s: { status: string; count: number }) => [
+        s.status,
+        s.count,
+      ]),
+    );
+  }, [data]);
+
+  const readyCount = byStatus["READY_FOR_DELIVERY"] || 0;
+  const inProgressCount = byStatus["REPAIR_IN_PROGRESS"] || 0;
+  const waitingPartsCount = byStatus["WAITING_FOR_PARTS"] || 0;
+  const needsAttentionCount =
+    (byStatus["RECEIVED"] || 0) + (byStatus["DIAGNOSIS"] || 0);
+  const lowStockCount = lowStockItems?.length || 0;
+  const total = data?.total_pending || 0;
+
+  if (!data || (total === 0 && lowStockCount === 0)) return null;
+
+  const chips = [
+    readyCount > 0 && {
+      count: readyCount,
+      label: "Ready to collect",
+      icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+      cls: "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-400",
+      href: "/jobs?status=READY_FOR_DELIVERY",
+      pulse: true,
+    },
+    inProgressCount > 0 && {
+      count: inProgressCount,
+      label: "In workshop",
+      icon: <Wrench className="w-3.5 h-3.5" />,
+      cls: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-400",
+      href: "/jobs?status=REPAIR_IN_PROGRESS",
+      pulse: false,
+    },
+    waitingPartsCount > 0 && {
+      count: waitingPartsCount,
+      label: "Waiting for parts",
+      icon: <PackageSearch className="w-3.5 h-3.5" />,
+      cls: "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-400",
+      href: "/jobs?status=WAITING_FOR_PARTS",
+      pulse: false,
+    },
+    needsAttentionCount > 0 && {
+      count: needsAttentionCount,
+      label: "Need diagnosis",
+      icon: <FileText className="w-3.5 h-3.5" />,
+      cls: "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:border-violet-500/30 dark:text-violet-400",
+      href: "/jobs",
+      pulse: false,
+    },
+    lowStockCount > 0 &&
+      hasPermission("canViewInventory") && {
+        count: lowStockCount,
+        label: "Low stock",
+        icon: <Package className="w-3.5 h-3.5" />,
+        cls: "bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 dark:bg-orange-500/10 dark:border-orange-500/30 dark:text-orange-400",
+        href: "/inventory",
+        pulse: false,
+      },
+  ].filter(
+    (c): c is Exclude<typeof c, false | undefined | null | 0 | ""> => !!c,
+  );
+
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-4 md:p-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+            {dayLabel}
+          </p>
+          <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 mt-0.5">
+            {greeting} — here&apos;s your shop right now
+          </h2>
+        </div>
+        <span className="text-xs font-medium text-neutral-400 dark:text-neutral-500">
+          {total} active job{total !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <Link
+            key={chip.href + chip.label}
+            href={chip.href}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${chip.cls}`}
+          >
+            {chip.icon}
+            <span className="text-lg font-bold tabular-nums leading-none">
+              {chip.count}
+            </span>
+            <span className="text-xs">{chip.label}</span>
+            {chip.pulse && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            )}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// Onboarding Checklist — shown only for new accounts
+// =====================================================
+
+function OnboardingChecklist() {
+  const { currentBranch } = useAuth();
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("onboarding_dismissed") === "true";
+  });
+
+  const { data } = useQuery({
+    queryKey: ["total-jobs-count", currentBranch?.id],
+    queryFn: () => jobsApi.list({ branch: currentBranch?.id, page_size: 1 }),
+    enabled: !!currentBranch && !dismissed,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const totalJobs = data?.count ?? -1;
+
+  if (dismissed || totalJobs === -1 || totalJobs > 0) return null;
+
+  const handleDismiss = () => {
+    localStorage.setItem("onboarding_dismissed", "true");
+    setDismissed(true);
+  };
+
+  const steps = [
+    { label: "Account created", done: true, href: null },
+    { label: "Add shop details & GSTIN", done: false, href: "/settings" },
+    { label: "Set up SMS notifications", done: false, href: "/notifications" },
+    { label: "Create your first job card", done: false, href: "/jobs/new" },
+  ];
+
+  const completed = steps.filter((s) => s.done).length;
+
+  return (
+    <div className="rounded-2xl border-2 border-primary-200 bg-primary-50/40 dark:bg-primary-900/10 dark:border-primary-800/50 p-4 md:p-5 relative">
+      <button
+        onClick={handleDismiss}
+        className="absolute top-3 right-3 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-slate-800 transition-colors"
+        aria-label="Dismiss setup guide"
+      >
+        <X className="w-4 h-4" />
+      </button>
+
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center shrink-0">
+          <Sparkles className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+        </div>
+        <div className="flex-1 min-w-0 pr-6">
+          <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">
+            Welcome! Set up your service center
+          </h3>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Complete these steps to unlock the full value of your dashboard.
+          </p>
+
+          <div className="mt-3 h-1.5 bg-neutral-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all duration-500"
+              style={{ width: `${Math.round((completed / steps.length) * 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+            {completed} of {steps.length} completed
+          </p>
+
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {steps.map((step) => (
+              <div key={step.label} className="flex items-center gap-2.5">
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                    step.done
+                      ? "bg-primary-500"
+                      : "border-2 border-neutral-300 dark:border-slate-600"
+                  }`}
+                >
+                  {step.done && (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                {step.href && !step.done ? (
+                  <Link
+                    href={step.href}
+                    className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium"
+                  >
+                    {step.label}
+                  </Link>
+                ) : (
+                  <span
+                    className={`text-sm ${
+                      step.done
+                        ? "text-neutral-400 dark:text-neutral-600 line-through"
+                        : "text-neutral-700 dark:text-neutral-300"
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // =====================================================
 // Dashboard Stats Component
@@ -995,7 +1235,13 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Top Quick Actions (Replaced Stats Grid) */}
+          {/* Shop Briefing — actionable status overview */}
+          {hasPermission("canViewJobCards") && <ShopBriefing />}
+
+          {/* Onboarding checklist — only for new accounts */}
+          <OnboardingChecklist />
+
+          {/* Top Quick Actions */}
           <QuickActions />
 
           {/* Recent Jobs + Right panel (Job Status) */}

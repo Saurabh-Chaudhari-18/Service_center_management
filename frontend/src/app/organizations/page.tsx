@@ -27,6 +27,7 @@ import {
   Eye,
   Store,
 } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -65,6 +66,7 @@ interface OrgModalProps {
 
 function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isEditing = !!org;
 
   const {
@@ -104,12 +106,12 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      alert(isEditing ? "Organization updated" : "Organization created");
+      toast.success(isEditing ? "Organization updated" : "Organization created");
       onClose();
       reset();
     },
     onError: (error: Error) => {
-      alert(error.message || "Failed to save organization");
+      toast.error(error.message || "Failed to save organization");
     },
   });
 

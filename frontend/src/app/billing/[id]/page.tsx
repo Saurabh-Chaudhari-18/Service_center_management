@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
+import { useToast } from "@/context/ToastContext";
 
 // =====================================================
 // Print Portal Util
@@ -57,6 +58,7 @@ function RecordPaymentModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { toast } = useToast();
   const [amount, setAmount] = useState(balanceDue.toString());
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [reference, setReference] = useState("");
@@ -78,7 +80,7 @@ function RecordPaymentModal({
     },
     onError: (error) => {
       console.error("Failed to record payment", error);
-      alert("Failed to record payment");
+      toast.error("Failed to record payment");
     },
   });
 
@@ -371,6 +373,7 @@ export default function InvoiceDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const { toast } = useToast();
 
   const queryClient = useQueryClient();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -402,10 +405,8 @@ export default function InvoiceDetailsPage() {
     } catch (error) {
       console.error("Failed to log download:", error);
     }
-    // We use window.print() because it renders the exact UI which is much better than the backend generated PDF.
-    // Users can choose "Save as PDF" in the print dialog.
-    alert(
-      "To download the PDF with the best layout, please select 'Save as PDF' as the destination in the print dialog.",
+    toast.info(
+      "Select 'Save as PDF' as the destination in the print dialog to download.",
     );
     window.print();
   };

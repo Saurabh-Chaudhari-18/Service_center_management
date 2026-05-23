@@ -8,6 +8,7 @@ import { Button, Input, Badge, Modal, LoadingState } from "@/components/ui"; // 
 import { branchesApi } from "@/lib/api";
 import { Branch } from "@/types";
 import { Plus, Edit2, MapPin, Phone, Mail, Hash } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,6 +51,7 @@ interface BranchModalProps {
 
 function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isEditing = !!branch;
 
   const {
@@ -96,12 +98,12 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
-      alert(isEditing ? "Branch updated" : "Branch created");
+      toast.success(isEditing ? "Branch updated" : "Branch created");
       onClose();
       reset();
     },
     onError: (error: Error) => {
-      alert(error.message || "Failed to save branch");
+      toast.error(error.message || "Failed to save branch");
     },
   });
 
@@ -172,14 +174,8 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
             error={errors.phone?.message}
           />
 
-          <div className="col-span-2">
-            <h4 className="text-sm font-medium text-neutral-900 mb-2 border-b pb-1">
-              Address
-            </h4>
-          </div>
-
           <div className="col-span-2 text-neutral-900 font-medium pb-2 border-b">
-            Address
+            Address Details
           </div>
 
           <div className="col-span-2">
@@ -218,8 +214,15 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
 
           <Input
             label="GSTIN"
+            placeholder="e.g. 27ABCDE1234F1Z5"
             {...register("gstin")}
             error={errors.gstin?.message}
+          />
+          <Input
+            label="State Code"
+            placeholder="e.g. 27 for Maharashtra"
+            {...register("state_code")}
+            error={errors.state_code?.message}
           />
           <Input
             label="Default GST Rate (%)"

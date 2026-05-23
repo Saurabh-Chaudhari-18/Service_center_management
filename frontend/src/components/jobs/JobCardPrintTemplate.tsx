@@ -2,8 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { formatDateLong, formatPhone } from "@/lib/formatters";
-import { JobBrandLogo } from "@/components/jobs/JobBrandLogo";
-import type { JobCard } from "@/types";
+import type { JobCard, Branch } from "@/types";
 
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
@@ -15,9 +14,21 @@ const PrintPortal = ({ children }: { children: React.ReactNode }) => {
 
 interface JobCardPrintTemplateProps {
   job: JobCard;
+  branchDetails?: Branch | null;
 }
 
-export function JobCardPrintTemplate({ job }: JobCardPrintTemplateProps) {
+export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplateProps) {
+  const shopName = branchDetails?.organization_name || branchDetails?.name || "Service Center";
+  const branchName = branchDetails?.name || shopName;
+  const addressParts = [
+    branchDetails?.address_line1,
+    branchDetails?.address_line2,
+    branchDetails?.city,
+    branchDetails?.state,
+    branchDetails?.pincode,
+  ].filter(Boolean);
+  const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : "—";
+  const phone = branchDetails?.phone ? formatPhone(branchDetails.phone) : "—";
   return (
     <PrintPortal>
       {/* eslint-disable-next-line react/no-danger */}
@@ -51,27 +62,20 @@ export function JobCardPrintTemplate({ job }: JobCardPrintTemplateProps) {
           <div className="print-header print-section border-2 border-black p-2 mb-2">
             <div className="flex items-center justify-between mb-2">
               <div className="flex gap-4 items-center">
-                <JobBrandLogo brand="HP" />
-                <JobBrandLogo brand="DELL" />
-                <JobBrandLogo brand="ASUS" />
-                <JobBrandLogo brand="LENOVO" />
+                <span className="text-[9pt] text-neutral-500">{branchName}</span>
               </div>
               <div className="text-right">
                 <h1 className="text-2xl font-bold uppercase tracking-wider">
-                  SHIVANGI INFOTECH
+                  {shopName}
                 </h1>
-                <p className="text-[10pt] font-semibold">
-                  HP | DELL | ASUS Authorised Partner
-                </p>
               </div>
             </div>
             <div className="text-center mt-2 pt-2 border-t-2 border-black">
               <p className="text-[10pt] font-medium">
-                Shop No.1&amp;2, Krupalu Hsg. Soc, Paud Road, Near Vespa
-                Showroom, Pune-411038
+                {fullAddress}
               </p>
               <p className="text-[10pt] font-bold mt-1">
-                Mobile: 9890888295, 9850292673
+                Mobile: {phone}
               </p>
             </div>
             <div className="text-center mt-2 pt-2 border-t-2 border-black">
@@ -230,7 +234,7 @@ export function JobCardPrintTemplate({ job }: JobCardPrintTemplateProps) {
                   CUSTOMER AUTHORIZATION
                 </p>
                 <p className="text-[10pt] mb-4 italic">
-                  I hereby authorize Shivangi Infotech to provide necessary
+                  I hereby authorize {shopName} to provide necessary
                   repair &amp; service. I have taken backup of all important
                   data.
                 </p>

@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { formatDateLong } from "@/lib/formatters";
 import type { Invoice } from "@/types";
+import { useToast } from "@/context/ToastContext";
 
 // =====================================================
 // Schemas & Types
@@ -431,6 +432,7 @@ function EditInvoiceContent() {
   const params = useParams();
   const id = params?.id as string;
   const { currentBranch, hasPermission } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
@@ -604,7 +606,7 @@ function EditInvoiceContent() {
     },
     onError: (error: Error) => {
       console.error(error);
-      alert("Failed to update invoice");
+      toast.error(error.message || "Failed to update invoice");
     },
   });
 
