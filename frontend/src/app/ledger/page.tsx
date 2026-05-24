@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { ledgerApi, customersApi } from "@/lib/api/services";
 import {
   Plus, BookOpen, TrendingUp, Search,
@@ -47,7 +47,7 @@ type LedgerStatementShape = {
   balance?: string | number;
 };
 
-export default function LedgerPage() {
+function LedgerPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -187,7 +187,7 @@ export default function LedgerPage() {
         title={
           <span>
             Ledger{" "}
-            <span className="text-base font-normal text-gray-400">(Khata)</span>
+            <span className="text-base font-normal text-neutral-400">(Khata)</span>
           </span>
         }
         subtitle="Track customer balances, credits & payment history"
@@ -546,7 +546,7 @@ export default function LedgerPage() {
                   <span className="text-red-500">*</span>
                   <span
                     title="Amount Added to Bill: customer owes more. Payment Received: customer paid you."
-                    className="cursor-help text-gray-400"
+                    className="cursor-help text-neutral-400"
                   >
                     <HelpCircle className="h-3.5 w-3.5" />
                   </span>
@@ -614,5 +614,13 @@ export default function LedgerPage() {
         </form>
       </Modal>
     </AppLayout>
+  );
+}
+
+export default function LedgerPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <LedgerPageContent />
+    </ProtectedRoute>
   );
 }

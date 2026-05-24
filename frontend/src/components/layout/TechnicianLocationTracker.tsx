@@ -14,7 +14,7 @@ export function TechnicianLocationTracker() {
         const token = localStorage.getItem("scm_access_token");
         if (!token) return;
         
-        await fetch(`${API_BASE_URL}/core/users/update_location/`, {
+        await fetch(`${API_BASE_URL}/core/users/update-location/`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

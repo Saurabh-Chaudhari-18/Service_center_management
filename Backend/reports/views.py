@@ -12,9 +12,10 @@ Features:
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django.db import models
-from django.db.models import Sum, Count, Avg, F, Q
+from django.db.models import Sum, Count, Avg, F, Q, ExpressionWrapper, DurationField
 from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 from datetime import timedelta
@@ -138,7 +139,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'recent_payments': payments_detail,
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='pending-jobs')
     def pending_jobs(self, request):
         """
         Pending jobs analysis.
@@ -201,7 +202,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'by_age': age_groups,
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='technician-productivity')
     def technician_productivity(self, request):
         """
         Technician productivity report.
@@ -241,13 +242,22 @@ class ReportsViewSet(viewsets.ViewSet):
                 status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
             )
             
+            avg_result = completed.annotate(
+                days_taken=ExpressionWrapper(
+                    F('delivery_date') - F('created_at'),
+                    output_field=DurationField()
+                )
+            ).aggregate(avg_days=Avg('days_taken'))
+            avg_td = avg_result['avg_days']
+            avg_completion_days = round(avg_td.total_seconds() / 86400, 1) if avg_td else 0
+
             productivity_data.append({
                 'technician_id': str(tech.id),
                 'technician_name': tech.get_full_name(),
                 'assigned_jobs': assigned_jobs.count(),
                 'completed_jobs': completed.count(),
                 'pending_jobs': current.count(),
-                'avg_completion_days': 0,
+                'avg_completion_days': avg_completion_days,
             })
         
         # Sort by completed jobs
@@ -259,7 +269,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'technicians': productivity_data
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='inventory-consumption')
     def inventory_consumption(self, request):
         """
         Inventory consumption report.
@@ -318,7 +328,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'totals': totals
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='low-stock')
     def low_stock(self, request):
         """
         Low stock report.
@@ -353,7 +363,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'items': data
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='customer-analysis')
     def customer_analysis(self, request):
         """
         Customer analysis report.
@@ -397,7 +407,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'top_customers': list(customers_with_revenue)
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='gst-summary')
     def gst_summary(self, request):
         """
         GST summary report for filing.
@@ -451,7 +461,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'by_supply_type': list(supply_type)
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='export-excel')
     def export_excel(self, request):
         """
         Kick off an async Excel export. Returns a task_id immediately.
@@ -478,7 +488,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'status_url': f'/api/reports/export_status/?task_id={task.id}',
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='export-status')
     def export_status(self, request):
         """
         Poll the status of an async export task.
@@ -486,7 +496,7 @@ class ReportsViewSet(viewsets.ViewSet):
         """
         task_id = request.query_params.get('task_id')
         if not task_id:
-            return Response({'error': 'task_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('task_id is required')
 
         from celery.result import AsyncResult
         result = AsyncResult(task_id)
@@ -503,7 +513,7 @@ class ReportsViewSet(viewsets.ViewSet):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='gstr1-export')
     def gstr1_export(self, request):
         """
         Kick off an async CA-ready GSTR-1 Excel export.
@@ -529,7 +539,7 @@ class ReportsViewSet(viewsets.ViewSet):
             'status_url': f'/api/reports/export_status/?task_id={task.id}',
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='net-profit')
     def net_profit(self, request):
         """
         Net Profit calculation: Revenue - Expenses.

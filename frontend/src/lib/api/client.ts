@@ -12,10 +12,13 @@ import axios, {
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api";
 
-// Token storage keys
+// Token storage keys (sessionStorage limits XSS persistence vs localStorage)
 const ACCESS_TOKEN_KEY = "scm_access_token";
 const REFRESH_TOKEN_KEY = "scm_refresh_token";
 const CURRENT_BRANCH_KEY = "scm_current_branch";
+
+const storage =
+  typeof window !== "undefined" ? window.sessionStorage : null;
 
 // Create axios instance
 export const apiClient: AxiosInstance = axios.create({
@@ -23,6 +26,7 @@ export const apiClient: AxiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
   // Render (and similar) cold starts often exceed 30s; login uses a longer override below.
   timeout: 60000,
 });
@@ -33,36 +37,70 @@ export const apiClient: AxiosInstance = axios.create({
 
 export const tokenManager = {
   getAccessToken: (): string | null => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!storage) return null;
+    const token = storage.getItem(ACCESS_TOKEN_KEY);
+    if (token) return token;
+    const legacy =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem(ACCESS_TOKEN_KEY)
+        : null;
+    if (legacy) {
+      storage.setItem(ACCESS_TOKEN_KEY, legacy);
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
+    return legacy;
   },
 
   getRefreshToken: (): string | null => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!storage) return null;
+    const token = storage.getItem(REFRESH_TOKEN_KEY);
+    if (token) return token;
+    const legacy =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem(REFRESH_TOKEN_KEY)
+        : null;
+    if (legacy) {
+      storage.setItem(REFRESH_TOKEN_KEY, legacy);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+    return legacy;
   },
 
-  setTokens: (access: string, refresh: string): void => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(ACCESS_TOKEN_KEY, access);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+  setTokens: (access: string, refresh?: string): void => {
+    if (!storage) return;
+    storage.setItem(ACCESS_TOKEN_KEY, access);
+    if (refresh) {
+      storage.setItem(REFRESH_TOKEN_KEY, refresh);
+    }
+    if (typeof document !== "undefined") {
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
+    }
   },
 
   clearTokens: (): void => {
-    if (typeof window === "undefined") return;
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(CURRENT_BRANCH_KEY);
+    if (!storage) return;
+    storage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(REFRESH_TOKEN_KEY);
+    storage.removeItem(CURRENT_BRANCH_KEY);
+    if (typeof document !== "undefined") {
+      document.cookie = "scm_session=; path=/; max-age=0";
+    }
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(CURRENT_BRANCH_KEY);
+    }
   },
 
   getCurrentBranchId: (): string | null => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem(CURRENT_BRANCH_KEY);
+    if (!storage) return null;
+    return storage.getItem(CURRENT_BRANCH_KEY);
   },
 
   setCurrentBranchId: (branchId: string): void => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(CURRENT_BRANCH_KEY, branchId);
+    if (!storage) return;
+    storage.setItem(CURRENT_BRANCH_KEY, branchId);
   },
 };
 
@@ -141,12 +179,12 @@ apiClient.interceptors.response.use(
       try {
         const response = await axios.post(
           `${API_BASE_URL}/auth/token/refresh/`,
-          { refresh: refreshToken },
-          { timeout: 120000 },
+          refreshToken ? { refresh: refreshToken } : {},
+          { timeout: 120000, withCredentials: true },
         );
 
         const { access } = response.data;
-        localStorage.setItem(ACCESS_TOKEN_KEY, access);
+        tokenManager.setTokens(access);
 
         isRefreshing = false;
         onTokenRefreshed(access);

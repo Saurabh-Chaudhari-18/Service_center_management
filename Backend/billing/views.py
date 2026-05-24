@@ -5,7 +5,9 @@ Billing ViewSets for invoices, payments, and credit notes.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import models
@@ -99,11 +101,8 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         invoice = self.get_object()
         
         if invoice.is_finalized:
-            return Response(
-                {'error': 'Invoice is already finalized.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('Invoice is already finalized.')
+
         try:
             invoice.finalize(request.user)
             return Response({
@@ -112,18 +111,15 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 'total_amount': str(invoice.total_amount)
             })
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='add-line-item')
     def add_line_item(self, request, pk=None):
         """Add a line item to an invoice."""
         invoice = self.get_object()
 
         if invoice.is_finalized:
-            return Response(
-                {'error': 'Cannot modify a finalized invoice.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Cannot modify a finalized invoice.')
 
         serializer = AddLineItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -186,12 +182,9 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             
             return Response({'message': 'Line item removed.'})
         except InvoiceLineItem.DoesNotExist:
-            return Response(
-                {'error': 'Line item not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound('Line item not found.')
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='record-payment')
     def record_payment(self, request, pk=None):
         """Record a payment against this invoice."""
         invoice = self.get_object()
@@ -218,7 +211,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 'status': invoice.status
             })
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
 
     @action(detail=True, methods=['get'])
     def payments(self, request, pk=None):
@@ -228,7 +221,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='edit-history')
     def edit_history(self, request, pk=None):
         """Get the edit history for this invoice."""
         invoice = self.get_object()
@@ -236,7 +229,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = InvoiceEditHistorySerializer(history, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='download-pdf')
     def download_pdf(self, request, pk=None):
         """Generate and download invoice PDF."""
         invoice = self.get_object()
@@ -249,7 +242,7 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{invoice.invoice_number}.pdf"'
         return response
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='log-download')
     def log_download(self, request, pk=None):
         """Log that the invoice was downloaded/printed."""
         invoice = self.get_object()
@@ -269,17 +262,11 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         invoice = self.get_object()
         
         if invoice.paid_amount > Decimal('0'):
-            return Response(
-                {'error': 'Cannot cancel invoice with payments. Create a credit note instead.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('Cannot cancel invoice with payments. Create a credit note instead.')
+
         reason = request.data.get('reason', '')
         if not reason:
-            return Response(
-                {'error': 'Cancellation reason is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Cancellation reason is required.')
         
         # Restore stock for all direct sale line items
         for item in invoice.line_items.all():
@@ -411,12 +398,11 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
-class PaymentMethodsView(viewsets.ViewSet):
-    """ViewSet for payment method options."""
+class PaymentMethodsView(APIView):
+    """APIView for payment method options."""
     permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=['get'])
-    def list_methods(self, request):
+    def get(self, request):
         """Get all payment methods."""
         methods = [{'value': pm.value, 'label': pm.label} for pm in PaymentMethod]
         return Response(methods)

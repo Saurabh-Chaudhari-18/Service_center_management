@@ -63,6 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       const token = tokenManager.getAccessToken();
+      if (token && typeof document !== "undefined" && !document.cookie.includes("scm_session=")) {
+        const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
+      }
 
       if (!token) {
         if (isMounted) {
@@ -142,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const tokens = await authApi.login(email, password);
       tokenManager.setTokens(tokens.access, tokens.refresh);
+      // scm_session cookie set inside setTokens for edge middleware
 
       const user = await authApi.getMe();
       const branches = await authApi.getMyBranches();
@@ -183,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout function
   const logout = useCallback(() => {
+    const refresh = tokenManager.getRefreshToken();
+    authApi.logout(refresh ?? undefined).catch(() => {
+      /* still clear local session if API is unreachable */
+    });
     tokenManager.clearTokens();
     setState({
       user: null,
@@ -328,7 +337,10 @@ export function ProtectedRoute({
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="spinner" />
+        <div className="text-center">
+          <div className="spinner mx-auto" />
+          <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400 font-medium">Loading…</p>
+        </div>
       </div>
     );
   }
@@ -337,7 +349,10 @@ export function ProtectedRoute({
   if (!isAuthenticated || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="spinner" />
+        <div className="text-center">
+          <div className="spinner mx-auto" />
+          <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400 font-medium">Redirecting to login…</p>
+        </div>
       </div>
     );
   }
@@ -348,12 +363,18 @@ export function ProtectedRoute({
       fallback || (
         <div className="flex min-h-screen items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-neutral-900">
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
               Access Denied
             </h1>
-            <p className="mt-2 text-neutral-600">
+            <p className="mt-2 text-neutral-600 dark:text-neutral-400">
               You do not have permission to access this page.
             </p>
+            <a
+              href="/dashboard"
+              className="inline-flex mt-5 items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              Go to Dashboard
+            </a>
           </div>
         </div>
       )
@@ -366,12 +387,18 @@ export function ProtectedRoute({
       fallback || (
         <div className="flex min-h-screen items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-neutral-900">
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
               Access Denied
             </h1>
-            <p className="mt-2 text-neutral-600">
+            <p className="mt-2 text-neutral-600 dark:text-neutral-400">
               You do not have permission to access this page.
             </p>
+            <a
+              href="/dashboard"
+              className="inline-flex mt-5 items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              Go to Dashboard
+            </a>
           </div>
         </div>
       )

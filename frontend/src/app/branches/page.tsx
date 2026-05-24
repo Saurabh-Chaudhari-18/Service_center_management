@@ -4,10 +4,13 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Button, Input, Badge, Modal, LoadingState } from "@/components/ui"; // Assuming Modal exists, if not I'll need to check or build a simple one
+import { Button, Input, Badge, Modal, LoadingState, EmptyState } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
+import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
 import { branchesApi } from "@/lib/api";
 import { Branch } from "@/types";
-import { Plus, Edit2, MapPin, Phone, Mail, Hash } from "lucide-react";
+import { Plus, Edit2, MapPin, Phone, Mail, Hash, Search, Building2 } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,13 +53,14 @@ interface BranchModalProps {
 
 function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isEditing = !!branch;
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<BranchFormData>({
     resolver: zodResolver(branchSchema) as Resolver<BranchFormData>,
     defaultValues: branch
@@ -96,14 +100,22 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
-      alert(isEditing ? "Branch updated" : "Branch created");
+      toast.success(isEditing ? "Branch updated" : "Branch created");
       onClose();
       reset();
     },
     onError: (error: Error) => {
-      alert(error.message || "Failed to save branch");
+      toast.error(error.message || "Failed to save branch");
     },
   });
+
+  // Warn before navigating away with unsaved changes
+  React.useEffect(() => {
+    if (!isOpen || !isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isOpen, isDirty]);
 
   // Reset form when branch changes
   React.useEffect(() => {
@@ -133,14 +145,25 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     }
   }, [branch, isOpen, reset]);
 
+  const BRANCH_FORM_ID = "branch-form";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Edit Branch" : "Add New Branch"}
       size="xl"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} type="button">Cancel</Button>
+          <Button type="submit" form={BRANCH_FORM_ID} isLoading={mutation.isPending}>
+            {isEditing ? "Update Branch" : "Create Branch"}
+          </Button>
+        </>
+      }
     >
       <form
+        id={BRANCH_FORM_ID}
         onSubmit={handleSubmit((data) => mutation.mutate(data))}
         className="space-y-6"
       >
@@ -172,14 +195,8 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
             error={errors.phone?.message}
           />
 
-          <div className="col-span-2">
-            <h4 className="text-sm font-medium text-neutral-900 mb-2 border-b pb-1">
-              Address
-            </h4>
-          </div>
-
           <div className="col-span-2 text-neutral-900 font-medium pb-2 border-b">
-            Address
+            Address Details
           </div>
 
           <div className="col-span-2">
@@ -218,8 +235,15 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
 
           <Input
             label="GSTIN"
+            placeholder="e.g. 27ABCDE1234F1Z5"
             {...register("gstin")}
             error={errors.gstin?.message}
+          />
+          <Input
+            label="State Code"
+            placeholder="e.g. 27 for Maharashtra"
+            {...register("state_code")}
+            error={errors.state_code?.message}
           />
           <Input
             label="Default GST Rate (%)"
@@ -266,14 +290,6 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
           </label>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="secondary" onClick={onClose} type="button">
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={mutation.isPending}>
-            {isEditing ? "Update Branch" : "Create Branch"}
-          </Button>
-        </div>
       </form>
     </Modal>
   );
@@ -341,11 +357,22 @@ function BranchRow({
 export default function BranchesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["branches"],
     queryFn: () => branchesApi.list(),
   });
+
+  const allBranches = data?.results ?? [];
+  const filteredBranches = searchQuery
+    ? allBranches.filter(
+        (b) =>
+          b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          b.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          b.code?.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : allBranches;
 
   const handleEdit = (branch: Branch) => {
     setSelectedBranch(branch);
@@ -375,27 +402,34 @@ export default function BranchesPage() {
           }
         />
 
-        <div className="p-6">
+        <PageShell>
+          <RegisterToolbar
+            search={
+              <Input
+                placeholder="Search branches by name or city..."
+                leftIcon={<Search className="w-4 h-4" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            }
+          />
+
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading branches…" />
+          ) : filteredBranches.length === 0 ? (
+            <EmptyState
+              icon={<Building2 className="w-8 h-8 text-neutral-400" />}
+              title={searchQuery ? "No branches match your search" : "No branches yet"}
+              description={!searchQuery ? 'Click "Add Branch" to create your first branch.' : undefined}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {data?.results.map((branch) => (
-                <BranchRow
-                  key={branch.id}
-                  branch={branch}
-                  onEdit={handleEdit}
-                />
+              {filteredBranches.map((branch) => (
+                <BranchRow key={branch.id} branch={branch} onEdit={handleEdit} />
               ))}
-
-              {(!data?.results || data.results.length === 0) && (
-                <div className="col-span-full text-center py-12 text-neutral-500 bg-neutral-50 rounded-lg border border-dashed border-neutral-300">
-                  No branches found. Click &quot;Add Branch&quot; to create one.
-                </div>
-              )}
             </div>
           )}
-        </div>
+        </PageShell>
 
         <BranchModal
           isOpen={isModalOpen}

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
@@ -13,7 +14,7 @@ import {
   EmptyState,
   Badge,
 } from "@/components/ui";
-import { PageShell, RegisterToolbar, WorkspaceSurface } from "@/components/shell";
+import { PageShell, RegisterToolbar, WorkspaceSurface, PaginationFooter } from "@/components/shell";
 import { customersApi } from "@/lib/api";
 import { CustomerCreateForm } from "./CustomerCreateForm";
 import {
@@ -23,11 +24,11 @@ import {
   Phone,
   Mail,
   MapPin,
-  FileText,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer } from "@/types";
-import { formatPhone } from "@/lib/formatters";
+import { formatDateLong, formatPhone } from "@/lib/formatters";
 
 // =====================================================
 // Customer Card Component
@@ -35,27 +36,26 @@ import { formatPhone } from "@/lib/formatters";
 
 interface CustomerCardProps {
   customer: Customer;
-  onViewDetails: (customer: Customer) => void;
 }
 
-function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
+function CustomerCard({ customer }: CustomerCardProps) {
   return (
-    <div
-      onClick={() => onViewDetails(customer)}
-      className="p-5 bg-white border border-neutral-100 rounded-xl hover:border-primary-200 hover:shadow-md transition-all cursor-pointer"
+    <Link
+      href={`/customers/${customer.id}`}
+      className="block p-5 bg-white dark:bg-slate-800 border border-neutral-100 dark:border-slate-700 rounded-xl hover:border-primary-200 dark:hover:border-primary-700 hover:shadow-md transition-all"
     >
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-lg font-medium flex-shrink-0">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-lg font-medium flex-shrink-0 dark:text-white">
           {customer.first_name?.[0] || "?"}
           {customer.last_name?.[0]}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-neutral-900 truncate flex items-center gap-2">
+          <h3 className="font-medium text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-2">
             {customer.first_name} {customer.last_name}
             {!customer.branch_name && (
-              <span className="px-2 py-0.5 text-[10px] font-semibold bg-purple-600 text-white rounded-full">
-                🌍 Universal
-              </span>
+              <Badge size="sm" variant="default" className="bg-purple-600 text-white font-semibold">
+                Universal
+              </Badge>
             )}
           </h3>
           <div className="mt-1 space-y-1">
@@ -77,20 +77,18 @@ function CustomerCard({ customer, onViewDetails }: CustomerCardProps) {
             )}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right sm:ml-auto shrink-0">
           {customer.pending_jobs_count && customer.pending_jobs_count > 0 && (
             <Badge variant="warning">
               {customer.pending_jobs_count} pending
             </Badge>
           )}
-          <p className="text-xs text-neutral-400 mt-2">
-            {customer.created_at
-              ? `Since ${new Date(customer.created_at).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`
-              : "Recently joined"}
+          <p className="text-xs text-neutral-400 mt-2 whitespace-nowrap">
+            {customer.created_at ? `Since ${formatDateLong(customer.created_at)}` : "Recently joined"}
           </p>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -122,156 +120,45 @@ function AddCustomerModal({
 }
 
 // =====================================================
-// Customer Details Modal
-// =====================================================
-
-interface CustomerDetailsModalProps {
-  customer: Customer | null;
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-function CustomerDetailsModal({
-  customer,
-  isOpen,
-  onClose,
-}: CustomerDetailsModalProps) {
-  const { data: serviceHistory } = useQuery({
-    queryKey: ["customer-history", customer?.id],
-    queryFn: () => customersApi.getServiceHistory(customer!.id),
-    enabled: !!customer?.id && isOpen,
-  });
-
-  if (!customer) return null;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Customer Details" size="xl">
-      <div className="space-y-6">
-        {/* Customer Info */}
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center text-2xl font-medium">
-            {customer.first_name?.[0] || "?"}
-            {customer.last_name?.[0]}
-          </div>
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-neutral-900">
-              {customer.first_name} {customer.last_name}
-            </h2>
-            <div className="mt-2 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-neutral-500">Mobile</p>
-                <p className="font-medium">{formatPhone(customer.mobile)}</p>
-              </div>
-              {customer.email && (
-                <div>
-                  <p className="text-sm text-neutral-500">Email</p>
-                  <p className="font-medium">{customer.email}</p>
-                </div>
-              )}
-              {customer.city && (
-                <div>
-                  <p className="text-sm text-neutral-500">Location</p>
-                  <p className="font-medium">
-                    {customer.city}, {customer.state} - {customer.pincode}
-                  </p>
-                </div>
-              )}
-              {customer.total_spent && (
-                <div>
-                  <p className="text-sm text-neutral-500">Total Spent</p>
-                  <p className="font-medium text-green-600">
-                    ₹{customer.total_spent.toLocaleString("en-IN")}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Service History */}
-        <div>
-          <h3 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary-500" />
-            Service History
-          </h3>
-          {serviceHistory && serviceHistory.length > 0 ? (
-            <div className="space-y-2">
-              {serviceHistory.slice(0, 5).map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/jobs/${job.id}`}
-                  className="block p-3 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-mono text-sm font-medium">
-                        {job.job_number}
-                      </span>
-                      <span className="text-neutral-500 mx-2">•</span>
-                      <span className="text-sm text-neutral-600">
-                        {job.brand} {job.model}
-                      </span>
-                    </div>
-                    <Badge
-                      variant={
-                        job.status === "DELIVERED"
-                          ? "success"
-                          : job.status === "CANCELLED"
-                            ? "danger"
-                            : "default"
-                      }
-                      size="sm"
-                    >
-                      {job.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-neutral-500 mt-1 line-clamp-1">
-                    {job.customer_complaint}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-neutral-500 text-center py-4">
-              No service history found
-            </p>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// =====================================================
 // Main Customers Page
 // =====================================================
 
+const PAGE_SIZE = 25;
+
 export default function CustomersPage() {
   const { currentBranch } = useAuth();
+  const router = useRouter();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
-  );
+
+  // Reset to page 1 when search changes
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", currentBranch?.id, search],
+    queryKey: ["customers", currentBranch?.id, search, page],
     queryFn: () =>
       customersApi.list({
         branch: currentBranch?.id,
         search: search || undefined,
+        page,
+        page_size: PAGE_SIZE,
       }),
     enabled: !!currentBranch,
   });
 
   const customers = data?.results || [];
+  const totalCount = data?.count ?? 0;
 
   return (
     <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "RECEPTIONIST"]}>
       <AppLayout>
         <Header
           title="Customers"
-          subtitle={`${data?.count || 0} total customers`}
+          subtitle={totalCount > 0 ? `${totalCount.toLocaleString()} customers` : "No customers yet"}
           actions={
             <Button
               leftIcon={<Plus className="w-4 h-4" />}
@@ -289,7 +176,7 @@ export default function CustomersPage() {
                 placeholder="Search by name or mobile number..."
                 leftIcon={<Search className="h-5 w-5" />}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 aria-label="Search customers"
                 className="py-3 text-sm"
               />
@@ -299,7 +186,7 @@ export default function CustomersPage() {
           <WorkspaceSurface>
             {isLoading ? (
               <div className="p-8">
-                <LoadingState />
+                <LoadingState message="Loading customers…" />
               </div>
             ) : customers.length === 0 ? (
               <div className="p-8">
@@ -324,15 +211,88 @@ export default function CustomersPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 md:p-6">
-                {customers.map((customer) => (
-                  <CustomerCard
-                    key={customer.id}
-                    customer={customer}
-                    onViewDetails={setSelectedCustomer}
+              <>
+                {/* Desktop table — lg+ */}
+                <div className="hidden lg:block">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                        <th scope="col" className="px-4 py-3">Customer</th>
+                        <th scope="col" className="px-4 py-3">Mobile</th>
+                        <th scope="col" className="px-4 py-3">Email</th>
+                        <th scope="col" className="px-4 py-3">Location</th>
+                        <th scope="col" className="px-4 py-3">Member Since</th>
+                        <th scope="col" className="px-4 py-3 text-center">Pending</th>
+                        <th scope="col" className="w-8 px-2 py-3" aria-label="Open" />
+                      </tr>
+                    </thead>
+                    <tbody className="text-neutral-800 dark:text-slate-200">
+                      {customers.map((customer) => (
+                        <tr
+                          key={customer.id}
+                          className="cursor-pointer border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
+                          onClick={() => router.push(`/customers/${customer.id}`)}
+                        >
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-xs font-semibold text-white">
+                                {customer.first_name?.[0]}{customer.last_name?.[0]}
+                              </div>
+                              <span className="font-medium text-neutral-900 dark:text-white">
+                                {customer.first_name} {customer.last_name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 align-middle tabular-nums text-neutral-600 dark:text-slate-400">
+                            {formatPhone(customer.mobile)}
+                          </td>
+                          <td className="max-w-[180px] truncate px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
+                            {customer.email || "—"}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
+                            {[customer.city, customer.state].filter(Boolean).join(", ") || "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 align-middle text-neutral-500 dark:text-slate-500">
+                            {customer.created_at
+                              ? new Date(customer.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle">
+                            {customer.pending_jobs_count && customer.pending_jobs_count > 0 ? (
+                              <span className="inline-flex items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                                {customer.pending_jobs_count}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-300 dark:text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 align-middle">
+                            <ChevronRight className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards — below lg */}
+                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 lg:hidden">
+                  {customers.map((customer) => (
+                    <CustomerCard key={customer.id} customer={customer} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalCount > PAGE_SIZE && (
+                  <PaginationFooter
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    totalCount={totalCount}
+                    onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setPage((p) => p + 1)}
                   />
-                ))}
-              </div>
+                )}
+              </>
             )}
           </WorkspaceSurface>
         </PageShell>
@@ -346,11 +306,6 @@ export default function CustomersPage() {
           />
         )}
 
-        <CustomerDetailsModal
-          customer={selectedCustomer}
-          isOpen={!!selectedCustomer}
-          onClose={() => setSelectedCustomer(null)}
-        />
       </AppLayout>
     </ProtectedRoute>
   );

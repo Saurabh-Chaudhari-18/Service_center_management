@@ -18,17 +18,8 @@ import {
   Alert,
   LoadingState,
 } from "@/components/ui";
-import { jobsApi, branchesApi, dropdownOptionsApi } from "@/lib/api";
-import {
-  ArrowLeft,
-  Check,
-  Save,
-  Printer,
-  Laptop,
-  HelpCircle,
-  User,
-} from "lucide-react";
-import Link from "next/link";
+import { jobsApi, branchesApi } from "@/lib/api";
+import { ArrowLeft, Check, Save, Printer } from "lucide-react";
 import type { AccessoryType } from "@/types";
 
 // =====================================================
@@ -299,7 +290,7 @@ export default function EditJobPage() {
   if (jobLoading) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading job card…" />
       </AppLayout>
     );
   }
@@ -333,21 +324,25 @@ export default function EditJobPage() {
   ];
 
   return (
-    <ProtectedRoute requiredPermission="canViewJobCards">
+    <ProtectedRoute requiredPermission="canEditJobCards">
       <AppLayout>
         <Header
           title={`Edit Job: ${job.job_number}`}
-          subtitle="Modify job details — Owner Access"
+          subtitle="Modify any job details (Owner Access)"
+          breadcrumbs={[
+            { label: "Job Cards", href: "/jobs" },
+            { label: job.job_number, href: `/jobs/${jobId}` },
+            { label: "Edit" },
+          ]}
           actions={
             <div className="flex items-center gap-3">
-              <Link href={`/jobs/${jobId}`}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(`/jobs/${jobId}`)}
+              >
+                Cancel
+              </Button>
             </div>
           }
         />
@@ -366,23 +361,54 @@ export default function EditJobPage() {
               {/* LEFT COLUMN */}
               <div className="space-y-6">
 
-                {/* Customer Info (Read-Only) */}
-                <Card className="border border-neutral-200 shadow-sm p-5">
-                  <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
-                    <User className="w-5 h-5 text-primary-500" />
-                    Customer (Read-Only)
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <label className="text-neutral-500 text-xs uppercase tracking-wide">Name</label>
-                      <p className="font-semibold text-neutral-800 mt-0.5">
-                        {job.customer?.first_name} {job.customer?.last_name}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-neutral-500 text-xs uppercase tracking-wide">Mobile</label>
-                      <p className="font-semibold text-neutral-800 mt-0.5">{job.customer?.mobile}</p>
-                    </div>
+            {/* Device Info */}
+            <Card>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+                Device Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  label="Device Type"
+                  options={deviceTypes}
+                  {...register("device_type")}
+                  error={errors.device_type?.message}
+                  required
+                />
+                <Input
+                  label="Brand"
+                  {...register("brand")}
+                  error={errors.brand?.message}
+                  required
+                />
+                <Input
+                  label="Model"
+                  {...register("model")}
+                  error={errors.model?.message}
+                  required
+                />
+                <Input
+                  label="Serial Number (Optional)"
+                  {...register("serial_number")}
+                  error={errors.serial_number?.message}
+                />
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-neutral-100">
+                <h4 className="text-sm font-medium text-neutral-700 mb-3 uppercase tracking-wide">
+                  Warranty Information
+                </h4>
+                <div className="space-y-4">
+                  <div className="mt-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-primary-600 rounded border-neutral-300 focus:ring-primary-500"
+                        {...register("is_warranty_repair")}
+                      />
+                      <span className="text-sm font-medium text-neutral-700">
+                        Warranty Repair
+                      </span>
+                    </label>
                   </div>
                   <p className="text-xs text-neutral-400 mt-3 border-t border-neutral-100 pt-2">
                     To change the customer, create a new job card.

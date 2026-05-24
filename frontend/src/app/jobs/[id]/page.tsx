@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -19,10 +18,7 @@ import { jobsApi } from "@/lib/api";
 import {
   ArrowLeft,
   Edit,
-  User,
   Phone,
-  Mail,
-  MapPin,
   Laptop,
   FileText,
   CheckCircle2,
@@ -31,39 +27,144 @@ import {
   Package,
   UserCheck,
   Wrench,
-  History,
   Settings,
   Receipt,
   Printer,
+  MoreVertical,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDateLong, formatPhone } from "@/lib/formatters";
-import { JobStatusTimeline } from "@/components/jobs/JobStatusTimeline";
 import { JobAssignTechnicianModal } from "@/components/jobs/JobAssignTechnicianModal";
 import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
 import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
-import { JobBrandLogo } from "@/components/jobs/JobBrandLogo";
+import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
+import { JobCardPrintTemplate } from "@/components/jobs/JobCardPrintTemplate";
+import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
+import { useToast } from "@/context/ToastContext";
 
-const PrintPortal = ({ children }: { children: React.ReactNode }) => {
-  if (typeof window === "undefined") return null;
-  return createPortal(
-    <div id="print-portal-root">{children}</div>,
-    document.body,
+// =====================================================
+// MoreMenu — overflow action dropdown
+// =====================================================
+
+interface MenuAction {
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+}
+
+function MoreMenu({ actions }: { actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  if (actions.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <Button
+        variant="secondary"
+        aria-label="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1.5 z-20 min-w-[11rem] rounded-xl border border-neutral-200 bg-white shadow-lg py-1 overflow-hidden">
+            {actions.map((item) =>
+              item.href ? (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    item.onClick?.();
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </button>
+              ),
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
-};
+}
+
+// =====================================================
+// InfoField — flat label/value display
+// =====================================================
+
+function InfoField({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-0.5">
+        {label}
+      </p>
+      <p className={`text-sm text-neutral-900${mono ? " font-mono" : ""}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// =====================================================
+// DetailRow — sidebar metadata list item
+// =====================================================
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-2 border-b border-neutral-100 last:border-0">
+      <span className="text-xs text-neutral-500 flex-shrink-0">{label}</span>
+      <span className="text-xs text-right text-neutral-900">{value}</span>
+    </div>
+  );
+}
+
+// =====================================================
+// Main Job Detail Page
+// =====================================================
 
 export default function JobDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const jobId = params.id as string;
-  const { hasPermission, isRole } = useAuth();
+  const { hasPermission, isRole, accessibleBranches } = useAuth();
+  const { toast } = useToast();
 
-  // Modal states
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
 
-  // Hide print portal after printing is done
   useEffect(() => {
     const handleAfterPrint = () => setShowPrintView(false);
     window.addEventListener("afterprint", handleAfterPrint);
@@ -84,7 +185,7 @@ export default function JobDetailPage() {
     return (
       <ProtectedRoute requiredPermission="canViewJobCards">
         <AppLayout>
-          <LoadingState />
+          <LoadingState message="Loading job card…" />
         </AppLayout>
       </ProtectedRoute>
     );
@@ -104,13 +205,85 @@ export default function JobDetailPage() {
     );
   }
 
+  // ── Permissions ─────────────────────────────────────────────────
   const isTerminalStatus = ["DELIVERED", "CANCELLED", "REJECTED"].includes(
     job.status,
   );
-  // Allow Owner/Manager to edit even if terminal
   const canEdit =
     (hasPermission("canEditJobCards") && !isTerminalStatus) ||
     isRole("OWNER", "SUPER_ADMIN", "MANAGER");
+
+  // ── Action visibility ────────────────────────────────────────────
+  const showDeliver =
+    job.status === "READY_FOR_DELIVERY" && hasPermission("canEditJobCards");
+  const showUpdateStatus = canEdit;
+  const showInvoice = [
+    "APPROVED",
+    "REPAIR_IN_PROGRESS",
+    "READY_FOR_DELIVERY",
+    "DELIVERED",
+  ].includes(job.status);
+  const showAssign =
+    (job.status === "RECEIVED" ||
+      (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
+    isRole("OWNER", "SUPER_ADMIN", "MANAGER");
+  const showDiagnosis =
+    (job.status === "DIAGNOSIS" ||
+      (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
+    (isRole("TECHNICIAN") ||
+      hasPermission("canEditJobCards") ||
+      isRole("OWNER", "SUPER_ADMIN"));
+  const hasAnyAction =
+    showDeliver ||
+    showUpdateStatus ||
+    showInvoice ||
+    showAssign ||
+    showDiagnosis;
+
+  // ── Handlers ────────────────────────────────────────────────────
+  const handlePrint = () => {
+    setShowPrintView(true);
+    setTimeout(() => window.print(), 500);
+  };
+
+  const handleCopyPin = () => {
+    if (job.tracking_pin) {
+      navigator.clipboard.writeText(job.tracking_pin);
+      toast.success("Tracking PIN copied");
+    }
+  };
+
+  // ── Header overflow menu ─────────────────────────────────────────
+  const moreMenuActions: MenuAction[] = [];
+  if (isRole("OWNER", "SUPER_ADMIN")) {
+    moreMenuActions.push({
+      label: "Edit Job",
+      icon: <Edit className="w-4 h-4" />,
+      href: `/jobs/${jobId}/edit`,
+    });
+  }
+  moreMenuActions.push({
+    label: "Print Job Card",
+    icon: <Printer className="w-4 h-4" />,
+    onClick: handlePrint,
+  });
+
+  // ── Header primary action ────────────────────────────────────────
+  const headerPrimaryAction = showDeliver ? (
+    <Button
+      onClick={() => setShowDeliveryModal(true)}
+      leftIcon={<CheckCircle2 className="w-4 h-4" />}
+    >
+      Deliver Device
+    </Button>
+  ) : showUpdateStatus ? (
+    <Button
+      onClick={() => setShowStatusModal(true)}
+      leftIcon={<Settings className="w-4 h-4" />}
+    >
+      Update Status
+    </Button>
+  ) : null;
 
   return (
     <ProtectedRoute requiredPermission="canViewJobCards">
@@ -118,275 +291,163 @@ export default function JobDetailPage() {
         <Header
           title={job.job_number}
           subtitle={`${job.brand} ${job.model}`}
+          breadcrumbs={[
+            { label: "Job Cards", href: "/jobs" },
+            { label: job.job_number },
+          ]}
           actions={
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                onClick={() => {
-                  setShowPrintView(true);
-                  setTimeout(() => window.print(), 500);
-                }}
+                variant="ghost"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push("/jobs")}
               >
-                Print Job Card
+                Jobs
               </Button>
-              {isRole("OWNER", "SUPER_ADMIN") && (
-                <Link href={`/jobs/${jobId}/edit`}>
-                  <Button
-                    variant="secondary"
-                    leftIcon={<Edit className="w-4 h-4" />}
-                  >
-                    Edit Job
-                  </Button>
-                </Link>
-              )}
-              <Link href="/jobs">
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Back to Jobs
-                </Button>
-              </Link>
+              {headerPrimaryAction}
+              <MoreMenu actions={moreMenuActions} />
             </div>
           }
         />
 
-        <div className="p-6">
-          {/* Status Bar */}
-          <Card padding="md" className="mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <JobStatusBadge status={job.status} />
-                {job.is_urgent && <Badge variant="danger">URGENT</Badge>}
-                {job.is_warranty_repair && (
-                  <Badge variant="info">Warranty Repair</Badge>
-                )}
-                {job.tracking_pin ? (
-                  <span className="text-xs md:text-sm text-neutral-600 dark:text-neutral-300 font-mono bg-neutral-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-neutral-200 dark:border-slate-600">
-                    Public tracking PIN: <strong>{job.tracking_pin}</strong>
-                  </span>
-                ) : null}
-              </div>
-
-              {/* Quick Actions */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Invoice Button - Always visible for valid statuses */}
-                {[
-                  "APPROVED",
-                  "REPAIR_IN_PROGRESS",
-                  "READY_FOR_DELIVERY",
-                  "DELIVERED",
-                ].includes(job.status) && (
-                  <Link href={`/billing/new?jobId=${job.id}`}>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      leftIcon={<Receipt className="w-4 h-4" />}
-                    >
-                      Create Invoice
-                    </Button>
-                  </Link>
-                )}
-                {(job.status === "RECEIVED" ||
-                  (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
-                  isRole("OWNER", "SUPER_ADMIN", "MANAGER") && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      leftIcon={<UserCheck className="w-4 h-4" />}
-                      onClick={() => setShowAssignModal(true)}
-                    >
-                      Assign Technician
-                    </Button>
-                  )}
-
-                {(job.status === "DIAGNOSIS" ||
-                  (isTerminalStatus && isRole("OWNER", "SUPER_ADMIN"))) &&
-                  (isRole("TECHNICIAN") ||
-                    hasPermission("canEditJobCards") ||
-                    isRole("OWNER", "SUPER_ADMIN")) && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      leftIcon={<Wrench className="w-4 h-4" />}
-                      onClick={() => setShowDiagnosisModal(true)}
-                    >
-                      Add Diagnosis
-                    </Button>
-                  )}
-
-                {canEdit && (
-                  <Button
-                    size="sm"
-                    leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                    onClick={() => setShowStatusModal(true)}
-                  >
-                    Update Status
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
+        <div className="px-4 py-6 lg:px-6">
+          {/* Status strip */}
+          <div className="flex items-center gap-2.5 flex-wrap mb-6">
+            <JobStatusBadge status={job.status} />
+            {job.is_urgent && <Badge variant="danger">URGENT</Badge>}
+            {job.is_warranty_repair && (
+              <Badge variant="info">Warranty Repair</Badge>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Content - 2 columns */}
+            {/* ── Main content (2 cols) ──────────────────────────── */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Customer Information */}
               <Card>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-                    <User className="w-5 h-5 text-primary-500" />
-                    Customer Information
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Name */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-primary-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-500 mb-1">
-                        Customer Name
-                      </p>
-                      <p className="font-semibold text-neutral-900 text-lg">
-                        {job.customer?.first_name} {job.customer?.last_name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Mobile */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-500 mb-1">
-                        Mobile Number
-                      </p>
-                      <p className="font-medium text-neutral-900 font-mono">
-                        {formatPhone(job.customer?.mobile)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-500 mb-1">
-                        Email Address
-                      </p>
-                      <p className="font-medium text-neutral-900 break-all">
-                        {job.customer?.email || (
-                          <span className="text-neutral-400 italic">
-                            Not provided
+                <h3 className="text-base font-semibold text-neutral-900 mb-4">
+                  Customer Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  <InfoField
+                    label="Customer Name"
+                    value={
+                      `${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim() ||
+                      "—"
+                    }
+                  />
+                  <InfoField
+                    label="Mobile Number"
+                    value={
+                      job.customer?.mobile ? (
+                        <a
+                          href={`tel:${job.customer.mobile}`}
+                          className="text-primary-600 hover:text-primary-700 font-mono flex items-center gap-1.5 group w-fit"
+                        >
+                          {formatPhone(job.customer.mobile)}
+                          <span className="text-xs text-neutral-400 group-hover:text-primary-500 flex items-center gap-0.5">
+                            <Phone className="w-3 h-3" /> Call
                           </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Location */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-neutral-500 mb-1">Location</p>
-                      <p className="font-medium text-neutral-900">
-                        {job.customer?.city ? (
-                          `${job.customer.city}${
-                            job.customer.state ? `, ${job.customer.state}` : ""
-                          }`
-                        ) : (
-                          <span className="text-neutral-400 italic">
-                            Not provided
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
+                        </a>
+                      ) : (
+                        <span className="text-neutral-400 italic">
+                          Not provided
+                        </span>
+                      )
+                    }
+                  />
+                  <InfoField
+                    label="Email Address"
+                    value={
+                      job.customer?.email || (
+                        <span className="text-neutral-400 italic">
+                          Not provided
+                        </span>
+                      )
+                    }
+                  />
+                  <InfoField
+                    label="Location"
+                    value={
+                      job.customer?.city ? (
+                        `${job.customer.city}${job.customer.state ? `, ${job.customer.state}` : ""}`
+                      ) : (
+                        <span className="text-neutral-400 italic">
+                          Not provided
+                        </span>
+                      )
+                    }
+                  />
                 </div>
               </Card>
 
               {/* Device Information */}
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <Laptop className="w-5 h-5 text-primary-500" />
+                <h3 className="text-base font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <Laptop className="w-4 h-4 text-neutral-400" />
                   Device Information
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-neutral-500">Device Type</p>
-                    <p className="font-medium text-neutral-900 capitalize">
-                      {job.device_type?.toLowerCase().replace("_", " ")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-neutral-500">Brand & Model</p>
-                    <p className="font-medium text-neutral-900">
-                      {job.brand} {job.model}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  <InfoField
+                    label="Device Type"
+                    value={
+                      job.device_type?.toLowerCase().replace("_", " ") || "—"
+                    }
+                  />
+                  <InfoField
+                    label="Brand & Model"
+                    value={`${job.brand} ${job.model}`}
+                  />
                   {job.serial_number && (
-                    <div>
-                      <p className="text-sm text-neutral-500">Serial Number</p>
-                      <p className="font-mono text-sm text-neutral-900">
-                        {job.serial_number}
-                      </p>
-                    </div>
+                    <InfoField
+                      label="Serial Number"
+                      value={job.serial_number}
+                      mono
+                    />
                   )}
                 </div>
               </Card>
 
-              {/* Problem & Diagnosis */}
+              {/* Problem Description */}
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary-500" />
+                <h3 className="text-base font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-neutral-400" />
                   Problem Description
                 </h3>
-
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-medium text-neutral-500 mb-1">
+                    <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5">
                       Customer Complaint
                     </p>
-                    <p className="text-neutral-900 bg-neutral-50 p-3 rounded-lg">
+                    <p className="text-sm text-neutral-900 dark:text-neutral-100 border-l-2 border-neutral-200 dark:border-neutral-600 pl-3 py-0.5 leading-relaxed">
                       {job.customer_complaint}
                     </p>
                   </div>
-
                   <div>
-                    <p className="text-sm font-medium text-neutral-500 mb-1">
+                    <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5">
                       Physical Condition
                     </p>
-                    <p className="text-neutral-900 bg-neutral-50 p-3 rounded-lg">
+                    <p className="text-sm text-neutral-900 dark:text-neutral-100 border-l-2 border-neutral-200 dark:border-neutral-600 pl-3 py-0.5 leading-relaxed">
                       {(job as any).physical_condition_display ||
                         "Not documented"}
                     </p>
                   </div>
-
                   {(job as any).engineer_diagnosis_display && (
                     <div>
-                      <p className="text-sm font-medium text-neutral-500 mb-1">
+                      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5">
                         Engineer Diagnosis
                       </p>
-                      <p className="text-neutral-900 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100 border-l-2 border-blue-300 dark:border-blue-600 pl-3 py-0.5 leading-relaxed">
                         {(job as any).engineer_diagnosis_display}
                       </p>
                     </div>
                   )}
-
                   {job.diagnosis_notes && (
                     <div>
-                      <p className="text-sm font-medium text-neutral-500 mb-1">
+                      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5">
                         Diagnosis Notes
                       </p>
-                      <p className="text-neutral-900 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100 border-l-2 border-blue-300 dark:border-blue-600 pl-3 py-0.5 leading-relaxed">
                         {job.diagnosis_notes}
                       </p>
                     </div>
@@ -405,26 +466,26 @@ export default function JobDetailPage() {
                 </div>
               </Card>
 
-              {/* Diagnosis Parts Display */}
+              {/* Spare Parts Required */}
               {job.diagnosis_parts && job.diagnosis_parts.length > 0 && (
                 <Card>
-                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-primary-500" />
+                  <h3 className="text-base font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-neutral-400" />
                     Spare Parts Required
                   </h3>
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="bg-neutral-50 px-4 py-2 border-b flex gap-4 text-sm font-medium text-neutral-500 text-xs uppercase tracking-wider">
+                  <div className="border border-neutral-200 rounded-lg overflow-hidden">
+                    <div className="bg-neutral-50 px-4 py-2 border-b flex gap-4 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                       <div className="flex-1">Part Name</div>
                       <div className="w-24 text-right">Price</div>
                       <div className="w-16 text-center">Qty</div>
                       <div className="w-24">Warranty</div>
                       <div className="w-24 text-right">Total</div>
                     </div>
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-neutral-100">
                       {job.diagnosis_parts.map((part) => (
                         <div
                           key={part.id}
-                          className="px-4 py-2 flex gap-4 text-sm text-neutral-900 hover:bg-neutral-50/50 transition-colors"
+                          className="px-4 py-2.5 flex gap-4 text-sm text-neutral-900 hover:bg-neutral-50/50 transition-colors"
                         >
                           <div className="flex-1 font-medium">{part.name}</div>
                           <div className="w-24 text-right font-mono text-neutral-600">
@@ -435,20 +496,21 @@ export default function JobDetailPage() {
                           </div>
                           <div className="w-24 text-neutral-600">
                             {part.warranty_months
-                              ? `${part.warranty_months} Months`
-                              : "-"}
+                              ? `${part.warranty_months}mo`
+                              : "—"}
                           </div>
                           <div className="w-24 text-right font-mono font-medium">
-                            ₹{(Number(part.price) * part.quantity).toFixed(2)}
+                            ₹
+                            {(Number(part.price) * part.quantity).toFixed(2)}
                           </div>
                         </div>
                       ))}
                     </div>
                     <div className="bg-neutral-50 px-4 py-3 flex justify-end gap-3 border-t">
-                      <span className="text-sm font-medium text-neutral-600">
+                      <span className="text-sm text-neutral-500">
                         Total Parts Cost:
                       </span>
-                      <span className="text-sm font-bold text-green-600 font-mono text-base">
+                      <span className="text-sm font-bold font-mono text-neutral-900">
                         ₹{Number(job.total_parts_cost || 0).toFixed(2)}
                       </span>
                     </div>
@@ -456,14 +518,14 @@ export default function JobDetailPage() {
                 </Card>
               )}
 
-              {/* Accessories */}
+              {/* Accessories Received */}
               {job.accessories && job.accessories.length > 0 && (
                 <Card>
-                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary-500" />
+                  <h3 className="text-base font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-neutral-400" />
                     Accessories Received
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {job.accessories.map((acc) => (
                       <div
                         key={acc.id}
@@ -475,9 +537,9 @@ export default function JobDetailPage() {
                       >
                         <div className="flex items-center gap-2">
                           {acc.is_present ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
                           ) : (
-                            <AlertCircle className="w-4 h-4 text-neutral-400" />
+                            <AlertCircle className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                           )}
                           <span className="text-sm font-medium capitalize">
                             {acc.accessory_type.toLowerCase().replace("_", " ")}
@@ -495,87 +557,154 @@ export default function JobDetailPage() {
               )}
             </div>
 
-            {/* Sidebar - 1 column */}
+            {/* ── Sidebar (1 col) ──────────────────────────────── */}
             <div className="space-y-6">
-              {/* Job Details */}
+              {/* 1. Actions */}
+              {hasAnyAction && (
+                <Card>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+                    Actions
+                  </h3>
+                  <div className="space-y-2">
+                    {showDeliver && (
+                      <Button
+                        className="w-full justify-start"
+                        onClick={() => setShowDeliveryModal(true)}
+                        leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                      >
+                        Deliver Device
+                      </Button>
+                    )}
+                    {showUpdateStatus && (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        onClick={() => setShowStatusModal(true)}
+                        leftIcon={<Settings className="w-4 h-4" />}
+                      >
+                        Update Status
+                      </Button>
+                    )}
+                    {showInvoice && (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        leftIcon={<Receipt className="w-4 h-4" />}
+                        onClick={() => router.push(`/billing/new?jobId=${job.id}`)}
+                      >
+                        Create Invoice
+                      </Button>
+                    )}
+                    {showAssign && (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        onClick={() => setShowAssignModal(true)}
+                        leftIcon={<UserCheck className="w-4 h-4" />}
+                      >
+                        {job.assigned_technician_name
+                          ? "Reassign Technician"
+                          : "Assign Technician"}
+                      </Button>
+                    )}
+                    {showDiagnosis && (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        onClick={() => setShowDiagnosisModal(true)}
+                        leftIcon={<Wrench className="w-4 h-4" />}
+                      >
+                        Add Diagnosis
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* 2. Status History */}
+              <JobStatusHistoryCard statusHistory={job.status_history} />
+
+              {/* 3. Job Details */}
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-4">
                   Job Details
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-neutral-100">
-                    <span className="text-sm text-neutral-500">Job Number</span>
-                    <span className="font-mono text-sm font-medium">
-                      {job.job_number}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-neutral-100">
-                    <span className="text-sm text-neutral-500">Created</span>
-                    <span className="text-sm">
-                      {formatDateLong(job.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-neutral-100">
-                    <span className="text-sm text-neutral-500">
-                      Received By
-                    </span>
-                    <span className="text-sm">
-                      {job.received_by_name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-neutral-100">
-                    <span className="text-sm text-neutral-500">Technician</span>
-                    <span className="text-sm">
-                      {job.assigned_technician_name || "Not assigned"}
-                    </span>
-                  </div>
-                  {job.estimated_cost && (
-                    <div className="flex items-center justify-between py-2 border-b border-neutral-100">
-                      <span className="text-sm text-neutral-500">
-                        Estimated Cost
-                      </span>
-                      <span className="text-sm font-medium text-green-600">
-                        ₹{job.estimated_cost.toLocaleString("en-IN")}
-                      </span>
-                    </div>
+                <div>
+                  <DetailRow
+                    label="Job Number"
+                    value={
+                      <span className="font-mono">{job.job_number}</span>
+                    }
+                  />
+                  <DetailRow
+                    label="Created"
+                    value={formatDateLong(job.created_at)}
+                  />
+                  <DetailRow
+                    label="Received By"
+                    value={job.received_by_name || "—"}
+                  />
+                  <DetailRow
+                    label="Technician"
+                    value={job.assigned_technician_name || "Not assigned"}
+                  />
+                  {job.estimated_cost != null && (
+                    <DetailRow
+                      label="Estimated Cost"
+                      value={
+                        <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                          ₹{Number(job.estimated_cost).toLocaleString("en-IN")}
+                        </span>
+                      }
+                    />
                   )}
                   {job.estimated_completion_date && (
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-sm text-neutral-500">
-                        Est. Completion
-                      </span>
-                      <span className="text-sm">
-                        {formatDateLong(job.estimated_completion_date)}
-                      </span>
-                    </div>
+                    <DetailRow
+                      label="Est. Completion"
+                      value={formatDateLong(job.estimated_completion_date)}
+                    />
                   )}
                 </div>
+
+                {/* Tracking PIN */}
+                {job.tracking_pin && (
+                  <div className="mt-4 pt-4 border-t border-neutral-100">
+                    <p className="text-xs text-neutral-400 uppercase tracking-wider mb-2">
+                      Tracking PIN
+                    </p>
+                    <div className="flex items-center justify-between gap-2 bg-neutral-50 rounded-lg px-3 py-2 border border-neutral-200">
+                      <span className="font-mono text-sm font-semibold text-neutral-900 tracking-widest">
+                        {job.tracking_pin}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyPin}
+                        className="text-neutral-400 hover:text-primary-600 transition-colors p-0.5 rounded"
+                        title="Copy PIN"
+                        aria-label="Copy tracking PIN"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </Card>
 
-              {/* Status History */}
-              <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <History className="w-5 h-5 text-primary-500" />
-                  Status History
-                </h3>
-                <JobStatusTimeline history={job.status_history || []} />
-              </Card>
-
-              {/* Intake Photos */}
+              {/* 4. Photos */}
               {job.photos && job.photos.length > 0 && (
                 <Card>
-                  <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <Camera className="w-5 h-5 text-primary-500" />
-                    Photos
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5" />
+                    Photos ({job.photos.length})
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     {job.photos.map((photo) => (
                       <a
                         key={photo.id}
                         href={photo.photo}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group block aspect-square rounded-xl bg-neutral-100 overflow-hidden relative border border-neutral-200 hover:border-primary-300 hover:shadow-md transition-all"
+                        className="group block aspect-square rounded-lg bg-neutral-100 overflow-hidden relative border border-neutral-200 hover:border-primary-300 hover:shadow-md transition-all"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -618,318 +747,21 @@ export default function JobDetailPage() {
           jobId={jobId}
           initialData={job}
         />
+        <JobDeliveryModal
+          isOpen={showDeliveryModal}
+          onClose={() => setShowDeliveryModal(false)}
+          jobId={jobId}
+          customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
+        />
 
         {/* PRINT-ONLY: Job Card Printable Template */}
         {showPrintView && (
-          <PrintPortal>
-            {/* eslint-disable-next-line react/no-danger */}
-            <style
-              dangerouslySetInnerHTML={{
-                __html: `
-                  @media print {
-                    #print-portal-root .print-section {
-                      page-break-inside: avoid;
-                      break-inside: avoid;
-                    }
-                    #print-portal-root table {
-                      page-break-inside: avoid;
-                      break-inside: avoid;
-                    }
-                    #print-portal-root tr {
-                      page-break-inside: avoid;
-                      break-inside: avoid;
-                    }
-                    #print-portal-root .print-header {
-                      page-break-after: avoid;
-                      break-after: avoid;
-                    }
-                  }
-                `,
-              }}
-            />
-            <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
-              <div className="space-y-3">
-                {/* Shop Header */}
-                <div className="print-header print-section border-2 border-black p-2 mb-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex gap-4 items-center">
-                      <JobBrandLogo brand="HP" />
-                      <JobBrandLogo brand="DELL" />
-                      <JobBrandLogo brand="ASUS" />
-                      <JobBrandLogo brand="LENOVO" />
-                    </div>
-                    <div className="text-right">
-                      <h1 className="text-2xl font-bold uppercase tracking-wider">
-                        SHIVANGI INFOTECH
-                      </h1>
-                      <p className="text-[10pt] font-semibold">
-                        HP | DELL | ASUS Authorised Partner
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-center mt-2 pt-2 border-t-2 border-black">
-                    <p className="text-[10pt] font-medium">
-                      Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa
-                      Showroom, Pune-411038
-                    </p>
-                    <p className="text-[10pt] font-bold mt-1">
-                      Mobile: 9890888295, 9850292673
-                    </p>
-                  </div>
-                  <div className="text-center mt-2 pt-2 border-t-2 border-black">
-                    <p className="font-bold text-lg uppercase tracking-wide">
-                      JOB CARD: {job.job_number}
-                    </p>
-                    <p className="text-[11pt] font-medium">
-                      Date: {formatDateLong(job.created_at)}
-                    </p>
-                    <p className="text-[10pt] font-medium text-neutral-600">
-                      Status: {
-                        job.status === 'RECEIVED' ? 'Inward Received' :
-                        job.status === 'DIAGNOSIS' ? 'Under Diagnosis' :
-                        job.status === 'ESTIMATE_SHARED' ? 'Estimate Shared' :
-                        job.status === 'APPROVED' ? 'Customer Approved' :
-                        job.status === 'REJECTED' ? 'Customer Rejected' :
-                        job.status === 'WAITING_FOR_PARTS' ? 'Waiting for Parts' :
-                        job.status === 'REPAIR_IN_PROGRESS' ? 'Repair in Progress' :
-                        job.status === 'READY_FOR_DELIVERY' ? 'Ready for Delivery' :
-                        job.status === 'DELIVERED' ? 'Delivered' :
-                        job.status === 'CANCELLED' ? 'Cancelled' :
-                        (job.status as string)?.replace(/_/g, ' ')
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                {/* Customer & Device */}
-                <div className="print-grid print-section grid grid-cols-2 gap-4 mb-2">
-                  <div className="border border-black p-2">
-                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                      CUSTOMER DETAILS
-                    </p>
-                    <div className="space-y-1">
-                      <p>
-                        <b>Name:</b> {job.customer?.first_name}{" "}
-                        {job.customer?.last_name}
-                      </p>
-                      <p>
-                        <b>Mobile:</b> {formatPhone(job.customer?.mobile)}
-                      </p>
-                      {job.customer?.email && (
-                        <p>
-                          <b>Email:</b> {job.customer.email}
-                        </p>
-                      )}
-                      {job.customer?.city && (
-                        <p>
-                          <b>Address:</b> {job.customer.city}
-                          {job.customer?.state ? `, ${job.customer.state}` : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="border border-black p-2">
-                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                      DEVICE DETAILS
-                    </p>
-                    <div className="space-y-1">
-                      <p>
-                        <b>Type:</b> {job.device_type}
-                      </p>
-                      <p>
-                        <b>Brand/Model:</b> {job.brand} {job.model}
-                      </p>
-                      {job.serial_number && (
-                        <p>
-                          <b>Serial:</b> {job.serial_number}
-                        </p>
-                      )}
-                      {job.is_urgent && (
-                        <p className="text-red-600 font-bold text-[11pt] mt-1">
-                          ⚠ URGENT REPAIR
-                        </p>
-                      )}
-                      <p>
-                        <b>Warranty:</b> {job.is_warranty_repair ? "YES" : "NO"}
-                      </p>
-                      {job.is_warranty_repair && job.warranty_details && (
-                        <p>
-                          <b>Warranty Details:</b> {job.warranty_details}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Accessories */}
-                <div className="print-section border border-black p-2 mb-2">
-                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                    ACCESSORIES
-                  </p>
-                  <div className="space-y-2">
-                    {job.accessories && job.accessories.length > 0 ? (
-                      <p>
-                        <b>Accessories:</b>{" "}
-                        {job.accessories
-                          .filter((a) => a.is_present)
-                          .map((a) =>
-                            a.accessory_type.toLowerCase().replace("_", " "),
-                          )
-                          .join(", ")}
-                      </p>
-                    ) : (
-                      <p className="text-neutral-400">
-                        No accessories submitted
-                      </p>
-                    )}
-                    <p>
-                      <b>Physical Condition:</b>{" "}
-                      {(job as any).physical_condition_display ||
-                        "Not documented"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Customer Complaint */}
-                <div className="print-section border border-black p-2 mb-2">
-                  <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                    CUSTOMER COMPLAINT
-                  </p>
-                  <p>{job.customer_complaint}</p>
-                </div>
-
-                {/* Engineer Diagnosis */}
-                {((job as any).engineer_diagnosis_display || job.diagnosis_notes) && (
-                  <div className="print-section border border-black p-2 mb-2">
-                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                      ENGINEER DIAGNOSIS
-                    </p>
-                    <div className="space-y-2">
-                      {(job as any).engineer_diagnosis_display && (
-                        <p>
-                          <b>Diagnosis:</b> {(job as any).engineer_diagnosis_display}
-                        </p>
-                      )}
-                      {job.diagnosis_notes && (
-                        <p>
-                          <b>Diagnosis Notes:</b> {job.diagnosis_notes}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Issue Details / Internal Notes */}
-                {job.additional_comments && (
-                  <div className="print-section border border-black p-2 mb-2">
-                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                      ISSUE DETAILS
-                    </p>
-                    <div className="space-y-2">
-                      <p>
-                        <b>Internal Notes:</b> {job.additional_comments}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Terms & Conditions */}
-                <div className="print-section border border-black p-2 terms-text mb-2">
-                  <p className="font-bold text-[10pt] mb-1 uppercase underline">
-                    TERMS & CONDITIONS
-                  </p>
-                  <div className="space-y-2 text-[9pt] leading-[1.4] text-justify">
-                    <p>
-                      <b>1. Condition:</b> In case of hard disk failure,
-                      formatting may be required which may lead to data loss.
-                      Customers are advised to backup important data. Only
-                      recommended OS with drivers will be installed.
-                      Physical/water/burn damage not covered under warranty. For
-                      warranty claims, provide purchase invoice. Defective parts
-                      not returned. Product may become non-functional during
-                      repair - we will not be responsible.
-                    </p>
-                    <p>
-                      <b>2. Note:</b> Customer must confirm repair within 48
-                      hours of estimate, else repair will proceed automatically.
-                      Defective parts not returned. Complaints must be reported
-                      within 24 hours of delivery. Collect product within 45
-                      days or it will be scrapped. After 45 days, ₹500/month
-                      handling charge applies.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {/* Authorization & Charges */}
-                <div className="print-grid print-section grid grid-cols-2 gap-4">
-                  <div className="border border-black p-2 h-full flex flex-col justify-between">
-                    <div>
-                      <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                        CUSTOMER AUTHORIZATION
-                      </p>
-                      <p className="text-[10pt] mb-4 italic">
-                        I hereby authorize Shivangi Infotech to provide
-                        necessary repair & service. I have taken backup of all
-                        important data.
-                      </p>
-                    </div>
-                    <div className="mt-8 pt-2 border-t border-dashed border-black">
-                      <p className="font-bold mb-2">
-                        {job.customer?.first_name} {job.customer?.last_name}
-                      </p>
-                      <p className="font-bold">
-                        Customer Signature: _________________
-                      </p>
-                    </div>
-                  </div>
-                  <div className="border border-black p-2">
-                    <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100">
-                      APPROX REPAIR CHARGES
-                    </p>
-                    <div className="space-y-3 text-[11pt]">
-                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                        <span>Service Charges:</span>
-                        <span className="w-24 border-b border-black text-right px-1">
-                          {job.estimated_cost
-                            ? `₹ ${Number(job.estimated_cost).toFixed(0)}`
-                            : "₹"}
-                        </span>
-                      </p>
-                      <p className="flex justify-between border-b border-dotted border-gray-400 pb-1">
-                        <span>Estimate:</span>
-                        <span className="w-24 border-b border-black text-right px-1">
-                          {job.total_parts_cost
-                            ? `₹ ${Number(job.total_parts_cost).toFixed(0)}`
-                            : "₹"}
-                        </span>
-                      </p>
-                      <p className="flex justify-between font-bold text-lg pt-1">
-                        <span>FINAL COST:</span>
-                        <span className="w-24 border-b-2 border-black text-right px-1">
-                          {(job.estimated_cost || job.total_parts_cost)
-                            ? `₹ ${(Number(job.estimated_cost || 0) + Number(job.total_parts_cost || 0)).toFixed(0)}`
-                            : "₹"}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="footer-text text-center mt-2 pt-2 border-t-2 border-black text-[9pt]">
-                  <p>
-                    All estimates without taxes. GST are Extra as applicable.
-                    Diagnosis: Laptop ₹750, Mobile/Tablet ₹500, Desktop ₹350-550
-                  </p>
-                  <p className="font-bold text-[10pt] mt-1">
-                    NON-WARRANTY PRODUCTS HAVE NO WARRANTY ON REPAIRING
-                  </p>
-                </div>
-              </div>
-            </div>
-          </PrintPortal>
+          <JobCardPrintTemplate
+            job={job}
+            branchDetails={
+              accessibleBranches.find((b) => b.id === job.branch) ?? null
+            }
+          />
         )}
       </AppLayout>
     </ProtectedRoute>

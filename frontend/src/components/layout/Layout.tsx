@@ -3,8 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { notificationsApi } from "@/lib/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -85,10 +86,11 @@ const navigationItems: NavItem[] = [
       { name: "GST Dashboard", href: "/gst", icon: BadgePercent },
     ],
   },
-  { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
+  { name: "Business Reports", href: "/reports",    icon: BarChart3,       permission: "canViewReports" },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },
+  { name: "Notifications", href: "/notifications", icon: Bell,            permission: "canManageBranches" },
   { name: "Settings",      href: "/settings",      icon: Settings,        roles: ["SUPER_ADMIN", "OWNER", "MANAGER"] },
 ];
 
@@ -119,9 +121,18 @@ export function Sidebar() {
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
   const { close: closeMobile } = useMobileSidebar();
 
-  const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>({
-    Transactions: true,
-    "Finance Reports": false,
+  const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>(() => {
+    const state: Record<string, boolean> = {};
+    for (const item of navigationItems) {
+      if (item.children) {
+        const hasActiveChild = item.children.some(
+          (c) => c.href && (pathname === c.href || pathname?.startsWith(`${c.href}/`)),
+        );
+        // Keep finance groups expanded by default so sub-pages are discoverable.
+        state[item.name] = hasActiveChild || true;
+      }
+    }
+    return state;
   });
 
   const toggleExpanded = (name: string) => {
@@ -139,7 +150,6 @@ export function Sidebar() {
       await switchBranch(branchId);
       setBranchMenuOpen(false);
       await queryClient.invalidateQueries();
-      router.push("/dashboard");
       router.refresh();
     } catch (error) {
       console.error("Failed to switch branch:", error);
@@ -166,7 +176,7 @@ export function Sidebar() {
           {/* Mobile close button */}
           <button
             onClick={closeMobile}
-            className="lg:hidden p-2 rounded-xl text-violet-300/60 hover:text-white hover:bg-white/10 transition-colors"
+            className="lg:hidden flex min-h-11 min-w-11 items-center justify-center rounded-xl text-violet-300/60 hover:text-white hover:bg-white/10 transition-colors"
             aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
@@ -180,8 +190,7 @@ export function Sidebar() {
           <div className="relative">
             <button
               onClick={() => setBranchMenuOpen(!branchMenuOpen)}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors"
-              style={{ background: "rgba(255,255,255,0.08)" }}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors bg-white/[0.08]"
             >
               <div className="text-left">
                 <p className="text-[10px] text-violet-300/60 uppercase tracking-widest font-medium">Branch</p>
@@ -191,14 +200,12 @@ export function Sidebar() {
             </button>
 
             {branchMenuOpen && (
-              <div className="absolute left-0 right-0 mt-2 py-1 rounded-xl shadow-2xl z-50 border border-white/10 overflow-hidden"
-                   style={{ background: "rgba(30,24,80,0.98)", backdropFilter: "blur(16px)" }}>
+              <div className="absolute left-0 right-0 mt-2 py-1 rounded-xl shadow-2xl z-50 border border-white/10 overflow-hidden bg-[rgba(30,24,80,0.98)] backdrop-blur-md">
                 {accessibleBranches.map((branch) => (
                   <button
                     key={branch.id}
                     onClick={() => handleBranchSwitch(branch.id)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-violet-200 hover:text-white transition-colors"
-                    style={{ background: branch.id === currentBranch?.id ? "rgba(255,255,255,0.08)" : "transparent" }}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-violet-200 hover:text-white transition-colors ${branch.id === currentBranch?.id ? "bg-white/[0.08]" : "bg-transparent"}`}
                   >
                     <span>{branch.name}</span>
                     {branch.id === currentBranch?.id && <Check className="w-3.5 h-3.5 text-violet-300" />}
@@ -218,16 +225,23 @@ export function Sidebar() {
           
           if (item.children) {
             const isExpanded = expandedItems[item.name];
+            const hasActiveChild = item.children.some(
+              (c) => c.href && (pathname === c.href || pathname?.startsWith(`${c.href}/`)),
+            );
             return (
               <div key={item.name} className="space-y-0.5">
                 <button
                   onClick={() => toggleExpanded(item.name)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-sm font-medium ${
-                    isExpanded ? "bg-white/5 text-white" : "text-violet-200 hover:bg-white/10 hover:text-white"
+                    isExpanded
+                      ? "bg-white/5 text-white"
+                      : hasActiveChild
+                        ? "text-white bg-white/[0.06] border-l-2 border-violet-400 pl-[10px]"
+                        : "text-violet-200 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className="w-4.5 h-4.5 shrink-0 text-violet-300" style={{ width: "1.1rem", height: "1.1rem" }} />
+                    <Icon className="w-4.5 h-4.5 shrink-0 text-violet-300" />
                     <span>{item.name}</span>
                   </div>
                   <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
@@ -267,7 +281,7 @@ export function Sidebar() {
               className={`sidebar-item ${isActive ? "active" : ""}`}
               onClick={closeMobile}
             >
-              <Icon className="w-4.5 h-4.5 shrink-0" style={{ width: "1.1rem", height: "1.1rem" }} />
+              <Icon className="w-4.5 h-4.5 shrink-0" />
               <span>{item.name}</span>
             </Link>
           );
@@ -276,9 +290,8 @@ export function Sidebar() {
 
       {/* User Profile */}
       <div className="p-3 border-t border-white/10">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1" style={{ background: "rgba(255,255,255,0.07)" }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-               style={{ background: "linear-gradient(135deg, #818cf8, #a78bfa)" }}>
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 bg-white/[0.07]">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 bg-gradient-to-br from-indigo-400 to-violet-400">
             {user.first_name?.[0]}{user.last_name?.[0]}
           </div>
           <div className="flex-1 min-w-0">
@@ -306,12 +319,19 @@ interface HeaderProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
+  breadcrumbs?: Array<{ label: string; href?: string }>;
 }
 
-export function Header({ title, subtitle, actions }: HeaderProps) {
+export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
   const { currentBranch, organizationBranding } = useAuth();
-  const [notificationCount] = React.useState(0);
   const { toggle } = useMobileSidebar();
+
+  const { data: notifData } = useQuery({
+    queryKey: ["notification-unread-count"],
+    queryFn: () => notificationsApi.getUnreadCount(),
+    refetchInterval: 60_000,
+  });
+  const notificationCount = notifData?.count ?? 0;
 
   return (
     <header className="min-h-[4rem] lg:min-h-[4.5rem] py-3 px-4 lg:px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
@@ -319,13 +339,29 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         {/* Hamburger button – visible only on mobile */}
         <button
           onClick={toggle}
-          className="lg:hidden p-2 -ml-1 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors"
+          className="lg:hidden -ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors"
           aria-label="Open sidebar"
         >
           <Menu className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
         </button>
 
         <div className="min-w-0">
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-neutral-400 dark:text-neutral-500 mb-0.5 truncate">
+              {breadcrumbs.map((crumb, i) => (
+                <React.Fragment key={crumb.label}>
+                  {i > 0 && <span className="select-none">/</span>}
+                  {crumb.href ? (
+                    <Link href={crumb.href} className="hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span className="text-neutral-500 dark:text-neutral-400 font-medium">{crumb.label}</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </nav>
+          )}
           {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
             <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent truncate">
               {title}
@@ -343,22 +379,46 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         {/* Dark Mode Toggle */}
         <ThemeToggle />
 
-        {/* Global Search Hint */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-slate-800 rounded-lg border border-neutral-200 dark:border-slate-700 text-xs text-neutral-500 font-medium">
+        {/* Global Search Hint — desktop full, mobile icon-only */}
+        <button
+          aria-label="Open search"
+          onClick={() =>
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+            )
+          }
+          className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-slate-800 rounded-lg border border-neutral-200 dark:border-slate-700 text-xs text-neutral-500 font-medium hover:bg-neutral-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+        >
           <Search className="w-3.5 h-3.5" />
           <span>Search</span>
           <kbd className="ml-1 font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-neutral-200 dark:border-slate-700 shadow-sm text-[10px]">Ctrl K</kbd>
-        </div>
+        </button>
+        <button
+          aria-label="Open search"
+          onClick={() =>
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+            )
+          }
+          className="lg:hidden flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+        >
+          <Search className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
+        </button>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10">
+        <Link
+          href="/notifications"
+          aria-label="Notifications"
+          title="Notifications"
+          className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+        >
           <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
           {notificationCount > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium">
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           )}
-        </button>
+        </Link>
 
         {/* Branch Badge */}
         {currentBranch && (
@@ -382,7 +442,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all duration-300 border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10 group"
+      className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all duration-300 border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10 group"
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >
@@ -429,7 +489,7 @@ export function AppLayout({ children }: LayoutProps) {
 
   return (
     <MobileSidebarContext.Provider value={{ isOpen: sidebarOpen, toggle, close }}>
-      <div className="min-h-screen" style={{ background: "transparent" }}>
+      <div className="min-h-screen bg-transparent">
         {/* Desktop sidebar – always visible ≥ lg */}
         <div className="hidden lg:block">
           <Sidebar />

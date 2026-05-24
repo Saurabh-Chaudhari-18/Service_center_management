@@ -5,6 +5,7 @@ Inventory ViewSets with branch-scoped access and stock management.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, APIException
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -98,7 +99,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 "Deactivate it instead."
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='add-stock')
     def add_stock(self, request, pk=None):
         """Add stock to an item."""
         item = self.get_object()
@@ -117,7 +118,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'new_quantity': item.quantity
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='deduct-stock')
     def deduct_stock(self, request, pk=None):
         """Deduct stock from an item."""
         item = self.get_object()
@@ -146,9 +147,9 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 'new_quantity': item.quantity
             })
         except InsufficientInventory as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
 
-    @action(detail=True, methods=['post'], permission_classes=[IsOwnerOrManager])
+    @action(detail=True, methods=['post'], permission_classes=[IsOwnerOrManager], url_path='adjust-stock')
     def adjust_stock(self, request, pk=None):
         """
         Manually adjust stock quantity.
@@ -203,7 +204,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = InventoryAdjustmentSerializer(adjustments, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='usage-history')
     def usage_history(self, request, pk=None):
         """Get job usage history for an item."""
         item = self.get_object()
@@ -217,7 +218,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = JobPartUsageSerializer(usages, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='low-stock')
     def low_stock(self, request):
         """Get all items below low stock threshold."""
         queryset = self.get_queryset().filter(
@@ -233,7 +234,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = LowStockAlertSerializer(queryset, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='out-of-stock')
     def out_of_stock(self, request):
         """Get all items with zero stock."""
         queryset = self.get_queryset().filter(quantity=0, is_active=True)
@@ -263,7 +264,7 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         return Response(stats)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='category-stats')
     def category_stats(self, request):
         """Get item counts grouped by category for the current branch."""
         branch_id = request.query_params.get('branch')
@@ -387,10 +388,7 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         transfer = self.get_object()
         
         if transfer.status != 'IN_TRANSIT':
-            return Response(
-                {'error': 'Transfer must be in transit to complete.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Transfer must be in transit to complete.')
         
         # Process all transfer items
         from django.db import transaction
@@ -457,7 +455,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             )
         return queryset
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='outstanding-total')
     def outstanding_total(self, request):
         """Aggregate balance due across outstanding purchases for the scoped branch(es)."""
         from decimal import Decimal
@@ -480,7 +478,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         )['t'] or Decimal('0')
         return Response({'total_outstanding': str(total)})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='record-payment')
     def record_payment(self, request, pk=None):
         """Record a payment against a purchase."""
         purchase = self.get_object()
@@ -493,7 +491,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         amount = serializer.validated_data['amount']
         if purchase.status == 'CANCELLED':
-            return Response({'error': 'Cannot pay cancelled purchase'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('Cannot pay cancelled purchase')
             
         with transaction.atomic():
             payment = PurchasePayment.objects.create(
@@ -610,7 +608,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
 
     @extend_schema(request=ExcelImportSerializer)
-    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser], url_path='import-excel')
     def import_excel(self, request):
         """
         Import purchases from an Excel file.
@@ -618,16 +616,16 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """
         file_obj = request.FILES.get('file')
         if not file_obj:
-            return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('No file uploaded.')
 
         vendor_name = request.data.get('vendor_name')
         if not vendor_name:
-            return Response({'error': 'vendor_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('vendor_name is required.')
 
         invoice_number = request.data.get('invoice_number', '')
         purchase_date = request.data.get('purchase_date')
         if not purchase_date:
-            return Response({'error': 'purchase_date is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('purchase_date is required.')
 
         try:
             if file_obj.name.lower().endswith('.csv'):
@@ -635,7 +633,7 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             else:
                 df = pd.read_excel(file_obj)
         except Exception as e:
-            return Response({'error': f'Failed to parse upload file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(f'Failed to parse upload file: {str(e)}') from e
 
         required_cols = ['Quantity', 'Unit Price']
         
@@ -644,11 +642,11 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         elif 'Name' in df.columns:
             lookup_col = 'Name'
         else:
-            return Response({'error': 'Excel must contain either a "SKU" or "Name" column to identify items.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('Excel must contain either a "SKU" or "Name" column to identify items.')
 
         for col in required_cols:
             if col not in df.columns:
-                return Response({'error': f'Missing required column: {col}'}, status=status.HTTP_400_BAD_REQUEST)
+                raise ValidationError(f'Missing required column: {col}')
 
         branch_id = request.headers.get('X-Branch-ID') or (request.user.get_accessible_branches().first().id if request.user.get_accessible_branches().exists() else None)
 
@@ -723,9 +721,9 @@ class PurchaseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 purchase.save()
 
         except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(str(e)) from e
         except Exception as e:
-            return Response({'error': f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise APIException(f"An unexpected error occurred: {str(e)}") from e
 
         return Response({
             'message': 'Purchase imported successfully',

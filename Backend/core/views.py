@@ -5,6 +5,7 @@ Core ViewSets for Organization, Branch, and User management.
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
@@ -42,9 +43,10 @@ from core.serializers import (
     ChangePasswordSerializer, SetCurrentBranchSerializer
 )
 from core.permissions import (
-    IsOwner, IsOwnerOrManager, IsBranchMember,
-    CanManageUsers, CanAssignBranches
+    IsOwner, IsOwnerOrManager, IsBranchMember, IsSuperAdmin,
+    CanManageUsers, CanAssignBranches,
 )
+from audit.services import AuditLogService
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -73,8 +75,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            # Only superusers can create organizations
-            return [IsAuthenticated()]
+            return [IsAuthenticated(), IsSuperAdmin()]
         return super().get_permissions()
 
     def perform_destroy(self, instance):
@@ -147,29 +148,23 @@ class BranchViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsOwner])
+    @action(detail=True, methods=['post'], permission_classes=[IsOwner], url_path='assign-user')
     def assign_user(self, request, pk=None):
         """Assign a user to this branch."""
         branch = self.get_object()
         user_id = request.data.get('user_id')
         
         if not user_id:
-            return Response(
-                {'error': 'user_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('user_id is required')
+
         try:
             user = User.objects.get(
                 pk=user_id,
                 organization=request.user.organization
             )
         except User.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
+            raise NotFound('User not found')
+
         user.branches.add(branch)
         return Response({'message': f'User {user.email} assigned to {branch.name}'})
 
@@ -180,22 +175,16 @@ class BranchViewSet(viewsets.ModelViewSet):
         user_id = request.data.get('user_id')
         
         if not user_id:
-            return Response(
-                {'error': 'user_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('user_id is required')
+
         try:
             user = User.objects.get(
                 pk=user_id,
                 organization=request.user.organization
             )
         except User.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
+            raise NotFound('User not found')
+
         user.branches.remove(branch)
         return Response({'message': f'User {user.email} removed from {branch.name}'})
 
@@ -275,16 +264,52 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        if self.action in ['me', 'change_password', 'set_current_branch', 'my_branches', 'update_location']:
+        if self.action in ['me', 'update_me', 'change_password', 'set_current_branch', 'my_branches', 'update_location']:
             return [IsAuthenticated()]
         return super().get_permissions()
+
+    def perform_update(self, serializer):
+        """Audit privilege changes (role, active status, branches)."""
+        instance = serializer.instance
+        old_role = instance.role
+        old_active = instance.is_active
+        old_branch_ids = set(instance.branches.values_list('pk', flat=True))
+
+        user = serializer.save()
+
+        changes = {}
+        if user.role != old_role:
+            changes['role'] = {'old': old_role, 'new': user.role}
+        if user.is_active != old_active:
+            changes['is_active'] = {'old': old_active, 'new': user.is_active}
+        new_branch_ids = set(user.branches.values_list('pk', flat=True))
+        if new_branch_ids != old_branch_ids:
+            changes['branches'] = {
+                'old': [str(pk) for pk in old_branch_ids],
+                'new': [str(pk) for pk in new_branch_ids],
+            }
+
+        if changes:
+            AuditLogService.log(
+                user=self.request.user,
+                action='PRIVILEGE_CHANGE',
+                model_name='User',
+                object_id=str(user.pk),
+                old_values={k: v.get('old') for k, v in changes.items()},
+                new_values={k: v.get('new') for k, v in changes.items()},
+                details={'target_email': user.email},
+                request=self.request,
+            )
 
     def perform_destroy(self, instance):
         """Soft delete - deactivate instead of deleting."""
         if instance == self.request.user:
             from rest_framework.exceptions import ValidationError
             raise ValidationError("You cannot delete your own account.")
-        
+
+        if instance.role == Role.SUPER_ADMIN and self.request.user.role != Role.SUPER_ADMIN:
+            raise PermissionDenied("Only super admins can deactivate super admin accounts.")
+
         # Check if this is the only owner
         if instance.role == Role.OWNER:
             other_owners = User.objects.filter(
@@ -298,11 +323,20 @@ class UserViewSet(viewsets.ModelViewSet):
                 raise ValidationError(
                     "Cannot delete the only owner. Add another owner first."
                 )
+
+        AuditLogService.log(
+            user=self.request.user,
+            action='DEACTIVATE',
+            model_name='User',
+            object_id=str(instance.pk),
+            details={'target_email': instance.email, 'role': instance.role},
+            request=self.request,
+        )
         
         instance.is_active = False
         instance.save()
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='update-location')
     def update_location(self, request):
         """Update the live location of the technician."""
         from django.utils import timezone
@@ -310,7 +344,7 @@ class UserViewSet(viewsets.ModelViewSet):
         lng = request.data.get('longitude')
         
         if lat is None or lng is None:
-            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError('latitude and longitude are required')
         
         request.user.last_latitude = lat
         request.user.last_longitude = lng
@@ -325,7 +359,16 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['patch'], url_path='update-me')
+    def update_me(self, request):
+        """Update own first_name, last_name, phone."""
+        allowed = {k: v for k, v in request.data.items() if k in ('first_name', 'last_name', 'phone')}
+        serializer = UserSerializer(request.user, data=allowed, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='change-password')
     def change_password(self, request):
         """Change current user's password."""
         serializer = ChangePasswordSerializer(
@@ -336,14 +379,14 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response({'message': 'Password changed successfully'})
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='my-branches')
     def my_branches(self, request):
         """Get branches accessible to current user."""
         branches = request.user.get_accessible_branches()
         serializer = BranchMinimalSerializer(branches, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='set-current-branch')
     def set_current_branch(self, request):
         """Set current branch context for the user session."""
         serializer = SetCurrentBranchSerializer(
@@ -363,7 +406,7 @@ class UserViewSet(viewsets.ModelViewSet):
             'branch': BranchMinimalSerializer(branch).data
         })
 
-    @action(detail=True, methods=['post'], permission_classes=[IsOwner])
+    @action(detail=True, methods=['post'], permission_classes=[IsOwner], url_path='assign-branches')
     def assign_branches(self, request, pk=None):
         """Assign branches to a user."""
         user = self.get_object()
@@ -376,10 +419,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         
         if len(branches) != len(branch_ids):
-            return Response(
-                {'error': 'One or more branches not found or unauthorized'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('One or more branches not found or unauthorized')
         
         user.branches.set(branches)
         return Response({'message': 'Branches assigned successfully'})

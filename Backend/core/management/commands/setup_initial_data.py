@@ -93,7 +93,8 @@ class Command(BaseCommand):
                 }
             ]
 
-            default_password = 'password123'
+            import secrets
+            default_password = secrets.token_urlsafe(12)
 
             for user_data in users_to_create:
                 email = user_data['email']
@@ -124,5 +125,10 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(f'User already exists: {email}'))
 
         self.stdout.write(self.style.SUCCESS('------------------------------------------------'))
-        self.stdout.write(self.style.SUCCESS(f'Setup Complete! Default password: {default_password}'))
+        self.stdout.write(self.style.SUCCESS(
+            f'Setup Complete! One-time password for new users: {default_password}'
+        ))
+        self.stdout.write(self.style.WARNING(
+            'Change these passwords before using in any shared environment.'
+        ))
         self.stdout.write(self.style.SUCCESS('------------------------------------------------'))

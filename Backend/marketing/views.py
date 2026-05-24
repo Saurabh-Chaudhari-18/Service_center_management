@@ -5,6 +5,7 @@ Marketing ViewSets.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
@@ -24,7 +25,7 @@ from marketing.serializers import (
     CustomerLedgerEntrySerializer, CustomerLedgerCreateSerializer
 )
 from core.permissions import (
-    IsBranchMember, BranchScopedMixin, IsOwnerOrManager
+    IsBranchMember, BranchScopedMixin, IsOwnerOrManager, CanManageFinance,
 )
 from core.pagination import OptionalPageSizePagination
 
@@ -120,7 +121,7 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ViewSet for customer ledger (Khata) management.
     """
     serializer_class = CustomerLedgerEntrySerializer
-    permission_classes = [IsAuthenticated, IsBranchMember]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageFinance]
     pagination_class = OptionalPageSizePagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['customer', 'entry_type', 'reference_type']
@@ -173,15 +174,12 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             branch=branch
         )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='customer-statement')
     def customer_statement(self, request):
         """Get complete ledger statement for a customer."""
         customer_id = request.query_params.get('customer')
         if not customer_id:
-            return Response(
-                {'error': 'customer parameter is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('customer parameter is required')
 
         entries = self.get_queryset().filter(
             customer_id=customer_id
