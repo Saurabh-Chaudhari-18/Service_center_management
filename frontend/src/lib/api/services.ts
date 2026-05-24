@@ -44,12 +44,24 @@ export const authApi = {
     return apiPost<AuthTokens>(
       "/auth/token/",
       { email, password },
-      { timeout: 120000 },
+      { timeout: 120000, withCredentials: true },
     );
   },
 
-  refreshToken: async (refresh: string): Promise<{ access: string }> => {
-    return apiPost("/auth/token/refresh/", { refresh });
+  refreshToken: async (refresh?: string): Promise<{ access: string }> => {
+    return apiPost(
+      "/auth/token/refresh/",
+      refresh ? { refresh } : {},
+      { withCredentials: true },
+    );
+  },
+
+  logout: async (refresh?: string): Promise<void> => {
+    return apiPost(
+      "/auth/logout/",
+      refresh ? { refresh } : {},
+      { withCredentials: true },
+    );
   },
 
   verifyToken: async (token: string): Promise<{ valid: boolean }> => {

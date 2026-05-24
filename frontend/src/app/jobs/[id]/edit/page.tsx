@@ -262,7 +262,7 @@ export default function EditJobPage() {
   }
 
   return (
-    <ProtectedRoute requiredPermission="canViewJobCards">
+    <ProtectedRoute requiredPermission="canEditJobCards">
       <AppLayout>
         <Header
           title={`Edit Job: ${job.job_number}`}

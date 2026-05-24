@@ -353,7 +353,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = React.useState<TabId>("profile");
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRoles={["SUPER_ADMIN", "OWNER", "MANAGER"]}>
       <AppLayout>
         <Header
           title="Settings"

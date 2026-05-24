@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { ledgerApi, customersApi } from "@/lib/api/services";
 import {
@@ -22,7 +22,7 @@ const makeEmptyForm = () => ({
   notes: "",
 });
 
-export default function ReceiptsPage() {
+function ReceiptsPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -346,5 +346,13 @@ export default function ReceiptsPage() {
         </form>
       </Modal>
     </AppLayout>
+  );
+}
+
+export default function ReceiptsPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <ReceiptsPageContent />
+    </ProtectedRoute>
   );
 }

@@ -154,6 +154,9 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'core.error_handlers.custom_exception_handler',
 }
 
+# Refresh token httpOnly cookie (set on API domain; sent with credentials on refresh)
+JWT_REFRESH_COOKIE_NAME = 'scm_refresh_token'
+
 # JWT Settings
 SIMPLE_JWT = {
     # 30 minutes: short-lived access tokens reduce the attack window if a token

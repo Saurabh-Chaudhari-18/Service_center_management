@@ -107,7 +107,7 @@ export default function PurchaseDetailPage() {
 
   if (isLoading) {
     return (
-      <ProtectedRoute>
+      <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
         <AppLayout>
           <LoadingState message="Loading purchase…" />
         </AppLayout>
@@ -117,7 +117,7 @@ export default function PurchaseDetailPage() {
 
   if (error || !purchase) {
     return (
-      <ProtectedRoute>
+      <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
         <AppLayout>
           <PageShell width="constrained">
             <EmptyState
@@ -140,7 +140,7 @@ export default function PurchaseDetailPage() {
   }
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
       <AppLayout>
         <Header
           title="Purchase Details"

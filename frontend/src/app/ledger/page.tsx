@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { ledgerApi, customersApi } from "@/lib/api/services";
 import {
   Plus, BookOpen, TrendingUp, Search,
@@ -47,7 +47,7 @@ type LedgerStatementShape = {
   balance?: string | number;
 };
 
-export default function LedgerPage() {
+function LedgerPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -614,5 +614,13 @@ export default function LedgerPage() {
         </form>
       </Modal>
     </AppLayout>
+  );
+}
+
+export default function LedgerPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <LedgerPageContent />
+    </ProtectedRoute>
   );
 }

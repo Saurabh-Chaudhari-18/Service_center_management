@@ -18,7 +18,7 @@ from enquiries.serializers import (
     EnquirySerializer, EnquiryListSerializer,
     EnquiryCreateSerializer, EnquiryNoteSerializer
 )
-from core.permissions import IsBranchMember, BranchScopedMixin
+from core.permissions import IsBranchMember, BranchScopedMixin, CanManageEnquiries
 
 
 class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -33,7 +33,7 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     - Lead analytics
     """
     serializer_class = EnquirySerializer
-    permission_classes = [IsAuthenticated, IsBranchMember]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageEnquiries]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'source', 'assigned_to']
     search_fields = ['customer_name', 'customer_mobile', 'problem_description', 'brand']

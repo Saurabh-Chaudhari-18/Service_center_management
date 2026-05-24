@@ -69,6 +69,17 @@ class IsBranchMember(permissions.BasePermission):
         return request.user.has_branch_access(branch)
 
 
+class IsSuperAdmin(permissions.BasePermission):
+    """Only platform super admins."""
+    message = "Only super admins can perform this action."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == Role.SUPER_ADMIN
+        )
+
+
 class IsOwner(permissions.BasePermission):
     """Only allow owners and super admins to access."""
     message = "Only owners can perform this action."
@@ -192,6 +203,30 @@ class IsTechnicianOrAbove(permissions.BasePermission):
         
         return request.user.role in [
             Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.TECHNICIAN
+        ]
+
+
+class CanManageFinance(permissions.BasePermission):
+    """Finance operations — owners, managers, and accountants."""
+    message = "You do not have permission to manage finance records."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return request.user.role in [
+            Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.ACCOUNTANT,
+        ]
+
+
+class CanManageEnquiries(permissions.BasePermission):
+    """Enquiry/lead management — front desk and above."""
+    message = "You do not have permission to manage enquiries."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return request.user.role in [
+            Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER, Role.RECEPTIONIST,
         ]
 
 

@@ -126,7 +126,7 @@ export default function PurchasesPage() {
   const showInitialLoading = !currentBranch || (isLoading && purchases.length === 0);
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
       <AppLayout>
         <Header
           title="Purchase History"

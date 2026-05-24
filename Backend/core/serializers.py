@@ -308,9 +308,45 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'branch_ids', 'is_active'
         ]
 
-    def validate_role(self, value):
-        """Prevent demoting the last owner."""
+    def validate(self, data):
+        request = self.context.get('request')
         instance = self.instance
+
+        if instance and request and instance.pk == request.user.pk:
+            if 'role' in data and data['role'] != instance.role:
+                raise serializers.ValidationError({
+                    'role': 'You cannot change your own role.',
+                })
+            if 'is_active' in data and not data['is_active']:
+                raise serializers.ValidationError({
+                    'is_active': 'You cannot deactivate your own account.',
+                })
+
+        if instance and request:
+            caller = request.user
+            if instance.role == Role.SUPER_ADMIN and caller.role != Role.SUPER_ADMIN:
+                raise serializers.ValidationError(
+                    'Only super admins can modify super admin accounts.'
+                )
+
+        return data
+
+    def validate_role(self, value):
+        """Enforce role hierarchy on updates (mirrors UserCreateSerializer)."""
+        request = self.context.get('request')
+        instance = self.instance
+
+        if request and hasattr(request, 'user'):
+            caller = request.user
+            if value == Role.SUPER_ADMIN and caller.role != Role.SUPER_ADMIN:
+                raise serializers.ValidationError(
+                    "Only super admins can assign super admin role."
+                )
+            if value == Role.OWNER and caller.role not in [Role.SUPER_ADMIN, Role.OWNER]:
+                raise serializers.ValidationError(
+                    "Only owners can assign owner role."
+                )
+
         if instance and instance.role == Role.OWNER and value != Role.OWNER:
             other_owners = User.objects.filter(
                 organization=instance.organization,
@@ -323,6 +359,20 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                     "Cannot demote the only owner. Add another owner first."
                 )
         return value
+
+    def validate_branch_ids(self, branches):
+        """Ensure branches belong to the target user's organization."""
+        instance = self.instance
+        if not instance or not instance.organization:
+            return branches
+
+        org = instance.organization
+        for branch in branches:
+            if branch.organization != org:
+                raise serializers.ValidationError(
+                    f"Branch {branch.name} does not belong to the user's organization."
+                )
+        return branches
 
 
 class ChangePasswordSerializer(serializers.Serializer):

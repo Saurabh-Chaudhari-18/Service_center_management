@@ -25,7 +25,7 @@ from marketing.serializers import (
     CustomerLedgerEntrySerializer, CustomerLedgerCreateSerializer
 )
 from core.permissions import (
-    IsBranchMember, BranchScopedMixin, IsOwnerOrManager
+    IsBranchMember, BranchScopedMixin, IsOwnerOrManager, CanManageFinance,
 )
 from core.pagination import OptionalPageSizePagination
 
@@ -121,7 +121,7 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ViewSet for customer ledger (Khata) management.
     """
     serializer_class = CustomerLedgerEntrySerializer
-    permission_classes = [IsAuthenticated, IsBranchMember]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageFinance]
     pagination_class = OptionalPageSizePagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['customer', 'entry_type', 'reference_type']

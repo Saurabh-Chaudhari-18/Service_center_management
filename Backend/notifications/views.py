@@ -154,6 +154,11 @@ class InternalAlertViewSet(viewsets.ModelViewSet):
     filterset_fields = ['alert_type', 'priority', 'is_read', 'is_dismissed']
     ordering = ['-created_at']
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'unread_count', 'mark_read', 'mark_all_read', 'dismiss']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrManager()]
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:

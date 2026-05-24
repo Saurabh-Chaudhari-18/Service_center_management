@@ -27,7 +27,7 @@ from core.permissions import (
 class SupplierViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """ViewSet for supplier management."""
     serializer_class = SupplierSerializer
-    permission_classes = [IsAuthenticated, IsBranchMember]
+    permission_classes = [IsAuthenticated, IsBranchMember, IsOwnerOrManager]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'contact_person', 'phone', 'categories', 'city']

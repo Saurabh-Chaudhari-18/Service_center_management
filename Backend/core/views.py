@@ -5,7 +5,7 @@ Core ViewSets for Organization, Branch, and User management.
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError, NotFound
+from rest_framework.exceptions import ValidationError, NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
@@ -43,9 +43,10 @@ from core.serializers import (
     ChangePasswordSerializer, SetCurrentBranchSerializer
 )
 from core.permissions import (
-    IsOwner, IsOwnerOrManager, IsBranchMember,
-    CanManageUsers, CanAssignBranches
+    IsOwner, IsOwnerOrManager, IsBranchMember, IsSuperAdmin,
+    CanManageUsers, CanAssignBranches,
 )
+from audit.services import AuditLogService
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -74,8 +75,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            # Only superusers can create organizations
-            return [IsAuthenticated()]
+            return [IsAuthenticated(), IsSuperAdmin()]
         return super().get_permissions()
 
     def perform_destroy(self, instance):
@@ -268,12 +268,48 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return super().get_permissions()
 
+    def perform_update(self, serializer):
+        """Audit privilege changes (role, active status, branches)."""
+        instance = serializer.instance
+        old_role = instance.role
+        old_active = instance.is_active
+        old_branch_ids = set(instance.branches.values_list('pk', flat=True))
+
+        user = serializer.save()
+
+        changes = {}
+        if user.role != old_role:
+            changes['role'] = {'old': old_role, 'new': user.role}
+        if user.is_active != old_active:
+            changes['is_active'] = {'old': old_active, 'new': user.is_active}
+        new_branch_ids = set(user.branches.values_list('pk', flat=True))
+        if new_branch_ids != old_branch_ids:
+            changes['branches'] = {
+                'old': [str(pk) for pk in old_branch_ids],
+                'new': [str(pk) for pk in new_branch_ids],
+            }
+
+        if changes:
+            AuditLogService.log(
+                user=self.request.user,
+                action='PRIVILEGE_CHANGE',
+                model_name='User',
+                object_id=str(user.pk),
+                old_values={k: v.get('old') for k, v in changes.items()},
+                new_values={k: v.get('new') for k, v in changes.items()},
+                details={'target_email': user.email},
+                request=self.request,
+            )
+
     def perform_destroy(self, instance):
         """Soft delete - deactivate instead of deleting."""
         if instance == self.request.user:
             from rest_framework.exceptions import ValidationError
             raise ValidationError("You cannot delete your own account.")
-        
+
+        if instance.role == Role.SUPER_ADMIN and self.request.user.role != Role.SUPER_ADMIN:
+            raise PermissionDenied("Only super admins can deactivate super admin accounts.")
+
         # Check if this is the only owner
         if instance.role == Role.OWNER:
             other_owners = User.objects.filter(
@@ -287,6 +323,15 @@ class UserViewSet(viewsets.ModelViewSet):
                 raise ValidationError(
                     "Cannot delete the only owner. Add another owner first."
                 )
+
+        AuditLogService.log(
+            user=self.request.user,
+            action='DEACTIVATE',
+            model_name='User',
+            object_id=str(instance.pk),
+            details={'target_email': instance.email, 'role': instance.role},
+            request=self.request,
+        )
         
         instance.is_active = False
         instance.save()

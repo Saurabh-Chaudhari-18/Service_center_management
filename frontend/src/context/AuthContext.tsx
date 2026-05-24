@@ -63,6 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       const token = tokenManager.getAccessToken();
+      if (token && typeof document !== "undefined" && !document.cookie.includes("scm_session=")) {
+        const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
+      }
 
       if (!token) {
         if (isMounted) {
@@ -142,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const tokens = await authApi.login(email, password);
       tokenManager.setTokens(tokens.access, tokens.refresh);
+      // scm_session cookie set inside setTokens for edge middleware
 
       const user = await authApi.getMe();
       const branches = await authApi.getMyBranches();
@@ -183,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout function
   const logout = useCallback(() => {
+    const refresh = tokenManager.getRefreshToken();
+    authApi.logout(refresh ?? undefined).catch(() => {
+      /* still clear local session if API is unreachable */
+    });
     tokenManager.clearTokens();
     setState({
       user: null,

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { suppliersApi } from "@/lib/api/services";
 import {
@@ -51,7 +51,7 @@ const EMPTY_FORM = {
   notes: "",
 };
 
-export default function SuppliersPage() {
+function SuppliersPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -400,5 +400,13 @@ export default function SuppliersPage() {
         isLoading={deleteMutation.isPending}
       />
     </AppLayout>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER"]}>
+      <SuppliersPageContent />
+    </ProtectedRoute>
   );
 }

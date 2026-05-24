@@ -36,7 +36,8 @@ from jobs.serializers import (
 )
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
-    CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin
+    CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin,
+    IsOwnerOrManager,
 )
 from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
@@ -662,6 +663,11 @@ class DropdownOptionViewSet(viewsets.ModelViewSet):
     ordering_fields = ['display_order', 'label']
     ordering = ['display_order', 'label']
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrManager()]
+
     def get_queryset(self):
         queryset = DropdownOption.objects.all()
         
@@ -843,6 +849,7 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 
 class PublicTrackingView(APIView):
     """
@@ -850,6 +857,8 @@ class PublicTrackingView(APIView):
     Requires job number, phone, and tracking PIN for security.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'public_track'
 
     TRACKING_ERROR = 'Could not find job with provided details. Please check your phone number and PIN.'
 

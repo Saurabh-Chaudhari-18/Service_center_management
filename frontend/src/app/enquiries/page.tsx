@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { enquiriesApi } from "@/lib/api/services";
 import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState, Badge } from "@/components/ui";
@@ -84,7 +84,7 @@ const EMPTY_STATS: EnquiryStatsShape = {
 
 const ENQUIRY_CREATE_FORM_ID = "enquiry-create-form";
 
-export default function EnquiriesPage() {
+function EnquiriesPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -651,5 +651,13 @@ export default function EnquiriesPage() {
         </Modal>
       )}
     </AppLayout>
+  );
+}
+
+export default function EnquiriesPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "RECEPTIONIST"]}>
+      <EnquiriesPageContent />
+    </ProtectedRoute>
   );
 }

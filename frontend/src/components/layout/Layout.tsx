@@ -90,7 +90,7 @@ const navigationItems: NavItem[] = [
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },
-  { name: "Notifications", href: "/notifications", icon: Bell,            roles: ["OWNER", "MANAGER"] },
+  { name: "Notifications", href: "/notifications", icon: Bell,            permission: "canManageBranches" },
   { name: "Settings",      href: "/settings",      icon: Settings,        roles: ["SUPER_ADMIN", "OWNER", "MANAGER"] },
 ];
 

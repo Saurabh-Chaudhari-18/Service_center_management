@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { IndianRupee, CreditCard, CheckCircle2, Search, Calendar, FileText, User, ChevronDown, ChevronUp, History } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { Purchase } from "@/types";
 import { formatDateLong } from "@/lib/formatters";
@@ -49,7 +49,7 @@ const AP_SCOPE_SEGMENTS = [
   },
 ];
 
-export default function PaymentsPage() {
+function PaymentsPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -397,5 +397,13 @@ export default function PaymentsPage() {
         ) : null}
       </Modal>
     </AppLayout>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <PaymentsPageContent />
+    </ProtectedRoute>
   );
 }

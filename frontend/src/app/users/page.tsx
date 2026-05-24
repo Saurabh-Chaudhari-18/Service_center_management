@@ -131,6 +131,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const { toast } = useToast();
   const isEditing = !!user;
 
+  const { data: roleOptions = [] } = useQuery({
+    queryKey: ["user-roles"],
+    queryFn: () => usersApi.getRoles(),
+    enabled: isOpen,
+    staleTime: 60_000,
+  });
+
   const schema = useMemo(() => makeUserSchema(isEditing), [isEditing]);
 
   const {
@@ -400,14 +407,10 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               <Select
                 value={field.value}
                 onChange={(e) => field.onChange(e.target.value)}
-                options={[
-                  { value: "TECHNICIAN", label: "Technician" },
-                  { value: "RECEPTIONIST", label: "Receptionist" },
-                  { value: "ACCOUNTANT", label: "Accountant" },
-                  { value: "MANAGER", label: "Manager" },
-                  { value: "SUPER_ADMIN", label: "Super Admin" },
-                  { value: "OWNER", label: "Owner" },
-                ]}
+                options={roleOptions.map((r) => ({
+                  value: r.value,
+                  label: r.label,
+                }))}
               />
             )}
           />

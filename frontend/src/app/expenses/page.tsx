@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { expensesApi } from "@/lib/api/services";
 import {
@@ -117,7 +117,7 @@ const makeEmptyForm = () => ({
   sgst_amount: "0",
 });
 
-export default function ExpensesPage() {
+function ExpensesPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -543,5 +543,13 @@ export default function ExpensesPage() {
         isLoading={deleteMutation.isPending}
       />
     </AppLayout>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <ExpensesPageContent />
+    </ProtectedRoute>
   );
 }

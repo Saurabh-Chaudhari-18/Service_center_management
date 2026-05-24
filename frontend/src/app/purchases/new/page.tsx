@@ -153,7 +153,7 @@ export default function NewPurchasePage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
       <AppLayout>
         <Header 
           title="Add New Purchase"
