@@ -806,20 +806,7 @@ html *::after {
   animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Make ALL tables horizontally scrollable on small screens */
 @media (max-width: 1023px) {
-  /* Tables must scroll horizontally, not break layout */
-  table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-  }
-  thead, tbody, tfoot {
-    display: table;
-    width: 100%;
-  }
-
   /* Reduce padding on pages */
   .p-6 {
     padding: 1rem !important;
@@ -885,13 +872,7 @@ html *::after {
   }
 }
 
-/* Ensure overflow hidden containers don't clip on mobile */
-.overflow-hidden {
-  overflow: visible;
-}
-
-/* But tables need scroll – override above for table containers */
+/* Table/list scroll regions on touch devices */
 .overflow-x-auto {
-  overflow-x: auto !important;
   -webkit-overflow-scrolling: touch;
 }

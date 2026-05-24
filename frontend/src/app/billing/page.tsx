@@ -19,7 +19,12 @@ import {
   LoadingState,
   EmptyState,
 } from "@/components/ui";
-import { EntityInspector, PageShell, PaginationFooter } from "@/components/shell";
+import {
+  EntityInspector,
+  PageShell,
+  PaginationFooter,
+  RegisterListCard,
+} from "@/components/shell";
 import { BillingInvoiceInspectorBody } from "@/components/domain/billing/BillingInvoiceInspectorBody";
 import { billingApi } from "@/lib/api";
 import {
@@ -37,6 +42,9 @@ import {
   ArrowDown,
   Edit,
   IndianRupee,
+  ArrowRight,
+  Calendar,
+  User,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDateLong } from "@/lib/formatters";
@@ -284,6 +292,113 @@ function InvoiceRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// =====================================================
+// Mobile invoice card
+// =====================================================
+
+interface InvoiceListCardProps {
+  invoice: Invoice;
+  isSelected: boolean;
+  onSelect: (invoice: Invoice) => void;
+  onDownload: (invoice: Invoice) => void;
+}
+
+function InvoiceListCard({
+  invoice,
+  isSelected,
+  onSelect,
+  onDownload,
+}: InvoiceListCardProps) {
+  const router = useRouter();
+  const statusPresentation = getInvoiceStatusPresentation(invoice.status);
+
+  return (
+    <RegisterListCard
+      selected={isSelected}
+      onClick={() => onSelect(invoice)}
+      ariaLabel={`Invoice ${invoice.invoice_number}, ${invoice.customer_name}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-primary-600 dark:text-primary-400">
+              {invoice.invoice_number}
+            </span>
+            <SemanticStatusBadge presentation={statusPresentation} size="sm" />
+            {!invoice.branch_name && (
+              <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-600 dark:bg-slate-700 dark:text-slate-300">
+                Universal
+              </span>
+            )}
+          </div>
+          <p className="font-medium text-neutral-900 dark:text-white truncate">
+            {invoice.customer_name}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+            <span className="flex items-center gap-1">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              {invoice.customer_mobile}
+            </span>
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              {formatDateLong(invoice.invoice_date)}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-baseline gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Amount
+              </p>
+              <p className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
+                ₹{invoice.total_amount.toLocaleString("en-IN")}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Balance
+              </p>
+              <p
+                className={`text-lg font-bold tabular-nums ${
+                  invoice.balance_due > 0 ? "text-red-600" : "text-green-600"
+                }`}
+              >
+                ₹{invoice.balance_due.toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-neutral-300 dark:text-slate-600" aria-hidden />
+      </div>
+      <div
+        className="mt-4 flex flex-wrap gap-2 border-t border-neutral-100 pt-3 dark:border-slate-700"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant="secondary"
+          size="md"
+          className="flex-1 min-w-[7rem]"
+          leftIcon={<Eye className="h-4 w-4" />}
+          onClick={() => router.push(`/billing/${invoice.id}`)}
+        >
+          View
+        </Button>
+        {invoice.status !== "CANCELLED" && (
+          <Button
+            variant="secondary"
+            size="md"
+            className="flex-1 min-w-[7rem]"
+            leftIcon={<Download className="h-4 w-4" />}
+            onClick={() => onDownload(invoice)}
+          >
+            PDF
+          </Button>
+        )}
+      </div>
+    </RegisterListCard>
   );
 }
 
@@ -535,7 +650,9 @@ function BillingContent() {
           <div className="relative flex min-w-0 gap-0">
             {/* Invoices Table */}
             <div
-              className={`min-w-0 flex-1 transition-all duration-300 ${selectedInvoice ? "mr-[550px]" : ""}`}
+              className={`min-w-0 flex-1 transition-all duration-300 ${
+                selectedInvoice ? "lg:mr-[550px]" : ""
+              }`}
             >
               {isLoading ? (
                 <LoadingState message="Loading invoices…" />
@@ -564,7 +681,8 @@ function BillingContent() {
                   />
                 </Card>
               ) : (
-                <Card padding="none">
+                <>
+                <Card padding="none" className="hidden lg:block">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-neutral-50 border-b border-neutral-100">
@@ -652,6 +770,19 @@ function BillingContent() {
                     </table>
                   </div>
                 </Card>
+
+                <div className="min-w-0 space-y-3 lg:hidden">
+                  {sortedInvoices.map((invoice) => (
+                    <InvoiceListCard
+                      key={invoice.id}
+                      invoice={invoice}
+                      isSelected={selectedInvoice?.id === invoice.id}
+                      onSelect={setSelectedInvoice}
+                      onDownload={handleDownload}
+                    />
+                  ))}
+                </div>
+                </>
               )}
 
               {(data?.previous || data?.next) && (

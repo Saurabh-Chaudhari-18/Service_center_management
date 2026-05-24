@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 import type { Expense } from "@/types";
 import { Modal, Button, Badge, Input, Select, ConfirmDialog, StatsCard } from "@/components/ui";
-import { PageShell, RegisterToolbar, WorkspaceSurface } from "@/components/shell";
+import {
+  PageShell,
+  RegisterListCard,
+  RegisterToolbar,
+  WorkspaceSurface,
+} from "@/components/shell";
+import { formatDateLong } from "@/lib/formatters";
 
 const EXPENSE_CATEGORIES = [
   { value: "RENT", label: "Rent" },
@@ -44,6 +50,53 @@ const GST_RATES = [
   { value: "18", label: "18%" },
   { value: "28", label: "28%" },
 ];
+
+interface ExpenseListCardProps {
+  expense: Expense;
+  categoryLabel: string;
+  onDelete: (id: string) => void;
+}
+
+function ExpenseListCard({ expense, categoryLabel, onDelete }: ExpenseListCardProps) {
+  const itc = (expense as Expense & { is_itc_eligible?: boolean }).is_itc_eligible;
+
+  return (
+    <RegisterListCard>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-neutral-900 dark:text-white">{expense.title}</h3>
+            {expense.is_recurring && <Badge size="sm">Recurring</Badge>}
+            {itc && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300">
+                <BadgePercent className="h-3 w-3" />
+                ITC
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+            <span>{formatDateLong(expense.expense_date)}</span>
+            <span className="rounded-lg bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-slate-700 dark:text-neutral-300">
+              {categoryLabel}
+            </span>
+            {expense.vendor_name ? <span>{expense.vendor_name}</span> : null}
+          </div>
+          <p className="mt-3 text-xl font-bold tabular-nums text-red-600 dark:text-red-400">
+            ₹{Number(expense.amount).toLocaleString("en-IN")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(expense.id)}
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+          aria-label={`Delete expense ${expense.title}`}
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
+      </div>
+    </RegisterListCard>
+  );
+}
 
 const makeEmptyForm = () => ({
   title: "",
@@ -209,11 +262,12 @@ export default function ExpensesPage() {
                 className="w-48"
               />
               <button
+                type="button"
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: ["expenses"] });
                   void queryClient.invalidateQueries({ queryKey: ["expense-stats"] });
                 }}
-                className="p-2 rounded-xl border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors"
                 aria-label="Refresh"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -232,7 +286,8 @@ export default function ExpensesPage() {
                 : "No expenses yet. Add your first expense!"}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-900/50">
@@ -277,8 +332,9 @@ export default function ExpensesPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
+                          type="button"
                           onClick={() => setPendingDeleteId(exp.id)}
-                          className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                           aria-label="Delete expense"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -289,6 +345,18 @@ export default function ExpensesPage() {
                 </tbody>
               </table>
             </div>
+
+            <div className="min-w-0 space-y-3 p-4 lg:hidden">
+              {expenses.map((exp) => (
+                <ExpenseListCard
+                  key={exp.id}
+                  expense={exp}
+                  categoryLabel={getCategoryLabel(exp.category)}
+                  onDelete={setPendingDeleteId}
+                />
+              ))}
+            </div>
+            </>
           )}
         </WorkspaceSurface>
       </PageShell>

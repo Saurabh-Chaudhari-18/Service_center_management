@@ -595,8 +595,8 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
     <div
       className={`p-5 bg-white border rounded-xl transition-all hover:shadow-md ${!user.is_active ? "opacity-60 border-neutral-200" : "border-neutral-200"}`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <div
             className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${user.is_active ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-500"}`}
           >
@@ -613,22 +613,23 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             variant="ghost"
-            size="sm"
+            size="md"
+            className="w-full justify-center sm:w-auto"
             onClick={() => onEdit(user)}
-            leftIcon={<Edit3 className="w-3 h-3" />}
+            leftIcon={<Edit3 className="w-4 h-4" />}
           >
             Edit
           </Button>
           {user.is_active && (
             <Button
               variant="ghost"
-              size="sm"
+              size="md"
+              className="w-full justify-center text-red-600 hover:bg-red-50 sm:w-auto"
               onClick={() => onDelete(user)}
-              leftIcon={<Trash2 className="w-3 h-3" />}
-              className="text-red-600 hover:bg-red-50"
+              leftIcon={<Trash2 className="w-4 h-4" />}
             >
               Deactivate
             </Button>

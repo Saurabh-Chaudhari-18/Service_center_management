@@ -176,7 +176,7 @@ export function Sidebar() {
           {/* Mobile close button */}
           <button
             onClick={closeMobile}
-            className="lg:hidden p-2 rounded-xl text-violet-300/60 hover:text-white hover:bg-white/10 transition-colors"
+            className="lg:hidden flex min-h-11 min-w-11 items-center justify-center rounded-xl text-violet-300/60 hover:text-white hover:bg-white/10 transition-colors"
             aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
@@ -339,7 +339,7 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
         {/* Hamburger button – visible only on mobile */}
         <button
           onClick={toggle}
-          className="lg:hidden p-2 -ml-1 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors"
+          className="lg:hidden -ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors"
           aria-label="Open sidebar"
         >
           <Menu className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
@@ -400,7 +400,7 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
               new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
             )
           }
-          className="lg:hidden p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+          className="lg:hidden flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
         >
           <Search className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
         </button>
@@ -410,7 +410,7 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
           href="/notifications"
           aria-label="Notifications"
           title="Notifications"
-          className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+          className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
         >
           <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
           {notificationCount > 0 && (
@@ -442,7 +442,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all duration-300 border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10 group"
+      className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all duration-300 border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10 group"
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >

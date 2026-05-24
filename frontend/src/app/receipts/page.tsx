@@ -132,8 +132,9 @@ export default function ReceiptsPage() {
                 Customers to Collect From
               </h3>
               <button
+                type="button"
                 onClick={() => void refetchOutstanding()}
-                className="text-neutral-400 hover:text-neutral-700"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-slate-800"
                 aria-label="Refresh"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -156,7 +157,7 @@ export default function ReceiptsPage() {
                       setSelectedCustomer({ id: c.id, name: c.name });
                       setForm({ ...form, customer: c.id, amount: c.balance });
                     }}
-                    className={`w-full text-left flex items-center justify-between p-3 rounded-xl border transition-all ${
+                    className={`flex min-h-[3.25rem] w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
                       selectedCustomer?.id === c.id
                         ? "border-green-400 bg-green-50 dark:bg-green-900/20"
                         : "border-neutral-100 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800"

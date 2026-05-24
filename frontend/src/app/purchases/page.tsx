@@ -10,9 +10,75 @@ import { useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { useToast } from "@/context/ToastContext";
 import { Button, EmptyState, Input, LoadingState } from "@/components/ui";
-import { EntityTable, PageShell, RegisterToolbar } from "@/components/shell";
+import {
+  EntityTable,
+  PageShell,
+  RegisterListCard,
+  RegisterToolbar,
+} from "@/components/shell";
 import type { Purchase } from "@/types";
 import { PURCHASE_PAYMENT_STATUS_CONFIG, type PurchasePaymentStatus } from "@/types";
+
+function formatCurrency(amount: string | number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(Number(amount));
+}
+
+interface PurchaseListCardProps {
+  purchase: Purchase;
+  onOpen: () => void;
+}
+
+function PurchaseListCard({ purchase, onOpen }: PurchaseListCardProps) {
+  const balance = parseFloat(String(purchase.balance_due));
+  const statusKey = (purchase.status ?? "UNPAID") as PurchasePaymentStatus;
+  const statusCfg =
+    PURCHASE_PAYMENT_STATUS_CONFIG[statusKey] ??
+    PURCHASE_PAYMENT_STATUS_CONFIG.UNPAID;
+
+  return (
+    <RegisterListCard
+      onClick={onOpen}
+      ariaLabel={`Purchase from ${purchase.vendor_name}, ${purchase.invoice_number || "no invoice number"}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-neutral-900 dark:text-white">
+            {purchase.vendor_name}
+          </h3>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500 dark:text-slate-400">
+            <span className="flex items-center gap-1">
+              <Hash className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              {purchase.invoice_number || "—"}
+            </span>
+            <span className="flex items-center gap-1">
+              <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              {formatDateLong(purchase.purchase_date)}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span
+              className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCfg.badgeClass}`}
+            >
+              {statusCfg.label}
+            </span>
+            <span className="text-lg font-bold tabular-nums text-neutral-900 dark:text-white">
+              {formatCurrency(purchase.total_amount)}
+            </span>
+            {balance > 0 && (
+              <span className="text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                Due {formatCurrency(purchase.balance_due || 0)}
+              </span>
+            )}
+          </div>
+        </div>
+        <ChevronRight className="mx-auto h-5 w-5 shrink-0 text-neutral-400 dark:text-slate-500" aria-hidden />
+      </div>
+    </RegisterListCard>
+  );
+}
 
 export default function PurchasesPage() {
   const router = useRouter();
@@ -56,13 +122,6 @@ export default function PurchasesPage() {
     }
     if (!isError) errorToastRef.current = false;
   }, [isError, toast]);
-
-  const formatCurrency = (amount: string | number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-    }).format(Number(amount));
-  };
 
   const showInitialLoading = !currentBranch || (isLoading && purchases.length === 0);
 
@@ -133,7 +192,8 @@ export default function PurchasesPage() {
                 />
               </div>
             ) : showInitialLoading || purchases.length === 0 ? null : (
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <>
+              <table className="hidden w-full min-w-[640px] border-collapse text-left text-sm lg:table">
                 <thead>
                   <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
                     <th scope="col" className="px-3 py-2">Vendor</th>
@@ -204,6 +264,16 @@ export default function PurchasesPage() {
                   })}
                 </tbody>
               </table>
+              <div className="min-w-0 space-y-3 p-4 lg:hidden">
+                {purchases.map((purchase: Purchase) => (
+                  <PurchaseListCard
+                    key={purchase.id}
+                    purchase={purchase}
+                    onOpen={() => router.push(`/purchases/${purchase.id}`)}
+                  />
+                ))}
+              </div>
+              </>
             )}
           </EntityTable>
         </PageShell>

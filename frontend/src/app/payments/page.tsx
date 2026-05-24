@@ -291,13 +291,13 @@ export default function PaymentsPage() {
                             <Button
                               type="button"
                               variant="secondary"
-                              size="sm"
+                              size="md"
                               leftIcon={<CreditCard className="h-4 w-4" />}
                               onClick={() => {
                                 setSelectedPurchase(purchase);
                                 setPaymentAmount(String(purchase.balance_due));
                               }}
-                              className="whitespace-nowrap rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+                              className="w-full whitespace-nowrap rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 sm:w-auto"
                             >
                               Pay Now
                             </Button>
