@@ -5,7 +5,9 @@ Notification ViewSets.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from django.utils import timezone
@@ -40,31 +42,22 @@ class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             branch__in=user.get_accessible_branches()
         )
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='create-defaults')
     def create_defaults(self, request):
         """Create default templates for a branch."""
         branch_id = request.data.get('branch_id')
         
         if not branch_id:
-            return Response(
-                {'error': 'branch_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('branch_id is required')
+
         from core.models import Branch
         try:
             branch = Branch.objects.get(pk=branch_id)
         except Branch.DoesNotExist:
-            return Response(
-                {'error': 'Branch not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
+            raise NotFound('Branch not found')
+
         if not request.user.has_branch_access(branch):
-            return Response(
-                {'error': 'Access denied'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            raise PermissionDenied('Access denied')
         
         # Create default templates
         default_templates = [
@@ -133,16 +126,10 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
         log = self.get_object()
         
         if log.status != 'FAILED':
-            return Response(
-                {'error': 'Only failed notifications can be retried.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            raise ValidationError('Only failed notifications can be retried.')
+
         if log.retry_count >= 3:
-            return Response(
-                {'error': 'Maximum retry attempts reached.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('Maximum retry attempts reached.')
         
         # Retry sending
         from notifications.services import NotificationService
@@ -166,6 +153,11 @@ class InternalAlertViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['alert_type', 'priority', 'is_read', 'is_dismissed']
     ordering = ['-created_at']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'unread_count', 'mark_read', 'mark_all_read', 'dismiss']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrManager()]
 
     def get_queryset(self):
         user = self.request.user
@@ -191,7 +183,7 @@ class InternalAlertViewSet(viewsets.ModelViewSet):
         alert.save(update_fields=['is_dismissed', 'updated_at'])
         return Response({'message': 'Alert dismissed.'})
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
     def mark_all_read(self, request):
         """Mark all unread alerts as read."""
         alerts = self.get_queryset().filter(is_read=False)
@@ -202,19 +194,18 @@ class InternalAlertViewSet(viewsets.ModelViewSet):
         
         return Response({'message': f'{count} alerts marked as read.'})
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='unread-count')
     def unread_count(self, request):
         """Get count of unread alerts."""
         count = self.get_queryset().filter(is_read=False, is_dismissed=False).count()
         return Response({'count': count})
 
 
-class SendNotificationView(viewsets.ViewSet):
-    """ViewSet for sending custom notifications."""
+class SendNotificationView(APIView):
+    """APIView for sending custom notifications."""
     permission_classes = [IsAuthenticated, IsOwnerOrManager]
 
-    @action(detail=False, methods=['post'])
-    def send(self, request):
+    def post(self, request):
         """Send a custom notification."""
         serializer = SendNotificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

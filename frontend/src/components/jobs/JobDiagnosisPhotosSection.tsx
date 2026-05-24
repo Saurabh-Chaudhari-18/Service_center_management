@@ -19,7 +19,7 @@ export function JobDiagnosisPhotosSection({
   onFileSelected,
 }: JobDiagnosisPhotosSectionProps) {
   return (
-    <div className="space-y-3 pt-4 border-t border-gray-100">
+    <div className="space-y-3 pt-4 border-t border-neutral-100">
       <h4 className="font-medium text-neutral-900 flex items-center gap-2">
         <Camera className="w-4 h-4" /> Diagnosis Photos
       </h4>

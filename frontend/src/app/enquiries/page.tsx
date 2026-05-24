@@ -2,11 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { enquiriesApi } from "@/lib/api/services";
-import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState } from "@/components/ui";
+import { Modal, Button, Input, Select, Textarea, EmptyState, LoadingState, Badge } from "@/components/ui";
 import {
   Plus, UserSearch, Phone, Calendar, ArrowRightCircle,
   XCircle, Search, RefreshCw,
@@ -15,12 +18,14 @@ import {
 import { formatDateLong, formatPhone } from "@/lib/formatters";
 import { ENQUIRY_STATUS_CONFIG } from "@/types";
 import type { Enquiry, EnquiryStatus } from "@/types";
+import { SemanticStatusBadge, getEnquiryStatusPresentation } from "@/platform/semantics";
 import {
   ActionBar,
   EntityCards,
   FormSection,
   OperationalSectionLabel,
   PageShell,
+  PaginationFooter,
   RegisterToolbar,
 } from "@/components/shell";
 import { EnquiryStatsStrip } from "@/components/domain/enquiries/EnquiryStatsStrip";
@@ -37,6 +42,26 @@ const LEAD_SOURCES = [
   { value: "SULEKHA", label: "Sulekha" },
   { value: "OTHER", label: "Other" },
 ];
+
+// =====================================================
+// Enquiry Create Form — Schema
+// =====================================================
+
+const enquirySchema = z.object({
+  customer_name:       z.string().min(1, "Customer name is required"),
+  customer_mobile:     z.string().min(10, "Enter a valid 10-digit mobile number"),
+  customer_email:      z.string().email("Invalid email").optional().or(z.literal("")),
+  device_type:         z.string().optional(),
+  brand:               z.string().optional(),
+  model_name:          z.string().optional(),
+  problem_description: z.string().min(1, "Problem description is required"),
+  quoted_price:        z.string().optional(),
+  source:              z.string().min(1, "Lead source is required"),
+  follow_up_date:      z.string().optional(),
+  notes:               z.string().optional(),
+});
+
+type EnquiryFormData = z.infer<typeof enquirySchema>;
 
 const isOverdue = (followUpDate: string | null, status: string) => {
   if (!followUpDate || ["CONVERTED", "LOST", "CLOSED"].includes(status)) return false;
@@ -59,7 +84,7 @@ const EMPTY_STATS: EnquiryStatsShape = {
 
 const ENQUIRY_CREATE_FORM_ID = "enquiry-create-form";
 
-export default function EnquiriesPage() {
+function EnquiriesPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -67,33 +92,31 @@ export default function EnquiriesPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = React.useState(1);
+  const PAGE_SIZE = 20;
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [lostTarget, setLostTarget] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
 
-  const [form, setForm] = useState({
-    customer_name: "",
-    customer_mobile: "",
-    customer_email: "",
-    device_type: "",
-    brand: "",
-    model_name: "",
-    problem_description: "",
-    quoted_price: "",
-    source: "WALK_IN",
-    follow_up_date: "",
-    notes: "",
+  const {
+    register: registerEnquiry,
+    handleSubmit: handleEnquirySubmit,
+    reset: resetEnquiryForm,
+    formState: { errors: enquiryErrors },
+  } = useForm<EnquiryFormData>({
+    resolver: zodResolver(enquirySchema),
+    defaultValues: { source: "WALK_IN" },
   });
 
   const listQueryKey = useMemo(
-    () => ["enquiries", "list", currentBranch?.id, search, statusFilter] as const,
-    [currentBranch?.id, search, statusFilter],
+    () => ["enquiries", "list", currentBranch?.id, search, statusFilter, page] as const,
+    [currentBranch?.id, search, statusFilter, page],
   );
 
   const errorToastRef = React.useRef(false);
 
   const {
-    data: enquiries = [],
+    data,
     isLoading: listLoading,
     isError: listError,
     refetch: refetchList,
@@ -103,18 +126,24 @@ export default function EnquiriesPage() {
       const params: Record<string, string> = {};
       if (currentBranch) params.branch = currentBranch.id;
       if (search) params.search = search;
-      if (statusFilter && statusFilter !== "OVERDUE") params.status = statusFilter;
-      const res = await enquiriesApi.list(params);
-      let rows: Enquiry[] = (res.results || []) as Enquiry[];
+      // Server-side overdue filter — backend should honour `overdue=true`
       if (statusFilter === "OVERDUE") {
-        rows = rows.filter((enq) =>
-          isOverdue(enq.follow_up_date ?? null, enq.status),
-        );
+        params.overdue = "true";
+      } else if (statusFilter) {
+        params.status = statusFilter;
       }
-      return rows;
+      // Always paginate so counts and page navigation are accurate
+      params.page = String(page);
+      params.page_size = String(PAGE_SIZE);
+      const res = await enquiriesApi.list(params);
+      const rows = (res.results || []) as Enquiry[];
+      return { rows, count: res.count ?? 0 };
     },
     staleTime: 15_000,
   });
+
+  const enquiries = data?.rows ?? [];
+  const totalCount = data?.count ?? 0;
 
   const {
     data: stats = EMPTY_STATS,
@@ -159,28 +188,16 @@ export default function EnquiriesPage() {
     queryClient.invalidateQueries({ queryKey: ["enquiries"] });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: EnquiryFormData) => {
       await enquiriesApi.create({
-        ...form,
-        quoted_price: form.quoted_price ? parseFloat(form.quoted_price) : null,
+        ...data,
+        quoted_price: data.quoted_price ? parseFloat(data.quoted_price) : null,
         branch: currentBranch?.id,
       });
     },
     onSuccess: () => {
       setShowForm(false);
-      setForm({
-        customer_name: "",
-        customer_mobile: "",
-        customer_email: "",
-        device_type: "",
-        brand: "",
-        model_name: "",
-        problem_description: "",
-        quoted_price: "",
-        source: "WALK_IN",
-        follow_up_date: "",
-        notes: "",
-      });
+      resetEnquiryForm();
       toast.success("Enquiry created successfully.");
       void invalidateEnquiries();
     },
@@ -249,7 +266,7 @@ export default function EnquiriesPage() {
               placeholder="All Statuses"
               value={statusFilter}
               options={statusFilterOptions}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="text-sm py-2"
             />
           }
@@ -258,7 +275,7 @@ export default function EnquiriesPage() {
               type="text"
               placeholder="Search by name, mobile, brand..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               leftIcon={<Search className="h-4 w-4" />}
               aria-label="Search enquiries"
               className="py-2 text-sm"
@@ -282,7 +299,7 @@ export default function EnquiriesPage() {
           <OperationalSectionLabel title="Lead queue" hint="Triage &amp; actions" />
 
           {listLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading enquiries…" />
           ) : listError ? (
             <EmptyState
               icon={<UserSearch className="h-8 w-8 text-neutral-400" />}
@@ -308,7 +325,6 @@ export default function EnquiriesPage() {
           ) : (
             <EntityCards columns="single" compact>
             {enquiries.map((enq) => {
-              const statusConfig = ENQUIRY_STATUS_CONFIG[enq.status as EnquiryStatus] || ENQUIRY_STATUS_CONFIG.NEW;
               return (
                 <div
                   key={enq.id}
@@ -318,20 +334,16 @@ export default function EnquiriesPage() {
                       : ""
                   }`}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-[200px] flex-1">
+                  <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="min-w-0 flex-1">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-neutral-900 dark:text-white">{enq.customer_name}</h3>
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{ backgroundColor: statusConfig.bgColor, color: statusConfig.textColor }}
-                        >
-                          {statusConfig.label}
-                        </span>
+                        <SemanticStatusBadge
+                          presentation={getEnquiryStatusPresentation(enq.status as EnquiryStatus)}
+                          size="sm"
+                        />
                         {enq.source_display && (
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-slate-700 dark:text-neutral-300">
-                            {enq.source_display}
-                          </span>
+                          <Badge size="sm">{enq.source_display}</Badge>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400">
@@ -358,35 +370,35 @@ export default function EnquiriesPage() {
                       )}
                     </div>
 
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
                       {enq.status !== "CONVERTED" && enq.status !== "LOST" && enq.status !== "CLOSED" && (
                         <>
                           <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
-                            leftIcon={<ArrowRightCircle className="h-3.5 w-3.5" />}
+                            size="md"
+                            leftIcon={<ArrowRightCircle className="h-4 w-4" />}
                             onClick={() => setConvertTarget(enq.id)}
-                            className="gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
+                            className="w-full justify-center gap-1.5 rounded-lg bg-green-50 text-sm font-semibold text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 sm:w-auto"
                           >
                             Convert
                           </Button>
                           <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
-                            leftIcon={<XCircle className="h-3.5 w-3.5" />}
+                            size="md"
+                            leftIcon={<XCircle className="h-4 w-4" />}
                             onClick={() => setLostTarget(enq.id)}
-                            className="gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                            className="w-full justify-center gap-1.5 rounded-lg bg-red-50 text-sm font-semibold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 sm:w-auto"
                           >
                             Lost
                           </Button>
                         </>
                       )}
                       {enq.converted_job_number && (
-                        <span className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                        <Badge variant="success" size="sm">
                           → Job #{enq.converted_job_number}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -395,12 +407,21 @@ export default function EnquiriesPage() {
             })}
             </EntityCards>
           )}
+          {totalCount > PAGE_SIZE && (
+            <PaginationFooter
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalCount={totalCount}
+              onPrevious={() => setPage(p => Math.max(1, p - 1))}
+              onNext={() => setPage(p => p + 1)}
+            />
+          )}
         </div>
       </PageShell>
 
       <Modal
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); resetEnquiryForm(); }}
         title="New Enquiry / Lead"
         size="lg"
         footer={
@@ -408,7 +429,7 @@ export default function EnquiriesPage() {
             <ActionBar
               className="border-transparent border-t-0 pt-0 pb-0"
               secondary={
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => { setShowForm(false); resetEnquiryForm(); }}>
                   Cancel
                 </Button>
               }
@@ -428,32 +449,35 @@ export default function EnquiriesPage() {
       >
         <form
           id={ENQUIRY_CREATE_FORM_ID}
-          onSubmit={(e) => {
-            e.preventDefault();
-            createMutation.mutate();
-          }}
+          onSubmit={handleEnquirySubmit((data: EnquiryFormData) => createMutation.mutate(data))}
           className="space-y-6"
         >
           <FormSection title="Customer" fieldGap="tight">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                required
-                type="text"
-                label="Customer Name"
-                value={form.customer_name}
-                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                placeholder="Full name"
-                className="text-sm"
-              />
-              <Input
-                required
-                type="tel"
-                label="Mobile"
-                value={form.customer_mobile}
-                onChange={(e) => setForm({ ...form, customer_mobile: e.target.value })}
-                placeholder="+91..."
-                className="text-sm"
-              />
+              <div>
+                <Input
+                  type="text"
+                  label="Customer Name"
+                  {...registerEnquiry("customer_name")}
+                  placeholder="Full name"
+                  className="text-sm"
+                />
+                {enquiryErrors.customer_name && (
+                  <p className="mt-1 text-xs text-red-500">{enquiryErrors.customer_name.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  type="tel"
+                  label="Mobile"
+                  {...registerEnquiry("customer_mobile")}
+                  placeholder="+91..."
+                  className="text-sm"
+                />
+                {enquiryErrors.customer_mobile && (
+                  <p className="mt-1 text-xs text-red-500">{enquiryErrors.customer_mobile.message}</p>
+                )}
+              </div>
             </div>
           </FormSection>
 
@@ -462,24 +486,21 @@ export default function EnquiriesPage() {
               <Input
                 type="text"
                 label="Device"
-                value={form.device_type}
-                onChange={(e) => setForm({ ...form, device_type: e.target.value })}
+                {...registerEnquiry("device_type")}
                 placeholder="Laptop"
                 className="text-sm"
               />
               <Input
                 type="text"
                 label="Brand"
-                value={form.brand}
-                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                {...registerEnquiry("brand")}
                 placeholder="HP, Dell..."
                 className="text-sm"
               />
               <Input
                 type="text"
                 label="Model"
-                value={form.model_name}
-                onChange={(e) => setForm({ ...form, model_name: e.target.value })}
+                {...registerEnquiry("model_name")}
                 placeholder="Model name"
                 className="text-sm"
               />
@@ -489,13 +510,14 @@ export default function EnquiriesPage() {
           <FormSection title="Request" fieldGap="tight">
             <Textarea
               label="Problem Description"
-              required
-              value={form.problem_description}
-              onChange={(e) => setForm({ ...form, problem_description: e.target.value })}
+              {...registerEnquiry("problem_description")}
               rows={3}
               placeholder="What the customer described..."
               className="resize-none text-sm"
             />
+            {enquiryErrors.problem_description && (
+              <p className="mt-1 text-xs text-red-500">{enquiryErrors.problem_description.message}</p>
+            )}
           </FormSection>
 
           <FormSection title="Quote & follow-up" fieldGap="tight">
@@ -504,24 +526,21 @@ export default function EnquiriesPage() {
                 type="number"
                 step="0.01"
                 label="Quoted Price (₹)"
-                value={form.quoted_price}
-                onChange={(e) => setForm({ ...form, quoted_price: e.target.value })}
+                {...registerEnquiry("quoted_price")}
                 placeholder="0.00"
                 className="text-sm"
               />
               <Select
                 label="Lead Source"
-                value={form.source}
                 options={LEAD_SOURCES}
-                onChange={(e) => setForm({ ...form, source: e.target.value })}
+                {...registerEnquiry("source")}
                 className="text-sm py-2"
               />
             </div>
             <Input
               type="date"
               label="Follow-up Date"
-              value={form.follow_up_date}
-              onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })}
+              {...registerEnquiry("follow_up_date")}
               className="text-sm"
             />
           </FormSection>
@@ -560,7 +579,7 @@ export default function EnquiriesPage() {
             </div>
           }
         >
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
             This will create a new job card from this enquiry. The enquiry will be
             marked as Converted. Continue?
           </p>
@@ -619,7 +638,7 @@ export default function EnquiriesPage() {
             </div>
           }
         >
-          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
             Please provide a reason for marking this enquiry as lost.
           </p>
           <Textarea
@@ -632,5 +651,13 @@ export default function EnquiriesPage() {
         </Modal>
       )}
     </AppLayout>
+  );
+}
+
+export default function EnquiriesPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "RECEPTIONIST"]}>
+      <EnquiriesPageContent />
+    </ProtectedRoute>
   );
 }

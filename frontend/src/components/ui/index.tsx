@@ -35,9 +35,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const sizeClasses = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-4 py-2.5 text-sm",
-    lg: "px-6 py-3 text-base",
+    sm: "px-3 py-1.5 text-xs min-h-[2.25rem]",
+    md: "px-4 py-2.5 text-sm min-h-[2.75rem]",
+    lg: "px-6 py-3 text-base min-h-[3rem]",
   };
 
   const showLeading = isLoading || leftIcon != null;
@@ -393,6 +393,33 @@ export function Card({ children, className = "", padding = "md" }: CardProps) {
 }
 
 // =====================================================
+// CardTitle Component
+// =====================================================
+
+interface CardTitleProps {
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  className?: string;
+}
+
+export function CardTitle({ children, icon, className = "" }: CardTitleProps) {
+  return (
+    <h3
+      className={[
+        "text-base font-semibold text-neutral-900 dark:text-neutral-100",
+        icon ? "flex items-center gap-2" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {icon}
+      {children}
+    </h3>
+  );
+}
+
+// =====================================================
 // Stats Card Component  — V3 icon-bubble style
 // =====================================================
 
@@ -404,16 +431,16 @@ interface StatsCardProps {
   variant?: "primary" | "success" | "warning" | "danger" | "accent";
 }
 
-const STATS_ICON_STYLES: Record<string, { background: string; color: string }> = {
-  primary: { background: "#ede9fe", color: "#4f46e5" },
-  success: { background: "#dcfce7", color: "#16a34a" },
-  warning: { background: "#fef3c7", color: "#d97706" },
-  danger:  { background: "#fee2e2", color: "#dc2626" },
-  accent:  { background: "#dbeafe", color: "#2563eb" },
+const STATS_ICON_CLASSES: Record<string, string> = {
+  primary: "bg-violet-100 text-indigo-600",
+  success: "bg-green-100 text-green-600",
+  warning: "bg-amber-100 text-amber-600",
+  danger:  "bg-red-100 text-red-600",
+  accent:  "bg-blue-100 text-blue-600",
 };
 
 export function StatsCard({ label, value, icon, trend, variant = "primary" }: StatsCardProps) {
-  const iconStyle = STATS_ICON_STYLES[variant] ?? STATS_ICON_STYLES.primary;
+  const iconClass = STATS_ICON_CLASSES[variant] ?? STATS_ICON_CLASSES.primary;
 
   return (
     <div className="stats-card">
@@ -429,10 +456,7 @@ export function StatsCard({ label, value, icon, trend, variant = "primary" }: St
           )}
         </div>
         {icon && (
-          <div
-            className="p-3 rounded-2xl shrink-0 ml-3 flex items-center justify-center"
-            style={{ background: iconStyle.background, color: iconStyle.color }}
-          >
+          <div className={`p-3 rounded-2xl shrink-0 ml-3 flex items-center justify-center ${iconClass}`}>
             {icon}
           </div>
         )}
@@ -529,8 +553,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       {icon && (
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-             style={{ background: "linear-gradient(135deg, #ede9fe, #e0e7ff)" }}>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-gradient-to-br from-violet-100 to-indigo-100">
           {icon}
         </div>
       )}
@@ -550,11 +573,11 @@ export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   return <div className={`spinner ${sizeClasses[size]}`} />;
 }
 
-export function LoadingState() {
+export function LoadingState({ message = "Loading…" }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <Spinner size="lg" />
-      <p className="text-sm text-neutral-500 font-medium">Loading…</p>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">{message}</p>
     </div>
   );
 }
@@ -615,7 +638,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "4xl";
   footer?: React.ReactNode;
 }
 
@@ -643,7 +666,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
 
   if (!isOpen || !mounted) return null;
 
-  const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl" };
+  const sizeClasses = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl", "4xl": "max-w-4xl" };
 
   return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onClose}>

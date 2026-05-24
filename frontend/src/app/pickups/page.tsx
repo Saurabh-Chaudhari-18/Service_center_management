@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
@@ -11,6 +12,7 @@ import {
   EmptyState,
   Button,
   Input,
+  Badge,
   PickupStatusBadge,
 } from "@/components/ui";
 import {
@@ -130,6 +132,7 @@ export default function PickupsPage() {
     enabled: !!currentBranch,
   });
 
+  const router = useRouter();
   const pickups = data?.results || [];
   const totalCount = data?.count ?? pickups.length;
   const hasNextPage = !!(data?.next);
@@ -142,11 +145,12 @@ export default function PickupsPage() {
           title="Pickup & Drop"
           subtitle="Manage device pickup requests from customers"
           actions={
-            <Link href="/pickups/new">
-              <Button leftIcon={<Plus className="w-4 h-4" />}>
-                New Pickup Request
-              </Button>
-            </Link>
+            <Button
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push("/pickups/new")}
+            >
+              New Pickup Request
+            </Button>
           }
         />
 
@@ -194,7 +198,7 @@ export default function PickupsPage() {
           <WorkspaceSurface>
             {isLoading ? (
               <div className="p-8">
-                <LoadingState />
+                <LoadingState message="Loading pickups…" />
               </div>
             ) : pickups.length === 0 ? (
               <div className="p-8">
@@ -206,7 +210,78 @@ export default function PickupsPage() {
               </div>
             ) : (
               <div className="min-w-0">
-                <div className="space-y-3 p-4 md:p-6">
+
+                {/* Desktop table — lg+ */}
+                <div className="hidden lg:block">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                        <th scope="col" className="px-4 py-3">Pickup #</th>
+                        <th scope="col" className="px-4 py-3">Status</th>
+                        <th scope="col" className="px-4 py-3">Urgent</th>
+                        <th scope="col" className="px-4 py-3">Customer</th>
+                        <th scope="col" className="px-4 py-3">Mobile</th>
+                        <th scope="col" className="px-4 py-3">Device</th>
+                        <th scope="col" className="px-4 py-3">Date</th>
+                        <th scope="col" className="px-4 py-3">Time Slot</th>
+                        <th scope="col" className="px-4 py-3">Technician</th>
+                        <th scope="col" className="w-8 px-2 py-3" aria-label="Open" />
+                      </tr>
+                    </thead>
+                    <tbody className="text-neutral-800 dark:text-slate-200">
+                      {pickups.map((pickup: PickupRequest) => (
+                        <tr
+                          key={pickup.id}
+                          className="cursor-pointer border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
+                          onClick={() => router.push(`/pickups/${pickup.id}`)}
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push(`/pickups/${pickup.id}`); }}
+                        >
+                          <td className="px-4 py-3 align-middle font-mono font-medium text-neutral-900 dark:text-white">
+                            {pickup.pickup_number}
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <PickupStatusBadge status={pickup.status} />
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            {pickup.is_urgent ? (
+                              <Badge variant="danger" size="sm" className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Urgent
+                              </Badge>
+                            ) : (
+                              <span className="text-neutral-300 dark:text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-middle font-medium text-neutral-900 dark:text-white">
+                            {pickup.customer_name}
+                          </td>
+                          <td className="px-4 py-3 align-middle tabular-nums text-neutral-600 dark:text-slate-400">
+                            {formatPhone(pickup.customer_mobile)}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
+                            {pickup.brand} {pickup.model_name}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 align-middle text-neutral-500 dark:text-slate-500">
+                            {formatDate(pickup.pickup_date)}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-neutral-500 dark:text-slate-500">
+                            {pickup.pickup_time_slot || "—"}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-neutral-500 dark:text-slate-500">
+                            {pickup.assigned_technician_name || "—"}
+                          </td>
+                          <td className="px-2 py-3 align-middle">
+                            <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-slate-600" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards — below lg */}
+                <div className="space-y-3 p-4 md:p-6 lg:hidden">
                   {pickups.map((pickup: PickupRequest) => (
                     <Link
                       key={pickup.id}
@@ -221,10 +296,10 @@ export default function PickupsPage() {
                             </span>
                             <PickupStatusBadge status={pickup.status} />
                             {pickup.is_urgent && (
-                              <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              <Badge variant="danger" size="sm" className="flex items-center gap-1">
                                 <AlertTriangle className="h-3 w-3" />
-                                URGENT
-                              </span>
+                                Urgent
+                              </Badge>
                             )}
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">

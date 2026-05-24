@@ -4,6 +4,8 @@ Core admin configuration.
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
+from audit.services import AuditLogService
 from core.models import Organization, Branch, User, RolePermission
 
 
@@ -34,6 +36,29 @@ class RolePermissionAdmin(admin.ModelAdmin):
         ('Administration', {'fields': ('can_manage_branches', 'can_manage_users')}),
         ('Pickups', {'fields': ('can_view_pickups',)}),
     )
+
+    def save_model(self, request, obj, form, change):
+        old_values = {}
+        if change and obj.pk:
+            previous = RolePermission.objects.get(pk=obj.pk)
+            old_values = {
+                field: getattr(previous, field)
+                for field in form.changed_data
+            }
+
+        super().save_model(request, obj, form, change)
+
+        if change and form.changed_data:
+            AuditLogService.log(
+                user=request.user,
+                action='PRIVILEGE_CHANGE',
+                model_name='RolePermission',
+                object_id=str(obj.pk),
+                old_values=old_values,
+                new_values={field: getattr(obj, field) for field in form.changed_data},
+                details={'role': obj.role},
+                request=request,
+            )
 
 
 @admin.register(Organization)

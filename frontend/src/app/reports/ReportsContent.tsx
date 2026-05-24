@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, Input, LoadingState } from "@/components/ui";
+import { Card, Button, Input, LoadingState, CardTitle } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
 import { reportsApi } from "@/lib/api";
 import type { InventoryItem, TechnicianProductivityData } from "@/types";
 import {
@@ -17,6 +18,7 @@ import {
   Activity,
   FileSpreadsheet,
 } from "lucide-react";
+import { formatDate, formatDateLong } from "@/lib/formatters";
 import {
   format,
   subDays,
@@ -131,7 +133,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
       reportsApi.getRevenue({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const chartData = data.daily_breakdown || [];
@@ -144,9 +146,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
     <Card className="h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-900">
-            Revenue Overview
-          </h3>
+          <CardTitle>Revenue Overview</CardTitle>
           <p className="text-sm text-neutral-500">Daily revenue breakdown</p>
         </div>
         <div className="text-right">
@@ -163,9 +163,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="date"
-              tickFormatter={(value: string) =>
-                format(new Date(value), "MMM dd")
-              }
+              tickFormatter={(value: string) => formatDate(value)}
               stroke="#64748b"
               fontSize={12}
             />
@@ -181,9 +179,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
                 `₹${Number(value ?? 0).toLocaleString("en-IN")}`,
                 "Revenue",
               ]}
-              labelFormatter={(label: string) =>
-                format(new Date(label), "MMM dd, yyyy")
-              }
+              labelFormatter={(label: string) => formatDateLong(label)}
               contentStyle={{
                 backgroundColor: "white",
                 border: "1px solid #e2e8f0",
@@ -212,7 +208,7 @@ function JobsByStatusChart() {
     queryFn: () => reportsApi.getPendingJobs(),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.by_status || data.by_status.length === 0) return null;
 
   const COLORS = ["#6366f1", "#f59e0b", "#f97316", "#06b6d4", "#22c55e"];
@@ -231,9 +227,7 @@ function JobsByStatusChart() {
     <Card className="h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-900">
-            Pending Jobs
-          </h3>
+          <CardTitle>Pending Jobs</CardTitle>
           <p className="text-sm text-neutral-500">Jobs by current status</p>
         </div>
         <div className="text-right">
@@ -310,13 +304,11 @@ function TechnicianProductivity({
       }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.technicians || data.technicians.length === 0) {
     return (
       <Card>
-        <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-          Technician Productivity
-        </h3>
+        <CardTitle className="mb-4">Technician Productivity</CardTitle>
         <p className="text-neutral-500 text-center py-8">
           No technician data available
         </p>
@@ -326,10 +318,9 @@ function TechnicianProductivity({
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Users className="w-5 h-5 text-primary-500" />
+      <CardTitle icon={<Users className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Technician Productivity
-      </h3>
+      </CardTitle>
 
       <div className="space-y-4">
         {data.technicians.map((tech: TechnicianProductivityData) => {
@@ -422,7 +413,7 @@ function InventoryOverview({ fromDate, toDate }: InventoryOverviewProps) {
       }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.top_items || data.top_items.length === 0) return null;
 
   const categoryData = data.by_category || [];
@@ -440,10 +431,9 @@ function InventoryOverview({ fromDate, toDate }: InventoryOverviewProps) {
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Package className="w-5 h-5 text-primary-500" />
+      <CardTitle icon={<Package className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Inventory Overview
-      </h3>
+      </CardTitle>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {chartData.length > 0 ? (
@@ -544,17 +534,16 @@ function CustomerInsights({ fromDate, toDate }: CustomerInsightsProps) {
       reportsApi.getCustomerAnalysis({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const topCustomers = data.top_customers || [];
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Users className="w-5 h-5 text-blue-500" />
+      <CardTitle icon={<Users className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Customer Insights
-      </h3>
+      </CardTitle>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-blue-50 rounded-lg text-center">
@@ -635,7 +624,7 @@ function GstSummary({ fromDate, toDate }: GstSummaryProps) {
       reportsApi.getGstSummary({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const summary = data.summary || {};
@@ -649,10 +638,9 @@ function GstSummary({ fromDate, toDate }: GstSummaryProps) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-500" />
+        <CardTitle icon={<DollarSign className="w-4 h-4 text-neutral-400" />}>
           GST Summary
-        </h3>
+        </CardTitle>
         {invoiceCount > 0 && (
           <span className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded-full">
             {invoiceCount} invoice{invoiceCount !== 1 ? "s" : ""}
@@ -703,7 +691,7 @@ function LowStockList() {
     queryFn: () => reportsApi.getLowStock(),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
 
   // Backend returns { total_items, items } — extract the items array
   const items: InventoryItem[] = Array.isArray(data)
@@ -713,10 +701,9 @@ function LowStockList() {
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-6 flex items-center gap-2">
-        <Activity className="w-5 h-5 text-red-500" />
+      <CardTitle icon={<Activity className="w-4 h-4 text-neutral-400" />} className="mb-6">
         Low Stock Alerts
-      </h3>
+      </CardTitle>
 
       <div className="space-y-4">
         {items.slice(0, 5).map(
@@ -824,7 +811,28 @@ export default function ReportsContent() {
           }
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell>
+          {/* Section Navigation */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {[
+              { label: "Revenue",      href: "#rpt-revenue" },
+              { label: "Jobs",         href: "#rpt-jobs" },
+              { label: "Technicians",  href: "#rpt-technicians" },
+              { label: "Customers",    href: "#rpt-customers" },
+              { label: "Inventory",    href: "#rpt-inventory" },
+              { label: "GST",          href: "#rpt-gst" },
+              { label: "Low Stock",    href: "#rpt-lowstock" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+
           {/* Date Range Selector */}
           <Card padding="md">
             <div className="flex flex-wrap items-center gap-4">
@@ -877,38 +885,42 @@ export default function ReportsContent() {
 
               <div className="ml-auto text-sm text-neutral-500">
                 <Calendar className="w-4 h-4 inline mr-1" />
-                {format(new Date(dateRange.from), "MMM dd, yyyy")} -{" "}
-                {format(new Date(dateRange.to), "MMM dd, yyyy")}
+                {formatDateLong(dateRange.from)} – {formatDateLong(dateRange.to)}
               </div>
             </div>
           </Card>
 
-          {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue + Jobs by Status */}
+          <div id="rpt-revenue" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
             <RevenueChart fromDate={dateRange.from} toDate={dateRange.to} />
-            <JobsByStatusChart />
+            <div id="rpt-jobs" className="scroll-mt-4">
+              <JobsByStatusChart />
+            </div>
           </div>
 
+          {/* Technicians + Customers */}
+          <div id="rpt-technicians" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
+            <TechnicianProductivity fromDate={dateRange.from} toDate={dateRange.to} />
+            <div id="rpt-customers" className="scroll-mt-4">
+              <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
+            </div>
+          </div>
+
+          {/* Inventory Overview — full width */}
+          <div id="rpt-inventory" className="scroll-mt-4">
+            <InventoryOverview fromDate={dateRange.from} toDate={dateRange.to} />
+          </div>
+
+          {/* GST Summary + Low Stock */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TechnicianProductivity
-              fromDate={dateRange.from}
-              toDate={dateRange.to}
-            />
-            <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
+            <div id="rpt-gst" className="scroll-mt-4">
+              <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
+            </div>
+            <div id="rpt-lowstock" className="scroll-mt-4">
+              <LowStockList />
+            </div>
           </div>
-
-          {/* Inventory Overview - full width */}
-          <InventoryOverview
-            fromDate={dateRange.from}
-            toDate={dateRange.to}
-          />
-
-          {/* GST Summary + Low Stock side-by-side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
-            <LowStockList />
-          </div>
-        </div>
+        </PageShell>
       </AppLayout>
     </ProtectedRoute>
   );

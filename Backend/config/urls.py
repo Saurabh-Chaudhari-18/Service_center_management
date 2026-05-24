@@ -6,10 +6,11 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
+from core.auth_views import (
+    ThrottledTokenObtainPairView,
+    ThrottledTokenRefreshView,
+    ThrottledTokenVerifyView,
+    LogoutView,
 )
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -31,9 +32,10 @@ urlpatterns = [
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
     # JWT Authentication
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/auth/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/verify/', ThrottledTokenVerifyView.as_view(), name='token_verify'),
+    path('api/auth/logout/', LogoutView.as_view(), name='token_logout'),
     
     # App URLs
     path('api/core/', include('core.urls', namespace='core')),

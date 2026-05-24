@@ -1,21 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
-  Card,
   Button,
+  Badge,
   Input,
   Select,
   LoadingState,
   Modal,
   EmptyState,
 } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
+import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
+import { WorkspaceSurface } from "@/components/shell";
 import { usersApi, branchesApi } from "@/lib/api";
+import { formatDateLong } from "@/lib/formatters";
 import {
   UserPlus,
   Search,
@@ -27,51 +34,27 @@ import {
   MapPin,
   ToggleLeft,
   ToggleRight,
-  X,
   AlertTriangle,
 } from "lucide-react";
-import type { User, UserRole } from "@/types";
+import type { User } from "@/types";
 
 // =====================================================
 // Role Badge Colors
 // =====================================================
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> =
-  {
-    SUPER_ADMIN: {
-      bg: "bg-red-100",
-      text: "text-red-700",
-      label: "Super Admin",
-    },
-    OWNER: { bg: "bg-purple-100", text: "text-purple-700", label: "Owner" },
-    MANAGER: { bg: "bg-blue-100", text: "text-blue-700", label: "Manager" },
-    TECHNICIAN: {
-      bg: "bg-green-100",
-      text: "text-green-700",
-      label: "Technician",
-    },
-    RECEPTIONIST: {
-      bg: "bg-orange-100",
-      text: "text-orange-700",
-      label: "Receptionist",
-    },
-    ACCOUNTANT: {
-      bg: "bg-gray-100",
-      text: "text-gray-700",
-      label: "Accountant",
-    },
-  };
+const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  SUPER_ADMIN:  { bg: "bg-slate-100",   text: "text-slate-700",   label: "Super Admin"  },
+  OWNER:        { bg: "bg-purple-100",  text: "text-purple-700",  label: "Owner"        },
+  MANAGER:      { bg: "bg-blue-100",    text: "text-blue-700",    label: "Manager"      },
+  TECHNICIAN:   { bg: "bg-emerald-100", text: "text-emerald-700", label: "Technician"   },
+  RECEPTIONIST: { bg: "bg-orange-100",  text: "text-orange-700",  label: "Receptionist" },
+  ACCOUNTANT:   { bg: "bg-teal-100",    text: "text-teal-700",    label: "Accountant"   },
+};
 
 function RoleBadge({ role }: { role: string }) {
-  const config = ROLE_COLORS[role] || {
-    bg: "bg-gray-100",
-    text: "text-gray-700",
-    label: role,
-  };
+  const config = ROLE_COLORS[role] || { bg: "bg-neutral-100", text: "text-neutral-700", label: role };
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
-    >
+    <span className={`badge ${config.bg} ${config.text} inline-flex items-center gap-1`}>
       <Shield className="w-3 h-3" />
       {config.label}
     </span>
@@ -82,28 +65,59 @@ function RoleBadge({ role }: { role: string }) {
 // Create/Edit User Modal
 // =====================================================
 
-interface UserFormData {
-  email: string;
+const ROLES = [
+  "SUPER_ADMIN",
+  "OWNER",
+  "MANAGER",
+  "TECHNICIAN",
+  "RECEPTIONIST",
+  "ACCOUNTANT",
+] as const;
+
+const makeUserSchema = (isEditing: boolean) =>
+  z
+    .object({
+      first_name: z.string().min(1, "First name is required"),
+      last_name: z.string().min(1, "Last name is required"),
+      email: isEditing
+        ? z.string().optional()
+        : z.string().min(1, "Email is required").email("Invalid email"),
+      phone: z.string().optional(),
+      password: z.string().optional(),
+      password_confirm: z.string().optional(),
+      role: z.enum(ROLES),
+      branch_ids: z.array(z.string()),
+      is_active: z.boolean(),
+    })
+    .superRefine((data, ctx) => {
+      if (!isEditing) {
+        if (!data.password || data.password.length < 8) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Password must be at least 8 characters",
+            path: ["password"],
+          });
+        }
+        if (data.password !== data.password_confirm) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Passwords do not match",
+            path: ["password_confirm"],
+          });
+        }
+      }
+    });
+
+type UserFormData = {
   first_name: string;
   last_name: string;
-  phone: string;
-  password: string;
-  password_confirm: string;
-  role: UserRole;
+  email: string | undefined;
+  phone?: string;
+  password?: string;
+  password_confirm?: string;
+  role: (typeof ROLES)[number];
   branch_ids: string[];
   is_active: boolean;
-}
-
-const EMPTY_FORM: UserFormData = {
-  email: "",
-  first_name: "",
-  last_name: "",
-  phone: "",
-  password: "",
-  password_confirm: "",
-  role: "TECHNICIAN" as UserRole,
-  branch_ids: [],
-  is_active: true,
 };
 
 interface UserFormModalProps {
@@ -117,29 +131,44 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const { toast } = useToast();
   const isEditing = !!user;
 
-  const [form, setForm] = useState<UserFormData>(() => {
-    if (user) {
-      return {
-        email: user.email || "",
-        first_name: user.first_name || "",
-        last_name: user.last_name || "",
-        phone: user.phone || "",
-        password: "",
-        password_confirm: "",
-        role: (user.role as UserRole) || "TECHNICIAN",
-        branch_ids:
-          (user.branches as unknown as Array<{ id: string }>)?.map(
-            (b) => b.id,
-          ) || [],
-        is_active: user.is_active !== false,
-      };
-    }
-    return { ...EMPTY_FORM };
+  const { data: roleOptions = [] } = useQuery({
+    queryKey: ["user-roles"],
+    queryFn: () => usersApi.getRoles(),
+    enabled: isOpen,
+    staleTime: 60_000,
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const schema = useMemo(() => makeUserSchema(isEditing), [isEditing]);
 
-  // Fetch branches for the multi-select
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    setError,
+    formState: { errors, isDirty },
+  } = useForm<UserFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      first_name: user?.first_name || "",
+      last_name: user?.last_name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      password: "",
+      password_confirm: "",
+      role: ((user?.role as (typeof ROLES)[number]) || "TECHNICIAN"),
+      branch_ids:
+        (user?.branches as unknown as Array<{ id: string }>)?.map(
+          (b) => b.id,
+        ) || [],
+      is_active: user?.is_active !== false,
+    },
+  });
+
+  const branchIds = watch("branch_ids");
+  const isActive = watch("is_active");
+
   const { data: branchesData } = useQuery({
     queryKey: ["branches-list"],
     queryFn: () => branchesApi.list(),
@@ -148,33 +177,37 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
   const branches =
     branchesData?.results || (Array.isArray(branchesData) ? branchesData : []);
 
-  const parseApiErrors = (error: unknown): Record<string, string> => {
-    const apiErrors: Record<string, string> = {};
+  const parseAndSetApiErrors = (error: unknown): boolean => {
     const raw = (error as { response?: { data?: unknown } })?.response?.data;
-    if (!raw || typeof raw !== "object") return apiErrors;
+    if (!raw || typeof raw !== "object") return false;
     const data = raw as Record<string, unknown>;
     const errBlock = data.error as Record<string, unknown> | undefined;
-
-    // Backend format: { error: { fields: { field: [msgs] } } } (legacy: field_errors)
     const fieldErrors =
       (errBlock?.fields as Record<string, unknown> | undefined) ||
       (errBlock?.field_errors as Record<string, unknown> | undefined) ||
       (data.fields as Record<string, unknown> | undefined) ||
-      (data.field_errors as Record<string, unknown> | undefined) ||
-      data;
-    if (fieldErrors && typeof fieldErrors === "object" && !Array.isArray(fieldErrors)) {
+      (data.field_errors as Record<string, unknown> | undefined);
+
+    if (
+      fieldErrors &&
+      typeof fieldErrors === "object" &&
+      !Array.isArray(fieldErrors)
+    ) {
+      let hasFields = false;
       Object.entries(fieldErrors).forEach(([key, val]) => {
-        apiErrors[key] = Array.isArray(val) ? val.join(", ") : String(val);
+        const msg = Array.isArray(val) ? val.join(", ") : String(val);
+        setError(key as keyof UserFormData, { type: "server", message: msg });
+        hasFields = true;
       });
+      if (hasFields) return true;
     }
 
-    // Capture general message if no field errors found
-    if (Object.keys(apiErrors).length === 0) {
-      const msg = errBlock?.message ?? data.detail ?? data.message;
-      if (msg != null) apiErrors.detail = String(msg);
+    const msg = errBlock?.message ?? data.detail ?? data.message;
+    if (msg != null) {
+      setError("root", { type: "server", message: String(msg) });
+      return true;
     }
-
-    return apiErrors;
+    return false;
   };
 
   const createMutation = useMutation({
@@ -186,10 +219,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       toast.success("Staff member created successfully.");
     },
     onError: (error: unknown) => {
-      const parsed = parseApiErrors(error);
-      if (Object.keys(parsed).length > 0) {
-        setErrors(parsed);
-      } else {
+      if (!parseAndSetApiErrors(error)) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         toast.error("Failed to create user: " + msg);
       }
@@ -205,73 +235,60 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       toast.success("Staff member updated successfully.");
     },
     onError: (error: unknown) => {
-      const parsed = parseApiErrors(error);
-      if (Object.keys(parsed).length > 0) {
-        setErrors(parsed);
-      } else {
+      if (!parseAndSetApiErrors(error)) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         toast.error("Failed to update user: " + msg);
       }
     },
   });
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!form.first_name.trim())
-      newErrors.first_name = "First name is required";
-    if (!form.last_name.trim()) newErrors.last_name = "Last name is required";
-    if (!isEditing) {
-      if (!form.email.trim()) newErrors.email = "Email is required";
-      if (!form.password) newErrors.password = "Password is required";
-      if (form.password.length < 8)
-        newErrors.password = "Password must be at least 8 characters";
-      if (form.password !== form.password_confirm)
-        newErrors.password_confirm = "Passwords do not match";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e?: React.FormEvent | React.MouseEvent) => {
-    if (e) e.preventDefault();
-    if (!validate()) return;
-
+  const onSubmit = (data: UserFormData) => {
     if (isEditing && user) {
       updateMutation.mutate({
         id: user.id,
         payload: {
-          first_name: form.first_name,
-          last_name: form.last_name,
-          phone: form.phone,
-          role: form.role,
-          branch_ids: form.branch_ids,
-          is_active: form.is_active,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          role: data.role,
+          branch_ids: data.branch_ids,
+          is_active: data.is_active,
         },
       });
     } else {
       createMutation.mutate({
-        email: form.email,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        phone: form.phone,
-        password: form.password,
-        password_confirm: form.password_confirm,
-        role: form.role,
-        branch_ids: form.branch_ids,
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        password: data.password,
+        password_confirm: data.password_confirm,
+        role: data.role,
+        branch_ids: data.branch_ids,
       });
     }
   };
 
   const toggleBranch = (branchId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      branch_ids: prev.branch_ids.includes(branchId)
-        ? prev.branch_ids.filter((id) => id !== branchId)
-        : [...prev.branch_ids, branchId],
-    }));
+    setValue(
+      "branch_ids",
+      branchIds.includes(branchId)
+        ? branchIds.filter((id) => id !== branchId)
+        : [...branchIds, branchId],
+    );
   };
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
+  // Warn before closing tab/navigating away with unsaved changes
+  React.useEffect(() => {
+    if (!isOpen || !isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isOpen, isDirty]);
+
+  const USER_FORM_ID = "user-form";
 
   return (
     <Modal
@@ -279,34 +296,38 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       onClose={onClose}
       title={isEditing ? "Edit Staff Member" : "Add New Staff Member"}
       size="lg"
+      footer={
+        <>
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form={USER_FORM_ID} isLoading={isSubmitting}>
+            {isEditing ? "Update Staff" : "Create Staff"}
+          </Button>
+        </>
+      }
     >
-      <div className="space-y-5">
+      <form id={USER_FORM_ID} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Name Row */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               First Name *
             </label>
-            <Input
-              value={form.first_name}
-              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-              placeholder="John"
-            />
+            <Input {...register("first_name")} placeholder="John" />
             {errors.first_name && (
-              <p className="text-red-500 text-xs mt-1">{errors.first_name}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.first_name.message}
+              </p>
             )}
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Last Name *
             </label>
-            <Input
-              value={form.last_name}
-              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-              placeholder="Doe"
-            />
+            <Input {...register("last_name")} placeholder="Doe" />
             {errors.last_name && (
-              <p className="text-red-500 text-xs mt-1">{errors.last_name}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.last_name.message}
+              </p>
             )}
           </div>
         </div>
@@ -319,12 +340,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
             </label>
             <Input
               type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              {...register("email")}
               placeholder="john@example.com"
             />
             {errors.email && (
-              <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.email.message}
+              </p>
             )}
           </div>
         )}
@@ -334,11 +356,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Phone Number
           </label>
-          <Input
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            placeholder="+91 9876543210"
-          />
+          <Input {...register("phone")} placeholder="+91 9876543210" />
         </div>
 
         {/* Password - only for create */}
@@ -350,12 +368,13 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               </label>
               <Input
                 type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                {...register("password")}
                 placeholder="Min 8 characters"
               />
               {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.password.message}
+                </p>
               )}
             </div>
             <div>
@@ -364,15 +383,12 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
               </label>
               <Input
                 type="password"
-                value={form.password_confirm}
-                onChange={(e) =>
-                  setForm({ ...form, password_confirm: e.target.value })
-                }
+                {...register("password_confirm")}
                 placeholder="Re-enter password"
               />
               {errors.password_confirm && (
                 <p className="text-red-500 text-xs mt-1">
-                  {errors.password_confirm}
+                  {errors.password_confirm.message}
                 </p>
               )}
             </div>
@@ -384,19 +400,19 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Role *
           </label>
-          <Select
-            value={form.role}
-            onChange={(e) =>
-              setForm({ ...form, role: e.target.value as UserRole })
-            }
-            options={[
-              { value: "TECHNICIAN", label: "Technician" },
-              { value: "RECEPTIONIST", label: "Receptionist" },
-              { value: "ACCOUNTANT", label: "Accountant" },
-              { value: "MANAGER", label: "Manager" },
-              { value: "SUPER_ADMIN", label: "Super Admin" },
-              { value: "OWNER", label: "Owner" },
-            ]}
+          <Controller
+            name="role"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value)}
+                options={roleOptions.map((r) => ({
+                  value: r.value,
+                  label: r.label,
+                }))}
+              />
+            )}
           />
         </div>
 
@@ -417,7 +433,7 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
                   >
                     <input
                       type="checkbox"
-                      checked={form.branch_ids.includes(branch.id)}
+                      checked={branchIds.includes(branch.id)}
                       onChange={() => toggleBranch(branch.id)}
                       className="w-4 h-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
                     />
@@ -446,17 +462,17 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
                 Account Status
               </p>
               <p className="text-xs text-neutral-500">
-                {form.is_active
+                {isActive
                   ? "User can login and access the system"
                   : "User is deactivated"}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setForm({ ...form, is_active: !form.is_active })}
+              onClick={() => setValue("is_active", !isActive)}
               className="focus:outline-none"
             >
-              {form.is_active ? (
+              {isActive ? (
                 <ToggleRight className="w-8 h-8 text-green-500" />
               ) : (
                 <ToggleLeft className="w-8 h-8 text-neutral-400" />
@@ -465,34 +481,15 @@ function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           </div>
         )}
 
-        {/* API Errors */}
-        {errors.non_field_errors && (
+        {/* Root / server errors */}
+        {errors.root && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {errors.non_field_errors}
-          </div>
-        )}
-        {errors.detail && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {errors.detail}
+            {errors.root.message}
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="secondary" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="button" disabled={isSubmitting} onClick={handleSubmit}>
-            {isSubmitting
-              ? isEditing
-                ? "Updating..."
-                : "Creating..."
-              : isEditing
-                ? "Update Staff"
-                : "Create Staff"}
-          </Button>
-        </div>
-      </div>
+      </form>
     </Modal>
   );
 }
@@ -516,7 +513,23 @@ function DeleteConfirmModal({ isOpen, onClose, user }: DeleteConfirmProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onClose();
-      toast.success("Staff member deactivated successfully.");
+      if (!user) return;
+      const userId = user.id;
+      const userName = `${user.first_name} ${user.last_name}`;
+      toast.success(`${userName} deactivated.`, {
+        label: "Undo",
+        onClick: () => {
+          void usersApi
+            .update(userId, { is_active: true } as Partial<User>)
+            .then(() => {
+              void queryClient.invalidateQueries({ queryKey: ["users"] });
+              toast.success(`${userName} reactivated.`);
+            })
+            .catch(() => {
+              toast.error("Failed to reactivate. Please edit the user manually.");
+            });
+        },
+      });
     },
     onError: (error: {
       response?: { data?: { detail?: string } };
@@ -585,42 +598,44 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
     <div
       className={`p-5 bg-white border rounded-xl transition-all hover:shadow-md ${!user.is_active ? "opacity-60 border-neutral-200" : "border-neutral-200"}`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${user.is_active ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-500"}`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${user.is_active ? "bg-primary-100 text-primary-700" : "bg-neutral-200 text-neutral-500"}`}
           >
             {initials}
           </div>
           <div>
-            <h4 className="font-semibold text-neutral-900">
-              {user.first_name} {user.last_name}
-            </h4>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h4 className="font-semibold text-neutral-900 leading-tight">
+                {user.first_name} {user.last_name}
+              </h4>
+              {!user.is_active && <Badge variant="danger" size="sm">Inactive</Badge>}
+            </div>
             <RoleBadge role={user.role} />
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          {!user.is_active && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium mr-2">
-              Inactive
-            </span>
-          )}
-          <button
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button
+            variant="ghost"
+            size="md"
+            className="w-full justify-center sm:w-auto"
             onClick={() => onEdit(user)}
-            className="p-2 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-            title="Edit"
+            leftIcon={<Edit3 className="w-4 h-4" />}
           >
-            <Edit3 className="w-4 h-4" />
-          </button>
+            Edit
+          </Button>
           {user.is_active && (
-            <button
+            <Button
+              variant="ghost"
+              size="md"
+              className="w-full justify-center text-red-600 hover:bg-red-50 sm:w-auto"
               onClick={() => onDelete(user)}
-              className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Deactivate"
+              leftIcon={<Trash2 className="w-4 h-4" />}
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              Deactivate
+            </Button>
           )}
         </div>
       </div>
@@ -658,11 +673,7 @@ function UserCard({ user, onEdit, onDelete }: UserCardProps) {
       {user.last_login && (
         <p className="text-xs text-neutral-400 mt-3">
           Last login:{" "}
-          {new Date(user.last_login).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
+          {formatDateLong(user.last_login)}
         </p>
       )}
     </div>
@@ -741,90 +752,86 @@ export default function StaffManagementPage() {
           }
         />
 
-        <div className="p-6 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div
-              className={`p-4 rounded-xl border transition-all cursor-pointer ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
-              onClick={() => setRoleFilter("")}
-            >
-              <p className="text-2xl font-bold text-neutral-900">
-                {users.length}
-              </p>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                All Staff
-              </p>
-            </div>
-            {Object.entries(ROLE_COLORS).map(([role, config]) => (
-              <div
-                key={role}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
-                onClick={() => setRoleFilter(roleFilter === role ? "" : role)}
+        <PageShell>
+          {/* Role filter chips */}
+          <WorkspaceSurface className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              <button
+                type="button"
+                aria-pressed={!roleFilter}
+                className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${!roleFilter ? "bg-primary-50 border-primary-200" : "bg-white border-neutral-200 hover:border-primary-200"}`}
+                onClick={() => setRoleFilter("")}
               >
-                <p className={`text-2xl font-bold ${config.text}`}>
-                  {roleCounts[role] || 0}
+                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                  {users.length}
                 </p>
                 <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                  {config.label}s
+                  All Staff
                 </p>
-              </div>
-            ))}
-          </div>
+              </button>
+              {Object.entries(ROLE_COLORS).map(([role, config]) => (
+                <button
+                  key={role}
+                  type="button"
+                  aria-pressed={roleFilter === role}
+                  className={`p-4 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${roleFilter === role ? `${config.bg} border-current` : "bg-white border-neutral-200 hover:border-neutral-300"}`}
+                  onClick={() => setRoleFilter(roleFilter === role ? "" : role)}
+                >
+                  <p className={`text-2xl font-bold ${config.text} dark:text-neutral-100`}>
+                    {roleCounts[role] || 0}
+                  </p>
+                  <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
+                    {config.label}s
+                  </p>
+                </button>
+              ))}
+            </div>
+          </WorkspaceSurface>
 
           {/* Search & Filters */}
-          <Card padding="sm">
-            <div className="flex flex-col md:flex-row gap-4 bg-white/50 backdrop-blur-xl">
-              <div className="relative flex-1 min-w-[250px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+          <RegisterToolbar
+            search={
+              <Input
+                placeholder="Search by name, email, or phone..."
+                leftIcon={<Search className="w-4 h-4" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            }
+            secondaryActions={
+              <>
+                {canManageBranches && (
+                  <Select
+                    value={branchFilter}
+                    onChange={(e) => setBranchFilter(e.target.value)}
+                    className="w-48"
+                    placeholder="All Branches"
+                    options={[
+                      { value: "", label: "All Branches" },
+                      ...branchesList.map((b: { id: string; name: string }) => ({
+                        value: b.id,
+                        label: b.name,
+                      })),
+                    ]}
+                  />
                 )}
-              </div>
-
-              {canManageBranches && (
                 <Select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="w-48"
-                  placeholder="All Branches"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-40"
+                  placeholder="All Status"
                   options={[
-                    { value: "", label: "All Branches" },
-                    ...branchesList.map((b: { id: string; name: string }) => ({
-                      value: b.id,
-                      label: b.name,
-                    })),
+                    { value: "true", label: "Active" },
+                    { value: "false", label: "Inactive" },
                   ]}
                 />
-              )}
-
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-40"
-                placeholder="All Status"
-                options={[
-                  { value: "true", label: "Active" },
-                  { value: "false", label: "Inactive" },
-                ]}
-              />
-            </div>
-          </Card>
+              </>
+            }
+          />
 
           {/* Users Grid */}
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading staff…" />
           ) : filteredUsers.length === 0 ? (
             <EmptyState
               icon={<UserPlus className="w-8 h-8 text-neutral-400" />}
@@ -860,7 +867,7 @@ export default function StaffManagementPage() {
                 ` · Filtered by ${ROLE_COLORS[roleFilter]?.label || roleFilter}`}
             </p>
           )}
-        </div>
+        </PageShell>
 
         {/* Modals */}
         {showCreateModal && (

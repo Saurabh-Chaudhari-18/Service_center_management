@@ -4,20 +4,26 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastItem {
   id: string;
   type: ToastType;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
   toasts: ToastItem[];
   dismiss: (id: string) => void;
   toast: {
-    success: (message: string) => void;
-    error: (message: string) => void;
-    warning: (message: string) => void;
-    info: (message: string) => void;
+    success: (message: string, action?: ToastAction) => void;
+    error: (message: string, action?: ToastAction) => void;
+    warning: (message: string, action?: ToastAction) => void;
+    info: (message: string, action?: ToastAction) => void;
   };
 }
 
@@ -34,19 +40,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const add = useCallback(
-    (type: ToastType, message: string) => {
+    (type: ToastType, message: string, action?: ToastAction) => {
       const id = String(++counter.current);
-      setToasts((prev) => [...prev, { id, type, message }]);
+      setToasts((prev) => [...prev, { id, type, message, action }]);
       setTimeout(() => dismiss(id), DURATION_MS);
     },
     [dismiss],
   );
 
   const toast = {
-    success: (message: string) => add("success", message),
-    error: (message: string) => add("error", message),
-    warning: (message: string) => add("warning", message),
-    info: (message: string) => add("info", message),
+    success: (message: string, action?: ToastAction) => add("success", message, action),
+    error: (message: string, action?: ToastAction) => add("error", message, action),
+    warning: (message: string, action?: ToastAction) => add("warning", message, action),
+    info: (message: string, action?: ToastAction) => add("info", message, action),
   };
 
   return (

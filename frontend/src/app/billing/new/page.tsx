@@ -7,20 +7,17 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
-import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute, useAuth } from "@/context/AuthContext";
-import { Card, Button, Input, Alert, Modal, Select } from "@/components/ui";
+import { Card, Button, Input, Select, CardTitle } from "@/components/ui";
 import {
   jobsApi,
   billingApi,
   inventoryApi,
-  customersApi,
   branchesApi,
 } from "@/lib/api";
 import {
@@ -29,681 +26,28 @@ import {
   Plus,
   Trash2,
   FileText,
-  Save,
   Loader2,
   Package,
-  Search,
-  User,
   Phone,
+  User,
 } from "lucide-react";
-import Link from "next/link";
-import { formatDateLong } from "@/lib/formatters";
-import type { JobCard, Customer, InventoryItem } from "@/types";
+import type { InventoryItem } from "@/types";
+import { CustomerSearch } from "@/components/billing/CustomerSearch";
+import {
+  createInvoiceSchema,
+  type CreateInvoiceFormData,
+} from "@/components/billing/InvoiceFormTemplate";
+import { InvoicePreviewModal } from "@/components/billing/InvoicePreviewModal";
+import type { Customer } from "@/types";
 
 // =====================================================
 // Schemas & Types
 // =====================================================
 
-const invoiceLineItemSchema = z.object({
-  item_type: z.enum(["SERVICE", "PART", "LABOUR", "OTHER"]),
-  description: z.string().min(1, "Description is required"),
-  hsn_sac_code: z.string().optional(),
-  quantity: z.number().min(1, "Minimum quantity is 1"),
-  unit_price: z.number().min(0, "Price cannot be negative"),
-  gst_rate: z.number().min(0, "GST rate cannot be negative"),
-  inventory_item: z.string().uuid().optional(),
-});
-
-const createInvoiceSchema = z
-  .object({
-    job_id: z.string().optional(),
-    customer_id: z.string().optional(),
-    branch: z.string().min(1, "Invalid Branch ID"),
-    due_date: z.string().optional(),
-    notes: z.string().optional(),
-    line_items: z.array(invoiceLineItemSchema).min(1, "Add at least one item"),
-  })
-  .refine((data) => data.job_id || data.customer_id, {
-    message: "Please select a customer or a job",
-    path: ["customer_id"],
-  });
-
-type CreateInvoiceFormData = z.infer<typeof createInvoiceSchema>;
-
 // Per-row inventory selection state
 interface RowInventoryState {
   categoryId: string;
   itemId: string;
-}
-
-// =====================================================
-// Customer Search Component (for billing without job)
-// =====================================================
-
-interface CustomerSearchProps {
-  onSelect: (customer: Customer | null) => void;
-  selectedCustomer: Customer | null;
-  branchId: string;
-}
-
-function CustomerSearch({
-  onSelect,
-  selectedCustomer,
-  branchId,
-}: CustomerSearchProps) {
-  const [search, setSearch] = useState("");
-  const [showResults, setShowResults] = useState(false);
-  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["customer-search-billing", search, branchId],
-    queryFn: () => customersApi.searchByMobile(search),
-    enabled: search.length >= 2,
-  });
-
-  const customers = data || [];
-
-  if (selectedCustomer) {
-    return (
-      <div className="p-4 border border-primary-200 bg-primary-50 rounded-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-medium">
-              {selectedCustomer.first_name[0]}
-              {selectedCustomer.last_name?.[0]}
-            </div>
-            <div>
-              <p className="font-medium text-neutral-900">
-                {selectedCustomer.first_name} {selectedCustomer.last_name}
-              </p>
-              <p className="text-sm text-neutral-500 flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                {selectedCustomer.mobile}
-              </p>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => onSelect(null)}>
-            Change
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="relative">
-        <Input
-          placeholder="Search by name or mobile number..."
-          leftIcon={<Search className="w-5 h-5" />}
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setShowResults(true);
-          }}
-          onFocus={() => setShowResults(true)}
-        />
-
-        {showResults && search.length >= 2 && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 max-h-60 overflow-y-auto">
-            {isLoading ? (
-              <div className="p-4 text-center text-neutral-500">
-                Searching...
-              </div>
-            ) : customers.length > 0 ? (
-              customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 text-left transition-colors"
-                  onClick={() => {
-                    onSelect(customer);
-                    setShowResults(false);
-                  }}
-                >
-                  <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-sm font-medium">
-                    {customer.first_name[0]}
-                  </div>
-                  <div>
-                    <p className="font-medium text-neutral-900">
-                      {customer.first_name} {customer.last_name}
-                    </p>
-                    <p className="text-sm text-neutral-500">
-                      {customer.mobile}
-                    </p>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="p-4 text-center">
-                <p className="text-neutral-500 mb-2">No customer found</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={() => setShowNewCustomerModal(true)}
-                >
-                  Add New Customer
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <p className="text-sm text-neutral-500">
-        Enter name or mobile number to search
-      </p>
-
-      <NewCustomerModal
-        isOpen={showNewCustomerModal}
-        onClose={() => setShowNewCustomerModal(false)}
-        onCustomerCreated={(customer) => {
-          onSelect(customer);
-          setShowNewCustomerModal(false);
-        }}
-        branchId={branchId}
-        initialMobile={search}
-      />
-    </div>
-  );
-}
-
-// =====================================================
-// New Customer Modal
-// =====================================================
-
-const customerSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().optional(),
-  mobile: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit mobile number"),
-  email: z.string().email().optional().or(z.literal("")),
-  city: z.string().optional(),
-  state: z.string().optional(),
-});
-
-type CustomerFormData = z.infer<typeof customerSchema>;
-
-interface NewCustomerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCustomerCreated: (customer: Customer) => void;
-  branchId: string;
-  initialMobile: string;
-}
-
-function NewCustomerModal({
-  isOpen,
-  onClose,
-  onCustomerCreated,
-  branchId,
-  initialMobile,
-}: NewCustomerModalProps) {
-  const {
-    register: registerCustomer,
-    handleSubmit: handleCustomerSubmit,
-    formState: { errors: customerErrors },
-    reset: resetCustomer,
-  } = useForm<CustomerFormData>({
-    resolver: zodResolver(customerSchema),
-    defaultValues: { mobile: initialMobile.replace(/\D/g, "").slice(-10) },
-  });
-
-  const {
-    mutate: createCustomer,
-    isPending: isCreating,
-    error: createError,
-  } = useMutation({
-    mutationFn: (data: CustomerFormData) =>
-      customersApi.create({ ...data, branch: branchId }),
-    onSuccess: (customer) => {
-      onCustomerCreated(customer);
-      resetCustomer();
-    },
-  });
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Add New Customer"
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCustomerSubmit((d) => createCustomer(d))}
-            isLoading={isCreating}
-          >
-            Add Customer
-          </Button>
-        </>
-      }
-    >
-      {createError && (
-        <Alert variant="error" className="mb-4">
-          {(createError as Error).message}
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          label="First Name"
-          {...registerCustomer("first_name")}
-          error={customerErrors.first_name?.message}
-          required
-        />
-        <Input
-          label="Last Name"
-          {...registerCustomer("last_name")}
-          error={customerErrors.last_name?.message}
-        />
-        <Input
-          label="Mobile Number"
-          {...registerCustomer("mobile")}
-          error={customerErrors.mobile?.message}
-          required
-          placeholder="10-digit mobile number"
-        />
-        <Input
-          label="Email"
-          type="email"
-          {...registerCustomer("email")}
-          error={customerErrors.email?.message}
-        />
-        <Input label="City" {...registerCustomer("city")} />
-        <Input label="State" {...registerCustomer("state")} />
-      </div>
-    </Modal>
-  );
-}
-
-// =====================================================
-// Brand Logo Component (Reused)
-// =====================================================
-function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" }) {
-  switch (brand) {
-    case "HP":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle cx="50" cy="50" r="45" fill="#0096D6" />
-          <text
-            x="50"
-            y="65"
-            fontSize="40"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            style={{ fontStyle: "italic", fontFamily: "serif" }}
-          >
-            hp
-          </text>
-        </svg>
-      );
-    case "DELL":
-      return (
-        <svg viewBox="0 0 100 100" className="w-8 h-8">
-          <circle
-            cx="50"
-            cy="50"
-            r="48"
-            fill="none"
-            stroke="#007DB8"
-            strokeWidth="4"
-          />
-          <text
-            x="50"
-            y="60"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#007DB8"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            DELL
-          </text>
-        </svg>
-      );
-    case "ASUS":
-      return (
-        <svg viewBox="0 0 100 30" className="w-12 h-6">
-          <text
-            x="50"
-            y="22"
-            fontSize="24"
-            fontWeight="bold"
-            fill="#00539B"
-            textAnchor="middle"
-            style={{ letterSpacing: "2px" }}
-          >
-            ASUS
-          </text>
-          <line
-            x1="10"
-            y1="12"
-            x2="90"
-            y2="12"
-            stroke="white"
-            strokeWidth="2"
-          />
-        </svg>
-      );
-    case "LENOVO":
-      return (
-        <svg viewBox="0 0 100 40" className="w-16 h-8">
-          <rect width="100" height="40" fill="#E2231A" />
-          <text
-            x="50"
-            y="28"
-            fontSize="20"
-            fontWeight="bold"
-            fill="white"
-            textAnchor="middle"
-            fontFamily="sans-serif"
-          >
-            Lenovo
-          </text>
-        </svg>
-      );
-  }
-}
-
-// =====================================================
-// Invoice Preview Modal
-// =====================================================
-
-// =====================================================
-// Invoice Template Component (Shared for Screen & Print)
-// =====================================================
-
-interface InvoiceTemplateProps {
-  formData: CreateInvoiceFormData;
-  jobDetails: JobCard | null | undefined;
-  subtotal: number;
-  totalTax: number;
-  grandTotal: number;
-  customer: Customer | null | undefined;
-}
-
-function InvoiceTemplate({
-  formData,
-  jobDetails,
-  subtotal,
-  totalTax,
-  grandTotal,
-  customer,
-}: InvoiceTemplateProps) {
-  return (
-    <div className="bg-white text-black p-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="border-2 border-black p-4 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-4 items-center">
-            <BrandLogo brand="HP" />
-            <BrandLogo brand="DELL" />
-            <BrandLogo brand="ASUS" />
-            <BrandLogo brand="LENOVO" />
-          </div>
-          <div className="text-right">
-            <h1 className="text-2xl font-bold uppercase tracking-wider">
-              SHIVANGI INFOTECH
-            </h1>
-            <p className="text-sm font-semibold">
-              HP | DELL | ASUS Authorised Partner
-            </p>
-          </div>
-        </div>
-        <div className="text-center border-t border-black pt-2 text-xs">
-          <p>
-            Shop No. 3, Ground Floor, Sai Complex, Pune-Nashik Highway, Pune
-            411039
-          </p>
-          <p>Phone: +91 99999 88888 | Email: support@shivangiinfo.com</p>
-          <p className="mt-1 font-bold">GSTIN: 27ABCDE1234F1Z5</p>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h3 className="text-neutral-500 text-sm uppercase tracking-wider mb-1">
-            Bill To
-          </h3>
-          <p className="font-bold text-lg">
-            {customer?.first_name} {customer?.last_name}
-          </p>
-          <p className="text-neutral-600">{customer?.mobile}</p>
-          <p className="text-neutral-600">{customer?.email}</p>
-          {customer?.address_line1 && (
-            <p className="text-neutral-600 text-sm max-w-xs mt-1">
-              {customer.address_line1}, {customer.city}
-            </p>
-          )}
-          {customer?.gstin && (
-            <p className="text-sm font-mono mt-2">GSTIN: {customer.gstin}</p>
-          )}
-        </div>
-        <div className="text-right">
-          <h2 className="text-3xl font-light text-primary-600 mb-2">INVOICE</h2>
-          <div className="space-y-1 text-sm text-neutral-600">
-            <p>
-              <span className="font-medium mr-2">Date:</span>
-              {formatDateLong(new Date().toISOString())}
-            </p>
-            <p>
-              <span className="font-medium mr-2">Job Ref:</span>
-              {jobDetails?.job_number}
-            </p>
-            <p>
-              <span className="font-medium mr-2">Status:</span>
-              Unpaid
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Line Items Table */}
-      <table className="w-full mb-8 border-collapse">
-        <thead>
-          <tr className="bg-neutral-100 border-b border-neutral-200 text-xs uppercase tracking-wider text-neutral-600 font-semibold text-left">
-            <th className="px-4 py-3 border-b">#</th>
-            <th className="px-4 py-3 border-b">Item & Description</th>
-            <th className="px-4 py-3 text-right border-b">Qty</th>
-            <th className="px-4 py-3 text-right border-b">Rate</th>
-            <th className="px-4 py-3 text-right border-b">Tax %</th>
-            <th className="px-4 py-3 text-right border-b">Amount</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-neutral-100">
-          {formData.line_items.map((item, idx) => (
-            <tr key={idx} className="text-sm">
-              <td className="px-4 py-3 text-neutral-400">{idx + 1}</td>
-              <td className="px-4 py-3">
-                <p className="font-medium text-neutral-900">
-                  {item.description}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded">
-                    {item.item_type}
-                  </span>
-                  {item.hsn_sac_code && (
-                    <span className="text-xs text-neutral-400">
-                      HSN: {item.hsn_sac_code}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-right">{item.quantity}</td>
-              <td className="px-4 py-3 text-right">
-                ₹{item.unit_price.toFixed(2)}
-              </td>
-              <td className="px-4 py-3 text-right text-neutral-500">
-                {item.gst_rate}%
-              </td>
-              <td className="px-4 py-3 text-right font-medium">
-                ₹
-                {(
-                  item.quantity *
-                  item.unit_price *
-                  (1 + item.gst_rate / 100)
-                ).toFixed(2)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Totals Section */}
-      <div className="flex justify-end mb-8">
-        <div className="w-64 space-y-2 text-sm">
-          <div className="flex justify-between text-neutral-600">
-            <span>Subtotal</span>
-            <span>₹{subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-neutral-600">
-            <span>Tax (GST)</span>
-            <span>₹{totalTax.toFixed(2)}</span>
-          </div>
-          <div className="border-t border-neutral-200 pt-2 mt-2 flex justify-between items-center font-bold text-lg text-neutral-900">
-            <span>Total</span>
-            <span>₹{grandTotal.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Terms and Signatures */}
-      <div className="grid grid-cols-2 gap-8 border-t border-neutral-200 pt-8 text-xs text-neutral-500">
-        <div>
-          <h4 className="font-bold text-neutral-700 mb-2">
-            Terms & Conditions
-          </h4>
-          <ul className="list-disc pl-4 space-y-1">
-            <li>Payment is due upon receipt.</li>
-            <li>Warranty as per manufacturer policy for parts.</li>
-            <li>Service warranty valid for 7 days only on same issue.</li>
-            <li>Subject to Pune Jurisdiction.</li>
-          </ul>
-        </div>
-        <div className="text-center pt-8">
-          <div className="border-b border-neutral-300 w-32 mx-auto mb-2"></div>
-          <p>Authorised Signatory</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================
-// Invoice Preview Modal
-// =====================================================
-
-interface InvoicePreviewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  isSubmitting: boolean;
-  formData: CreateInvoiceFormData;
-  jobDetails: JobCard | null | undefined;
-  subtotal: number;
-  totalTax: number;
-  grandTotal: number;
-  customer: Customer | null | undefined;
-}
-
-/** Portal for print content — must match globals.css #print-portal-root */
-function PrintPortal({ children }: { children: React.ReactNode }) {
-  if (typeof window === "undefined") return null;
-  return createPortal(
-    <div id="print-portal-root">{children}</div>,
-    document.body,
-  );
-}
-
-function InvoicePreviewModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  isSubmitting,
-  formData,
-  jobDetails,
-  subtotal,
-  totalTax,
-  grandTotal,
-  customer,
-}: InvoicePreviewModalProps) {
-  if (!isOpen) return null;
-
-  return (
-    <>
-      <div className="fixed inset-0 z-50 overflow-y-auto print:hidden">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-
-        {/* Modal Container */}
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Screen Header */}
-            <div className="px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-semibold text-neutral-900">
-                Invoice Preview
-              </h2>
-              <p className="text-sm text-neutral-500">
-                Review details before creating the invoice.
-              </p>
-            </div>
-
-            {/* Template Rendered for Screen */}
-            <div className="p-0">
-              <InvoiceTemplate
-                formData={formData}
-                jobDetails={jobDetails}
-                subtotal={subtotal}
-                totalTax={totalTax}
-                grandTotal={grandTotal}
-                customer={customer}
-              />
-            </div>
-
-            {/* Footer Actions */}
-            <div className="sticky bottom-0 bg-white border-t border-neutral-200 p-4 flex justify-end gap-3 rounded-b-xl">
-              <Button variant="secondary" onClick={onClose}>
-                Back to Edit
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                disabled={isSubmitting}
-              >
-                Print
-              </Button>
-              <Button
-                onClick={onConfirm}
-                isLoading={isSubmitting}
-                leftIcon={<Save className="w-4 h-4" />}
-              >
-                Confirm & Create Invoice
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Printable Area - Rendered via Portal to escape main layout hiding */}
-      <PrintPortal>
-        <InvoiceTemplate
-          formData={formData}
-          jobDetails={jobDetails}
-          subtotal={subtotal}
-          totalTax={totalTax}
-          grandTotal={grandTotal}
-          customer={customer}
-        />
-      </PrintPortal>
-    </>
-  );
 }
 
 // =====================================================
@@ -979,15 +323,18 @@ function CreateInvoiceContent() {
           <Header
             title="Create Invoice"
             subtitle={job ? `For Job: ${job.job_number}` : "New Invoice"}
+            breadcrumbs={[
+              { label: "Sales Register", href: "/billing" },
+              { label: "Create Invoice" },
+            ]}
             actions={
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Back
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/billing")}
+              >
+                Back
+              </Button>
             }
           />
 
@@ -1005,10 +352,9 @@ function CreateInvoiceContent() {
             {/* Branch Selection (Owners Only) */}
             {hasPermission("canManageBranches") && (
               <Card>
-                <h3 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-primary-500" />
+                <CardTitle icon={<Printer className="w-4 h-4 text-neutral-400" />} className="mb-4">
                   Branch Assignment
-                </h3>
+                </CardTitle>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Select
                     label="Assign to Branch"
@@ -1039,10 +385,9 @@ function CreateInvoiceContent() {
 
             {/* Customer Section */}
             <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-                <User className="w-5 h-5 text-primary-600" />
+              <CardTitle icon={<User className="w-4 h-4 text-neutral-400" />} className="mb-3">
                 Bill To
-              </h3>
+              </CardTitle>
 
               {/* Path 1: Job exists — show customer from job (read-only) */}
               {job && job.customer ? (
@@ -1088,9 +433,7 @@ function CreateInvoiceContent() {
 
             {/* Line Items Editor */}
             <Card>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4">
-                Invoice Items
-              </h3>
+              <CardTitle className="mb-4">Invoice Items</CardTitle>
               <div className="space-y-4">
                 {/* Header Row */}
                 <div className="grid grid-cols-[9rem_9rem_1fr_4.5rem_6rem_4.5rem_2rem] gap-3 text-xs font-semibold text-neutral-400 uppercase tracking-wider px-1">
@@ -1121,7 +464,9 @@ function CreateInvoiceContent() {
                       <div>
                         <Select
                           value={rowState.categoryId}
-                          onChange={(e) => handleCategoryChange(index, e.target.value)}
+                          onChange={(e) =>
+                            handleCategoryChange(index, e.target.value)
+                          }
                           options={categories.map((cat) => ({
                             value: cat.id,
                             label: cat.name,
@@ -1134,7 +479,9 @@ function CreateInvoiceContent() {
                       <div>
                         <Select
                           value={rowState.itemId}
-                          onChange={(e) => handleItemSelect(index, e.target.value)}
+                          onChange={(e) =>
+                            handleItemSelect(index, e.target.value)
+                          }
                           options={filteredItems.map((item) => ({
                             value: item.id,
                             label: `${item.name} ${item.quantity > 0 ? `(${item.quantity})` : "(Out)"}`,
@@ -1280,11 +627,13 @@ function CreateInvoiceContent() {
             </Card>
 
             <div className="flex justify-end gap-4">
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
-                <Button variant="secondary" type="button">
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/billing")}
+              >
+                Cancel
+              </Button>
               <Button type="submit" leftIcon={<FileText className="w-4 h-4" />}>
                 Preview Invoice
               </Button>
@@ -1303,7 +652,7 @@ function CreateInvoiceContent() {
               subtotal={subtotal}
               totalTax={totalTax}
               grandTotal={grandTotal}
-              customer={job?.customer}
+              customer={job?.customer ?? selectedCustomer}
             />
           )}
         </div>

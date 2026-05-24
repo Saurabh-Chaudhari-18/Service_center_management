@@ -5,3 +5,4 @@ export type { SemanticStatusBadgeProps } from "./components/SemanticStatusBadge"
 export { getJobStatusPresentation } from "./adapters/jobStatus";
 export { getInvoiceStatusPresentation } from "./adapters/invoiceStatus";
 export { getPickupStatusPresentation } from "./adapters/pickupStatus";
+export { getEnquiryStatusPresentation } from "./adapters/enquiryStatus";

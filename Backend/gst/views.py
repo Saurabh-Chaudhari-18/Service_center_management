@@ -11,6 +11,7 @@ from django.db.models import Sum, Count, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.permissions import IsAuthenticated
 
 from core.permissions import CanViewReports
@@ -136,7 +137,7 @@ class GSTViewSet(viewsets.ViewSet):
 
     # ─── ITC Register ─────────────────────────────────────────────────────────
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='itc-register')
     def itc_register(self, request):
         from expenses.models import Expense
         from inventory.models import Purchase
@@ -205,7 +206,7 @@ class GSTViewSet(viewsets.ViewSet):
 
     # ─── Output Register ──────────────────────────────────────────────────────
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='output-register')
     def output_register(self, request):
         from billing.models import Invoice, InvoiceStatus
 
@@ -247,7 +248,7 @@ class GSTViewSet(viewsets.ViewSet):
 
     # ─── GSTR-1 Data + JSON Export ────────────────────────────────────────────
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='gstr1-data')
     def gstr1_data(self, request):
         from billing.models import Invoice, InvoiceStatus, InvoiceLineItem
 
@@ -304,7 +305,7 @@ class GSTViewSet(viewsets.ViewSet):
             'b2b_count': len(b2b_list),
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='gstr1-json')
     def gstr1_json(self, request):
         """Download GSTR-1 in GST portal JSON format."""
         from django.http import HttpResponse
@@ -389,7 +390,7 @@ class GSTViewSet(viewsets.ViewSet):
 
     # ─── GSTR-3B Summary ──────────────────────────────────────────────────────
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='gstr3b-summary')
     def gstr3b_summary(self, request):
         from billing.models import Invoice, InvoiceStatus
         from expenses.models import Expense
@@ -457,18 +458,18 @@ class GSTViewSet(viewsets.ViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['delete'], url_path='delete_payment')
+    @action(detail=True, methods=['delete'], url_path='delete-payment')
     def delete_payment(self, request, pk=None):
         try:
             payment = GSTPayment.objects.get(pk=pk)
             payment.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except GSTPayment.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound('Not found')
 
     # ─── HSN/SAC Master ───────────────────────────────────────────────────────
 
-    @action(detail=False, methods=['get', 'post'])
+    @action(detail=False, methods=['get', 'post'], url_path='hsn-codes')
     def hsn_codes(self, request):
         if request.method == 'GET':
             qs = HSNCode.objects.filter(is_active=True)
@@ -489,7 +490,7 @@ class GSTViewSet(viewsets.ViewSet):
         try:
             hsn = HSNCode.objects.get(pk=pk)
         except HSNCode.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound('Not found')
 
         if request.method == 'PUT':
             serializer = HSNCodeSerializer(hsn, data=request.data, partial=True)
@@ -504,7 +505,7 @@ class GSTViewSet(viewsets.ViewSet):
 
     # ─── Return Filing Status ─────────────────────────────────────────────────
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='mark-filed')
     def mark_filed(self, request):
         """Mark GSTR-1 or GSTR-3B as filed for a period."""
         from django.utils import timezone as tz
@@ -515,7 +516,7 @@ class GSTViewSet(viewsets.ViewSet):
         branch = branches.first()
 
         if not period or not return_type:
-            return Response({'error': 'period_month and return_type required'}, status=400)
+            raise ValidationError('period_month and return_type required')
 
         obj, _ = GSTReturnStatus.objects.get_or_create(
             branch=branch, period_month=period,

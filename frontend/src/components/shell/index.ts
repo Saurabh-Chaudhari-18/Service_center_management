@@ -32,6 +32,9 @@ export { EntityTable } from "./EntityTable";
 export type { EntityCardsProps } from "./EntityCards";
 export { EntityCards } from "./EntityCards";
 
+export type { RegisterListCardProps } from "./RegisterListCard";
+export { RegisterListCard } from "./RegisterListCard";
+
 export type { PaginationFooterProps } from "./PaginationFooter";
 export { PaginationFooter } from "./PaginationFooter";
 

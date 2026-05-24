@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { SegmentedControl, type SegmentedOption } from "@/components/shell";
 import { inventoryApi } from "@/lib/api";
+import { formatDate } from "@/lib/formatters";
 import {
   Plus,
   Search,
@@ -160,9 +161,9 @@ const CATEGORY_COLORS: Record<
     gradient: "from-rose-500 to-rose-600",
   },
   Other: {
-    bg: "bg-gray-50",
-    text: "text-gray-600",
-    gradient: "from-gray-500 to-gray-600",
+    bg: "bg-neutral-50",
+    text: "text-neutral-600",
+    gradient: "from-neutral-500 to-neutral-600",
   },
 };
 
@@ -210,9 +211,9 @@ interface CategoryChipProps {
 function CategoryChip({ category, isActive, onClick }: CategoryChipProps) {
   const icon = CATEGORY_ICONS[category.name] || <Package className="w-5 h-5" />;
   const colors = CATEGORY_COLORS[category.name] || {
-    bg: "bg-gray-50",
-    text: "text-gray-600",
-    gradient: "from-gray-500 to-gray-600",
+    bg: "bg-neutral-50",
+    text: "text-neutral-600",
+    gradient: "from-neutral-500 to-neutral-600",
   };
 
   return (
@@ -363,7 +364,7 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
               <StockBadge item={item} />
               {item.category_name && (
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                 >
                   {CATEGORY_ICONS[item.category_name] && (
                     <span className="[&>svg]:w-3 [&>svg]:h-3">
@@ -490,11 +491,7 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
                     </p>
                     <div className="flex items-center justify-between mt-2 text-xs text-neutral-400">
                       <span>{adj.adjusted_by_name || "System"}</span>
-                      <span>
-                        {adj.created_at
-                          ? new Date(adj.created_at).toLocaleDateString("en-IN")
-                          : ""}
-                      </span>
+                      <span>{formatDate(adj.created_at)}</span>
                     </div>
                   </div>
                 ))}
@@ -936,7 +933,17 @@ export default function InventoryPage() {
     "all",
   );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  const [viewMode, setViewMode] = useState<"table" | "card">(() => {
+    if (typeof window === "undefined") return "table";
+    return (localStorage.getItem("inventory-view") as "table" | "card") ?? "table";
+  });
+
+  const handleViewChange = (v: "table" | "card") => {
+    setViewMode(v);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("inventory-view", v);
+    }
+  };
   const [showCategories, setShowCategories] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1025,7 +1032,7 @@ export default function InventoryPage() {
               leftIcon={<Plus className="w-4 h-4" />}
               onClick={() => setShowAddModal(true)}
             >
-              New
+              Add Item
             </Button>
           }
         />
@@ -1153,7 +1160,7 @@ export default function InventoryPage() {
                     aria-label="Inventory layout"
                     className="ml-1 w-full shrink-0 sm:w-auto"
                     value={viewMode}
-                    onValueChange={setViewMode}
+                    onValueChange={handleViewChange}
                     options={INVENTORY_VIEW_SEGMENTS}
                   />
                 </div>
@@ -1180,7 +1187,7 @@ export default function InventoryPage() {
 
               {/* Content */}
               {isLoading ? (
-                <LoadingState />
+                <LoadingState message="Loading inventory…" />
               ) : sortedItems.length === 0 ? (
                 <div className="bg-white rounded-xl border border-neutral-100">
                   <EmptyState
@@ -1256,7 +1263,7 @@ export default function InventoryPage() {
                             <td className="px-4 py-3">
                               {item.category_name ? (
                                 <span
-                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                                 >
                                   {item.category_name}
                                 </span>
@@ -1325,7 +1332,7 @@ export default function InventoryPage() {
                         </div>
                         {item.category_name && (
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-gray-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-gray-600"}`}
+                            className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[item.category_name]?.bg || "bg-neutral-50"} ${CATEGORY_COLORS[item.category_name]?.text || "text-neutral-600"}`}
                           >
                             {item.category_name}
                           </span>

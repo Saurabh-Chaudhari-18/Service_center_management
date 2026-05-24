@@ -5,6 +5,7 @@ Customer ViewSets with branch-scoped access.
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -51,7 +52,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             return CustomerMinimalSerializer
         return CustomerSerializer
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='search-by-mobile')
     def search_by_mobile(self, request):
         """
         Search customer by mobile number or name.
@@ -61,10 +62,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         branch_id = request.query_params.get('branch')
         
         if not mobile:
-            return Response(
-                {'error': 'mobile parameter is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('mobile parameter is required')
         
         from django.db.models import Q
         
@@ -90,7 +88,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = CustomerSerializer(queryset[:20], many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='service-history')
     def service_history(self, request, pk=None):
         """Get service history for a customer."""
         customer = self.get_object()
@@ -108,7 +106,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         serializer = JobCardListSerializer(jobs, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='pending-jobs')
     def pending_jobs(self, request, pk=None):
         """Get pending jobs for a customer."""
         customer = self.get_object()
@@ -164,19 +162,13 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         from core.models import Role
         
         if request.user.role not in [Role.OWNER, Role.MANAGER]:
-            return Response(
-                {'error': 'Only owners and managers can merge customers'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            raise PermissionDenied('Only owners and managers can merge customers')
         
         target_customer = self.get_object()
         source_id = request.data.get('source_customer_id')
         
         if not source_id:
-            return Response(
-                {'error': 'source_customer_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError('source_customer_id is required')
         
         try:
             source_customer = Customer.objects.get(
@@ -184,10 +176,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 branch=target_customer.branch
             )
         except Customer.DoesNotExist:
-            return Response(
-                {'error': 'Source customer not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound('Source customer not found')
         
         # Transfer all job cards
         from jobs.models import JobCard
@@ -217,7 +206,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'message': f'Customer {source_customer.get_full_name()} merged into {target_customer.get_full_name()}'
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='request-deletion')
     def request_deletion(self, request, pk=None):
         """
         Anonymise a customer's PII (GDPR/data-retention compliance).
