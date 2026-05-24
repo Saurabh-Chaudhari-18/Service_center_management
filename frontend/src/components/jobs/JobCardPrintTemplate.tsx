@@ -56,7 +56,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
           `,
         }}
       />
-      <div className="bg-white p-6 text-[10pt] leading-[1.3] text-black h-screen flex flex-col justify-between">
+      <div className="paper-doc bg-white text-black p-6 text-[10pt] leading-[1.3] h-screen flex flex-col justify-between">
         <div className="space-y-3">
           {/* Shop Header */}
           <div className="print-header print-section border-2 border-black p-2 mb-2">

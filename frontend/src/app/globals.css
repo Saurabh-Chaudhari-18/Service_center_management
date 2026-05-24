@@ -589,6 +589,62 @@ pre {
 .dark .text-neutral-600 { color: #94a3b8 !important; }
 .dark .text-neutral-500 { color: #64748b !important; }
 
+/* ── Dark Mode: bg-white — THE primary gap fix ──────
+   All content cards / containers that use bare bg-white
+   without a dark: prefix (most page-level components).
+   Higher-specificity rules (.dark .card, .dark .btn-secondary
+   etc.) still win because they come later OR use !important.
+──────────────────────────────────────────────────── */
+.dark .bg-white {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+}
+
+/* Hover and focus-visible variants of bg-white */
+.dark .hover\:bg-white:hover {
+  background-color: rgba(30, 41, 59, 0.80) !important;
+}
+
+/* ── Dark Mode: bg-neutral-100 (missing from above) ── */
+.dark .bg-neutral-100 {
+  background-color: rgba(30, 41, 59, 0.55) !important;
+}
+.dark .hover\:bg-neutral-100:hover,
+.dark .focus-visible\:bg-neutral-100:focus-visible {
+  background-color: rgba(30, 41, 59, 0.65) !important;
+}
+
+/* ── Dark Mode: hover:bg-neutral-50 (used in table rows,
+   list items, and sidebar child links) ── */
+.dark .hover\:bg-neutral-50:hover,
+.dark .focus-visible\:bg-neutral-50:focus-visible {
+  background-color: rgba(51, 65, 85, 0.40) !important;
+}
+
+/* ── Dark Mode: bg-primary-100 / bg-neutral-200 ────
+   Used in avatar bubbles and inactive status chips. ── */
+.dark .bg-primary-100 {
+  background-color: rgba(79, 70, 229, 0.18) !important;
+}
+.dark .bg-neutral-200 {
+  background-color: rgba(51, 65, 85, 0.55) !important;
+}
+.dark .hover\:bg-neutral-200:hover {
+  background-color: rgba(51, 65, 85, 0.70) !important;
+}
+
+/* ── Dark Mode: border-neutral-300 ── */
+.dark .border-neutral-300 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* ── Dark Mode: divide-* ── */
+.dark .divide-neutral-50 > * + * {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .divide-neutral-100 > * + * {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
 /* Dark mode hover backgrounds for list items */
 .dark .hover\:bg-primary-50\/50:hover {
   background: rgba(99, 102, 241, 0.08) !important;
@@ -621,6 +677,114 @@ pre {
   background-color: #1e293b !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+/* ── Dark Mode: Extended color backgrounds (-50 tints) ──
+   Category chips, status badges, and other colored elements  */
+.dark .bg-emerald-50 { background: rgba(16, 185, 129, 0.12) !important; }
+.dark .bg-blue-50    { background: rgba(59, 130, 246, 0.12) !important; }
+.dark .bg-cyan-50    { background: rgba(6, 182, 212, 0.12) !important; }
+.dark .bg-teal-50    { background: rgba(20, 184, 166, 0.12) !important; }
+.dark .bg-orange-50  { background: rgba(249, 115, 22, 0.12) !important; }
+.dark .bg-pink-50    { background: rgba(236, 72, 153, 0.12) !important; }
+.dark .bg-violet-50  { background: rgba(139, 92, 246, 0.12) !important; }
+.dark .bg-rose-50    { background: rgba(244, 63, 94, 0.12) !important; }
+.dark .bg-purple-50  { background: rgba(168, 85, 247, 0.12) !important; }
+.dark .bg-slate-50   { background: rgba(51, 65, 85, 0.40) !important; }
+.dark .bg-sky-50     { background: rgba(14, 165, 233, 0.12) !important; }
+
+/* ── Dark Mode: Extended color backgrounds (-100 tints) ──
+   Role badges, icon bubbles, and stronger-tinted elements  */
+.dark .bg-emerald-100 { background: rgba(16, 185, 129, 0.18) !important; }
+.dark .bg-blue-100    { background: rgba(59, 130, 246, 0.18) !important; }
+.dark .bg-violet-100  { background: rgba(139, 92, 246, 0.18) !important; }
+.dark .bg-green-100   { background: rgba(34, 197, 94, 0.18) !important; }
+.dark .bg-amber-100   { background: rgba(245, 158, 11, 0.18) !important; }
+.dark .bg-red-100     { background: rgba(239, 68, 68, 0.18) !important; }
+.dark .bg-purple-100  { background: rgba(168, 85, 247, 0.18) !important; }
+.dark .bg-slate-100   { background: rgba(51, 65, 85, 0.50) !important; }
+.dark .bg-orange-100  { background: rgba(249, 115, 22, 0.18) !important; }
+.dark .bg-teal-100    { background: rgba(20, 184, 166, 0.18) !important; }
+.dark .bg-sky-100     { background: rgba(14, 165, 233, 0.18) !important; }
+
+/* ── Dark Mode: bg-neutral-50 opacity variants ──
+   e.g. bg-neutral-50/50 used in detail panel headers  */
+.dark .bg-neutral-50\/50 { background: rgba(51, 65, 85, 0.25) !important; }
+.dark .bg-white\/80      { background: rgba(30, 41, 59, 0.80) !important; }
+.dark .bg-white\/70      { background: rgba(15, 23, 42, 0.70) !important; }
+.dark .bg-white\/60      { background: rgba(15, 23, 42, 0.60) !important; }
+
+/* ── Dark Mode: Semantic text colors — dark shades ──
+   Darker color text (700/800) becomes invisible on dark backgrounds;
+   remap to their -300/-400 equivalents for readability.  */
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-emerald-600 { color: #34d399 !important; }
+.dark .text-blue-700    { color: #93c5fd !important; }
+.dark .text-blue-600    { color: #60a5fa !important; }
+.dark .text-purple-700  { color: #d8b4fe !important; }
+.dark .text-purple-600  { color: #c084fc !important; }
+.dark .text-orange-700  { color: #fdba74 !important; }
+.dark .text-orange-600  { color: #fb923c !important; }
+.dark .text-teal-700    { color: #5eead4 !important; }
+.dark .text-teal-600    { color: #2dd4bf !important; }
+.dark .text-slate-700   { color: #cbd5e1 !important; }
+.dark .text-amber-800   { color: #fcd34d !important; }
+.dark .text-amber-700   { color: #fbbf24 !important; }
+.dark .text-amber-600   { color: #f59e0b !important; }
+.dark .text-red-700     { color: #fca5a5 !important; }
+.dark .text-red-600     { color: #f87171 !important; }
+.dark .text-indigo-600  { color: #818cf8 !important; }
+.dark .text-green-600   { color: #4ade80 !important; }
+.dark .text-cyan-600    { color: #22d3ee !important; }
+.dark .text-pink-600    { color: #f472b6 !important; }
+.dark .text-violet-700  { color: #c4b5fd !important; }
+.dark .text-violet-600  { color: #a78bfa !important; }
+.dark .text-rose-600    { color: #fb7185 !important; }
+.dark .text-green-700   { color: #86efac !important; }
+.dark .text-sky-700     { color: #7dd3fc !important; }
+.dark .text-sky-600     { color: #38bdf8 !important; }
+.dark .text-primary-700 { color: #a5b4fc !important; }
+.dark .text-purple-600  { color: #c084fc !important; }
+
+/* ── Paper document override (invoices, job cards) ──────────
+   These are print-oriented "white paper" templates — must stay
+   white regardless of the active theme.
+
+   Specificity notes:
+   • .dark .paper-doc            = 0,2,0 — beats .dark .bg-white (0,2,0) by
+                                   source order (this block is later in CSS)
+   • .dark .paper-doc .bg-white  = 0,3,0 — beats .dark .bg-white (0,2,0)
+                                   by higher specificity
+   • .dark .paper-doc .text-*    = 0,3,0 — beats global text overrides      */
+.dark .paper-doc,
+.dark .paper-doc .bg-white {
+  background-color: white !important;
+  color: black !important;
+}
+/* Reset all dark-mode text overrides inside paper documents so inherited
+   "color: black" from the outer .paper-doc div takes effect              */
+.dark .paper-doc .text-neutral-900,
+.dark .paper-doc .text-neutral-800,
+.dark .paper-doc .text-neutral-700,
+.dark .paper-doc .text-neutral-600,
+.dark .paper-doc .text-neutral-500,
+.dark .paper-doc .text-neutral-400,
+.dark .paper-doc .text-neutral-300 {
+  color: inherit !important;
+}
+
+/* ── Dark Mode: Color-specific borders ──
+   Inline border classes on status chips and quick-action buttons  */
+.dark .border-sky-200     { border-color: rgba(14, 165, 233, 0.30) !important; }
+.dark .border-violet-200  { border-color: rgba(139, 92, 246, 0.30) !important; }
+.dark .border-green-200   { border-color: rgba(34, 197, 94, 0.30) !important; }
+.dark .border-emerald-200 { border-color: rgba(16, 185, 129, 0.30) !important; }
+.dark .border-amber-200   { border-color: rgba(245, 158, 11, 0.30) !important; }
+.dark .border-red-200     { border-color: rgba(239, 68, 68, 0.30) !important; }
+.dark .border-blue-200    { border-color: rgba(59, 130, 246, 0.30) !important; }
+.dark .border-purple-200  { border-color: rgba(168, 85, 247, 0.30) !important; }
+.dark .border-orange-200  { border-color: rgba(249, 115, 22, 0.30) !important; }
+.dark .border-teal-200    { border-color: rgba(20, 184, 166, 0.30) !important; }
+.dark .border-green-300   { border-color: rgba(34, 197, 94, 0.40) !important; }
 
 /* Dark transition for smooth theme switching */
 html.dark {

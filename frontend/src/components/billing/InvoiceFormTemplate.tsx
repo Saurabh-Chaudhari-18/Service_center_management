@@ -59,7 +59,7 @@ export function InvoiceFormTemplate({
   customer,
 }: InvoiceFormTemplateProps) {
   return (
-    <div className="bg-white text-black p-8 max-w-4xl mx-auto">
+    <div className="paper-doc bg-white text-black p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="border-2 border-black p-4 mb-6">
         <div className="flex items-center justify-between mb-4">
