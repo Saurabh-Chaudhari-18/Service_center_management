@@ -40,7 +40,7 @@ import {
   PackageSearch,
 } from "lucide-react";
 import Link from "next/link";
-import { format, subDays, startOfMonth, startOfYear } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths } from "date-fns";
 import type { JobCard, PickupRequest, InventoryItem } from "@/types";
 import { PICKUP_STATUS_CONFIG, JOB_STATUS_CONFIG } from "@/types";
 import {
@@ -61,24 +61,32 @@ import {
 // Date Period Helper
 // =====================================================
 
-type DatePeriod = "this_month" | "last_30" | "this_year";
+type DatePeriod = "last_7_days" | "this_month" | "last_30" | "last_month" | "this_year";
 
 function getDateRange(period: DatePeriod) {
   const today = new Date();
   switch (period) {
+    case "last_7_days":
+      return { from: subDays(today, 7), to: today };
     case "this_month":
       return { from: startOfMonth(today), to: today };
     case "last_30":
       return { from: subDays(today, 30), to: today };
+    case "last_month": {
+      const prev = subMonths(today, 1);
+      return { from: startOfMonth(prev), to: endOfMonth(prev) };
+    }
     case "this_year":
       return { from: startOfYear(today), to: today };
   }
 }
 
 const PERIOD_OPTIONS: { value: DatePeriod; label: string }[] = [
-  { value: "this_month", label: "This Month" },
-  { value: "last_30", label: "Last 30 Days" },
-  { value: "this_year", label: "This Year" },
+  { value: "last_7_days", label: "Last 7 Days" },
+  { value: "this_month",  label: "This Month"  },
+  { value: "last_30",     label: "Last 30 Days" },
+  { value: "last_month",  label: "Last Month"   },
+  { value: "this_year",   label: "This Year"    },
 ];
 
 // =====================================================
@@ -236,7 +244,7 @@ function OnboardingChecklist() {
 
   const steps = [
     { label: "Account created", done: true, href: null },
-    { label: "Add shop details & GSTIN", done: false, href: "/settings" },
+    { label: "Add shop details & GSTIN", done: false, href: "/branches" },
     { label: "Set up SMS notifications", done: false, href: "/notifications" },
     { label: "Create your first job card", done: false, href: "/jobs/new" },
   ];
@@ -374,7 +382,10 @@ function DashboardStats() {
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-4">Overview Stats</h3>
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-neutral-900">Overview Stats</h3>
+        <p className="text-xs text-neutral-400 mt-0.5">Live counts · All-time financials</p>
+      </div>
       <div className="flex flex-col space-y-1">
         {stats.map((stat) => (
           <Link key={stat.label} href={stat.href} className="flex justify-between items-center p-3 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-0">
@@ -406,6 +417,13 @@ function RevenueTrendChart() {
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
 
   const dateRange = useMemo(() => getDateRange(period), [period]);
+
+  // Reuses the cache from DashboardStats — no extra network request
+  const { data: invoiceStats } = useQuery({
+    queryKey: ["invoice-stats", currentBranch?.id],
+    queryFn: () => billingApi.getStats(),
+    enabled: !!currentBranch,
+  });
 
   const { data: revenueData, isLoading } = useQuery({
     queryKey: [
@@ -480,6 +498,36 @@ function RevenueTrendChart() {
           )}
         </div>
       </div>
+
+      {/* Financial summary — replaces the standalone RevenueSummary card */}
+      {invoiceStats && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-3 pb-3 border-b border-neutral-100 dark:border-slate-700 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Collected</span>
+            <span className="text-sm font-semibold text-green-700 dark:text-green-400">
+              ₹{(invoiceStats.total_paid || 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Outstanding</span>
+            <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+              ₹{(invoiceStats.total_pending || 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-400" />
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Total invoiced</span>
+            <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              ₹{(invoiceStats.total_invoiced || 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+          <Link href="/reports" className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+            Statement →
+          </Link>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] flex items-center justify-center">
@@ -1276,8 +1324,7 @@ export default function DashboardPage() {
                   <div className="lg:col-span-2 min-w-0">
                     <RevenueTrendChart />
                   </div>
-                  <div className="space-y-5">
-                    <RevenueSummary />
+                  <div>
                     <NetProfitWidget />
                   </div>
                 </div>

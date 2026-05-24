@@ -2,6 +2,9 @@
 
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -40,6 +43,26 @@ const LEAD_SOURCES = [
   { value: "OTHER", label: "Other" },
 ];
 
+// =====================================================
+// Enquiry Create Form — Schema
+// =====================================================
+
+const enquirySchema = z.object({
+  customer_name:       z.string().min(1, "Customer name is required"),
+  customer_mobile:     z.string().min(10, "Enter a valid 10-digit mobile number"),
+  customer_email:      z.string().email("Invalid email").optional().or(z.literal("")),
+  device_type:         z.string().optional(),
+  brand:               z.string().optional(),
+  model_name:          z.string().optional(),
+  problem_description: z.string().min(1, "Problem description is required"),
+  quoted_price:        z.string().optional(),
+  source:              z.string().min(1, "Lead source is required"),
+  follow_up_date:      z.string().optional(),
+  notes:               z.string().optional(),
+});
+
+type EnquiryFormData = z.infer<typeof enquirySchema>;
+
 const isOverdue = (followUpDate: string | null, status: string) => {
   if (!followUpDate || ["CONVERTED", "LOST", "CLOSED"].includes(status)) return false;
   return new Date(followUpDate) < new Date(new Date().setHours(0, 0, 0, 0));
@@ -75,18 +98,14 @@ export default function EnquiriesPage() {
   const [lostTarget, setLostTarget] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
 
-  const [form, setForm] = useState({
-    customer_name: "",
-    customer_mobile: "",
-    customer_email: "",
-    device_type: "",
-    brand: "",
-    model_name: "",
-    problem_description: "",
-    quoted_price: "",
-    source: "WALK_IN",
-    follow_up_date: "",
-    notes: "",
+  const {
+    register: registerEnquiry,
+    handleSubmit: handleEnquirySubmit,
+    reset: resetEnquiryForm,
+    formState: { errors: enquiryErrors },
+  } = useForm<EnquiryFormData>({
+    resolver: zodResolver(enquirySchema),
+    defaultValues: { source: "WALK_IN" },
   });
 
   const listQueryKey = useMemo(
@@ -107,18 +126,17 @@ export default function EnquiriesPage() {
       const params: Record<string, string> = {};
       if (currentBranch) params.branch = currentBranch.id;
       if (search) params.search = search;
-      if (statusFilter && statusFilter !== "OVERDUE") params.status = statusFilter;
-      if (statusFilter !== "OVERDUE") {
-        params.page = String(page);
-        params.page_size = String(PAGE_SIZE);
-      }
-      const res = await enquiriesApi.list(params);
-      let rows: Enquiry[] = (res.results || []) as Enquiry[];
+      // Server-side overdue filter — backend should honour `overdue=true`
       if (statusFilter === "OVERDUE") {
-        rows = rows.filter((enq) =>
-          isOverdue(enq.follow_up_date ?? null, enq.status),
-        );
+        params.overdue = "true";
+      } else if (statusFilter) {
+        params.status = statusFilter;
       }
+      // Always paginate so counts and page navigation are accurate
+      params.page = String(page);
+      params.page_size = String(PAGE_SIZE);
+      const res = await enquiriesApi.list(params);
+      const rows = (res.results || []) as Enquiry[];
       return { rows, count: res.count ?? 0 };
     },
     staleTime: 15_000,
@@ -170,28 +188,16 @@ export default function EnquiriesPage() {
     queryClient.invalidateQueries({ queryKey: ["enquiries"] });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: EnquiryFormData) => {
       await enquiriesApi.create({
-        ...form,
-        quoted_price: form.quoted_price ? parseFloat(form.quoted_price) : null,
+        ...data,
+        quoted_price: data.quoted_price ? parseFloat(data.quoted_price) : null,
         branch: currentBranch?.id,
       });
     },
     onSuccess: () => {
       setShowForm(false);
-      setForm({
-        customer_name: "",
-        customer_mobile: "",
-        customer_email: "",
-        device_type: "",
-        brand: "",
-        model_name: "",
-        problem_description: "",
-        quoted_price: "",
-        source: "WALK_IN",
-        follow_up_date: "",
-        notes: "",
-      });
+      resetEnquiryForm();
       toast.success("Enquiry created successfully.");
       void invalidateEnquiries();
     },
@@ -401,7 +407,7 @@ export default function EnquiriesPage() {
             })}
             </EntityCards>
           )}
-          {statusFilter !== "OVERDUE" && totalCount > PAGE_SIZE && (
+          {totalCount > PAGE_SIZE && (
             <PaginationFooter
               page={page}
               pageSize={PAGE_SIZE}
@@ -415,7 +421,7 @@ export default function EnquiriesPage() {
 
       <Modal
         isOpen={showForm}
-        onClose={() => setShowForm(false)}
+        onClose={() => { setShowForm(false); resetEnquiryForm(); }}
         title="New Enquiry / Lead"
         size="lg"
         footer={
@@ -423,7 +429,7 @@ export default function EnquiriesPage() {
             <ActionBar
               className="border-transparent border-t-0 pt-0 pb-0"
               secondary={
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => { setShowForm(false); resetEnquiryForm(); }}>
                   Cancel
                 </Button>
               }
@@ -443,32 +449,35 @@ export default function EnquiriesPage() {
       >
         <form
           id={ENQUIRY_CREATE_FORM_ID}
-          onSubmit={(e) => {
-            e.preventDefault();
-            createMutation.mutate();
-          }}
+          onSubmit={handleEnquirySubmit((data: EnquiryFormData) => createMutation.mutate(data))}
           className="space-y-6"
         >
           <FormSection title="Customer" fieldGap="tight">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                required
-                type="text"
-                label="Customer Name"
-                value={form.customer_name}
-                onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                placeholder="Full name"
-                className="text-sm"
-              />
-              <Input
-                required
-                type="tel"
-                label="Mobile"
-                value={form.customer_mobile}
-                onChange={(e) => setForm({ ...form, customer_mobile: e.target.value })}
-                placeholder="+91..."
-                className="text-sm"
-              />
+              <div>
+                <Input
+                  type="text"
+                  label="Customer Name"
+                  {...registerEnquiry("customer_name")}
+                  placeholder="Full name"
+                  className="text-sm"
+                />
+                {enquiryErrors.customer_name && (
+                  <p className="mt-1 text-xs text-red-500">{enquiryErrors.customer_name.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  type="tel"
+                  label="Mobile"
+                  {...registerEnquiry("customer_mobile")}
+                  placeholder="+91..."
+                  className="text-sm"
+                />
+                {enquiryErrors.customer_mobile && (
+                  <p className="mt-1 text-xs text-red-500">{enquiryErrors.customer_mobile.message}</p>
+                )}
+              </div>
             </div>
           </FormSection>
 
@@ -477,24 +486,21 @@ export default function EnquiriesPage() {
               <Input
                 type="text"
                 label="Device"
-                value={form.device_type}
-                onChange={(e) => setForm({ ...form, device_type: e.target.value })}
+                {...registerEnquiry("device_type")}
                 placeholder="Laptop"
                 className="text-sm"
               />
               <Input
                 type="text"
                 label="Brand"
-                value={form.brand}
-                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                {...registerEnquiry("brand")}
                 placeholder="HP, Dell..."
                 className="text-sm"
               />
               <Input
                 type="text"
                 label="Model"
-                value={form.model_name}
-                onChange={(e) => setForm({ ...form, model_name: e.target.value })}
+                {...registerEnquiry("model_name")}
                 placeholder="Model name"
                 className="text-sm"
               />
@@ -504,13 +510,14 @@ export default function EnquiriesPage() {
           <FormSection title="Request" fieldGap="tight">
             <Textarea
               label="Problem Description"
-              required
-              value={form.problem_description}
-              onChange={(e) => setForm({ ...form, problem_description: e.target.value })}
+              {...registerEnquiry("problem_description")}
               rows={3}
               placeholder="What the customer described..."
               className="resize-none text-sm"
             />
+            {enquiryErrors.problem_description && (
+              <p className="mt-1 text-xs text-red-500">{enquiryErrors.problem_description.message}</p>
+            )}
           </FormSection>
 
           <FormSection title="Quote & follow-up" fieldGap="tight">
@@ -519,24 +526,21 @@ export default function EnquiriesPage() {
                 type="number"
                 step="0.01"
                 label="Quoted Price (₹)"
-                value={form.quoted_price}
-                onChange={(e) => setForm({ ...form, quoted_price: e.target.value })}
+                {...registerEnquiry("quoted_price")}
                 placeholder="0.00"
                 className="text-sm"
               />
               <Select
                 label="Lead Source"
-                value={form.source}
                 options={LEAD_SOURCES}
-                onChange={(e) => setForm({ ...form, source: e.target.value })}
+                {...registerEnquiry("source")}
                 className="text-sm py-2"
               />
             </div>
             <Input
               type="date"
               label="Follow-up Date"
-              value={form.follow_up_date}
-              onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })}
+              {...registerEnquiry("follow_up_date")}
               className="text-sm"
             />
           </FormSection>

@@ -285,7 +285,10 @@ function NotificationsSection() {
           >
             <div>
               <p className="font-medium text-neutral-900">
-                {template.notification_type.replace(/_/g, " ")}
+                {template.notification_type
+                  .split("_")
+                  .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                  .join(" ")}
               </p>
               <p className="text-sm text-neutral-500">via {template.channel}</p>
             </div>
@@ -340,10 +343,10 @@ function MarketingSection() {
 
 export default function SettingsPage() {
   const tabs = [
-    { id: "profile", label: "Profile", icon: User },
-    { id: "security", label: "Security", icon: Lock },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "marketing", label: "Marketing", icon: Megaphone },
+    { id: "profile",       label: "Profile",        icon: User,     comingSoon: false },
+    { id: "security",      label: "Security",        icon: Lock,     comingSoon: false },
+    { id: "notifications", label: "Notifications",   icon: Bell,     comingSoon: false },
+    { id: "marketing",     label: "Marketing",       icon: Megaphone, comingSoon: true },
   ] as const;
 
   type TabId = "profile" | "security" | "notifications" | "marketing";
@@ -376,6 +379,11 @@ export default function SettingsPage() {
                     >
                       <Icon className="w-4 h-4" />
                       {tab.label}
+                      {tab.comingSoon && (
+                        <span className="ml-auto shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-violet-600">
+                          Soon
+                        </span>
+                      )}
                     </button>
                   );
                 })}

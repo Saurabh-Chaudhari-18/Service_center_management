@@ -290,6 +290,10 @@ export default function JobDetailPage() {
         <Header
           title={job.job_number}
           subtitle={`${job.brand} ${job.model}`}
+          breadcrumbs={[
+            { label: "Job Cards", href: "/jobs" },
+            { label: job.job_number },
+          ]}
           actions={
             <div className="flex items-center gap-2">
               <Link href="/jobs">

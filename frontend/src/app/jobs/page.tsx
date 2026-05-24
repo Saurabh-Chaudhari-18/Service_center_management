@@ -25,10 +25,8 @@ import { jobsApi } from "@/lib/api";
 import {
   Plus,
   Search,
-  Filter,
   FileText,
   ArrowRight,
-  Calendar,
   AlertCircle,
   Clock,
   User,
@@ -127,12 +125,8 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
             <div className="mt-3 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 text-xs text-neutral-400">
                 <div className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{formatDate(job.created_at)}</span>
-                </div>
-                <div className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{daysSinceCreated}d ago</span>
+                  <span>{daysSinceCreated}d ago · {formatDate(job.created_at)}</span>
                 </div>
                 {job.assigned_technician_name && (
                   <div className="flex items-center gap-1">
@@ -279,14 +273,14 @@ function StatusTabs({
         onClick={() => onStatusChange(URGENT_TAB)}
         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
           selectedStatus === URGENT_TAB
-            ? "border-b-2 border-red-500 text-red-600 bg-red-50/80"
+            ? "bg-red-500 text-white shadow-md"
             : "text-neutral-600 hover:text-red-500"
         }`}
       >
         <AlertTriangle className="w-3.5 h-3.5" />
         Urgent
         {urgentCount > 0 && (
-          <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 ml-0.5">
+          <span className={`text-xs rounded-full px-1.5 py-0.5 ml-0.5 ${selectedStatus === URGENT_TAB ? "bg-white/20" : "bg-red-100 text-red-700"}`}>
             {urgentCount}
           </span>
         )}
@@ -343,9 +337,14 @@ export default function JobsPage() {
       setUpdatingJobId(jobId);
       // Cancel in-flight refetches so they don't overwrite optimistic data
       await queryClient.cancelQueries({ queryKey: ["jobs"] });
-      // Snapshot current data for rollback on error
+      // Snapshot current data for rollback on error and undo
       const activeKey = ["jobs", currentBranch?.id, statusFilter, search, page];
       const previousData = queryClient.getQueryData(activeKey);
+      // Capture the previous status of this specific job for undo
+      const prevJob = (previousData as { results?: JobCard[] } | undefined)?.results?.find(
+        (j) => j.id === jobId,
+      );
+      const previousStatus = prevJob?.status;
       // Optimistically update the job's status in the list
       queryClient.setQueryData(activeKey, (old: unknown) => {
         const data = old as { results?: JobCard[]; count?: number } | undefined;
@@ -357,16 +356,19 @@ export default function JobsPage() {
           ),
         };
       });
-      return { activeKey, previousData };
+      return { activeKey, previousData, previousStatus };
     },
     onError: (err: Error, _, context) => {
-      // Restore the snapshot on failure
       if (context) queryClient.setQueryData(context.activeKey, context.previousData);
       toast.error(err.message || "Failed to update status");
     },
-    onSuccess: (_, { toStatus }) => {
-      const label = toStatus.replace(/_/g, " ").toLowerCase();
-      toast.success(`Job moved to ${label}`);
+    onSuccess: (_, { jobId, toStatus }, context) => {
+      const label = toStatus.split("_").map((w: string) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+      const prevStatus = context?.previousStatus;
+      toast.success(
+        `Job moved to ${label}`,
+        prevStatus ? { label: "Undo", onClick: () => quickUpdateStatus({ jobId, toStatus: prevStatus }) } : undefined,
+      );
     },
     onSettled: () => {
       setUpdatingJobId(null);
@@ -445,11 +447,6 @@ export default function JobsPage() {
                 aria-label="Search job cards"
                 className="py-3 text-sm"
               />
-            }
-            secondaryActions={
-              <Button variant="secondary" leftIcon={<Filter className="h-4 w-4" />}>
-                More Filters
-              </Button>
             }
           />
 

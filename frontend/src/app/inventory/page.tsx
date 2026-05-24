@@ -936,7 +936,17 @@ export default function InventoryPage() {
     "all",
   );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  const [viewMode, setViewMode] = useState<"table" | "card">(() => {
+    if (typeof window === "undefined") return "table";
+    return (localStorage.getItem("inventory-view") as "table" | "card") ?? "table";
+  });
+
+  const handleViewChange = (v: "table" | "card") => {
+    setViewMode(v);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("inventory-view", v);
+    }
+  };
   const [showCategories, setShowCategories] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1153,7 +1163,7 @@ export default function InventoryPage() {
                     aria-label="Inventory layout"
                     className="ml-1 w-full shrink-0 sm:w-auto"
                     value={viewMode}
-                    onValueChange={setViewMode}
+                    onValueChange={handleViewChange}
                     options={INVENTORY_VIEW_SEGMENTS}
                   />
                 </div>

@@ -514,6 +514,10 @@ export default function InvoiceDetailsPage() {
         <Header
           title={`Invoice ${invoice.invoice_number}`}
           subtitle={formatDateLong(invoice.invoice_date)}
+          breadcrumbs={[
+            { label: "Sales Register", href: "/billing" },
+            { label: invoice.invoice_number },
+          ]}
           actions={
             <div className="flex items-center gap-2">
               <Button

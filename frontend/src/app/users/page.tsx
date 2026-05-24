@@ -510,7 +510,23 @@ function DeleteConfirmModal({ isOpen, onClose, user }: DeleteConfirmProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onClose();
-      toast.success("Staff member deactivated successfully.");
+      if (!user) return;
+      const userId = user.id;
+      const userName = `${user.first_name} ${user.last_name}`;
+      toast.success(`${userName} deactivated.`, {
+        label: "Undo",
+        onClick: () => {
+          void usersApi
+            .update(userId, { is_active: true } as Partial<User>)
+            .then(() => {
+              void queryClient.invalidateQueries({ queryKey: ["users"] });
+              toast.success(`${userName} reactivated.`);
+            })
+            .catch(() => {
+              toast.error("Failed to reactivate. Please edit the user manually.");
+            });
+        },
+      });
     },
     onError: (error: {
       response?: { data?: { detail?: string } };

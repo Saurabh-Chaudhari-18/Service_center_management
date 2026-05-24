@@ -18,7 +18,17 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
         <span className={`mt-0.5 text-sm font-bold ${bar.replace("bg-", "text-")}`}>
           {icon}
         </span>
-        <p className="flex-1 text-sm text-neutral-800 dark:text-neutral-100">{toast.message}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-neutral-800 dark:text-neutral-100">{toast.message}</p>
+          {toast.action && (
+            <button
+              onClick={() => { toast.action!.onClick(); onDismiss(); }}
+              className={`mt-1 text-xs font-semibold underline underline-offset-2 ${bar.replace("bg-", "text-")} hover:opacity-80 transition-opacity`}
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
         <button
           onClick={onDismiss}
           className="ml-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"

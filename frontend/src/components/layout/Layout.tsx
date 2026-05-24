@@ -3,8 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { notificationsApi } from "@/lib/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -120,9 +121,16 @@ export function Sidebar() {
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
   const { close: closeMobile } = useMobileSidebar();
 
-  const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>({
-    Transactions: true,
-    "Finance Reports": false,
+  const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>(() => {
+    const state: Record<string, boolean> = {};
+    for (const item of navigationItems) {
+      if (item.children) {
+        state[item.name] = item.children.some(
+          (c) => c.href && (pathname === c.href || pathname?.startsWith(`${c.href}/`)),
+        );
+      }
+    }
+    return state;
   });
 
   const toggleExpanded = (name: string) => {
@@ -216,12 +224,19 @@ export function Sidebar() {
           
           if (item.children) {
             const isExpanded = expandedItems[item.name];
+            const hasActiveChild = item.children.some(
+              (c) => c.href && (pathname === c.href || pathname?.startsWith(`${c.href}/`)),
+            );
             return (
               <div key={item.name} className="space-y-0.5">
                 <button
                   onClick={() => toggleExpanded(item.name)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-sm font-medium ${
-                    isExpanded ? "bg-white/5 text-white" : "text-violet-200 hover:bg-white/10 hover:text-white"
+                    isExpanded
+                      ? "bg-white/5 text-white"
+                      : hasActiveChild
+                        ? "text-white bg-white/[0.06] border-l-2 border-violet-400 pl-[10px]"
+                        : "text-violet-200 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -303,12 +318,19 @@ interface HeaderProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
+  breadcrumbs?: Array<{ label: string; href?: string }>;
 }
 
-export function Header({ title, subtitle, actions }: HeaderProps) {
+export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
   const { currentBranch, organizationBranding } = useAuth();
-  const [notificationCount] = React.useState(0);
   const { toggle } = useMobileSidebar();
+
+  const { data: notifData } = useQuery({
+    queryKey: ["notification-unread-count"],
+    queryFn: () => notificationsApi.getUnreadCount(),
+    refetchInterval: 60_000,
+  });
+  const notificationCount = notifData?.count ?? 0;
 
   return (
     <header className="min-h-[4rem] lg:min-h-[4.5rem] py-3 px-4 lg:px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
@@ -323,6 +345,22 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
         </button>
 
         <div className="min-w-0">
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-neutral-400 dark:text-neutral-500 mb-0.5 truncate">
+              {breadcrumbs.map((crumb, i) => (
+                <React.Fragment key={crumb.label}>
+                  {i > 0 && <span className="select-none">/</span>}
+                  {crumb.href ? (
+                    <Link href={crumb.href} className="hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span className="text-neutral-500 dark:text-neutral-400 font-medium">{crumb.label}</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </nav>
+          )}
           {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
             <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent truncate">
               {title}
