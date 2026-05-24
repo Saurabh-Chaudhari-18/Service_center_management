@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { IndianRupee, CreditCard, CheckCircle2, Search, Calendar, FileText, User, ChevronDown, ChevronUp, History } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { Purchase } from "@/types";
 import { formatDateLong } from "@/lib/formatters";
@@ -49,7 +49,7 @@ const AP_SCOPE_SEGMENTS = [
   },
 ];
 
-export default function PaymentsPage() {
+function PaymentsPageContent() {
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -205,7 +205,7 @@ export default function PaymentsPage() {
         <WorkspaceSurface>
           {loading ? (
             <div className="p-8">
-              <LoadingState />
+              <LoadingState message="Loading payments…" />
             </div>
           ) : listError ? (
             <div className="p-8">
@@ -277,9 +277,9 @@ export default function PaymentsPage() {
                               <p className="mb-0.5 text-xs font-medium text-neutral-500">Paid Amount</p>
                               <p className="font-bold text-neutral-900 dark:text-white">₹{parseFloat(String(purchase.paid_amount || 0)).toLocaleString()}</p>
                             </div>
-                            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              PAID
+                              Paid
                             </span>
                           </div>
                         ) : (
@@ -291,13 +291,13 @@ export default function PaymentsPage() {
                             <Button
                               type="button"
                               variant="secondary"
-                              size="sm"
+                              size="md"
                               leftIcon={<CreditCard className="h-4 w-4" />}
                               onClick={() => {
                                 setSelectedPurchase(purchase);
                                 setPaymentAmount(String(purchase.balance_due));
                               }}
-                              className="whitespace-nowrap rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+                              className="w-full whitespace-nowrap rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 sm:w-auto"
                             >
                               Pay Now
                             </Button>
@@ -397,5 +397,13 @@ export default function PaymentsPage() {
         ) : null}
       </Modal>
     </AppLayout>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <PaymentsPageContent />
+    </ProtectedRoute>
   );
 }

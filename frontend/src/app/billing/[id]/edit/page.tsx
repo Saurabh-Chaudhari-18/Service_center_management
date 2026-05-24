@@ -20,9 +20,9 @@ import {
   Save,
   Package,
 } from "lucide-react";
-import Link from "next/link";
 import { formatDateLong } from "@/lib/formatters";
 import type { Invoice } from "@/types";
+import { useToast } from "@/context/ToastContext";
 
 // =====================================================
 // Schemas & Types
@@ -346,59 +346,64 @@ function InvoicePreviewModal({
   totalTax,
   grandTotal,
 }: InvoicePreviewModalProps) {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto print:hidden">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      {/* Screen-only overlay — hidden from print */}
+      <div className="modal-overlay print:hidden" onClick={onClose}>
+        <div
+          className="modal-content max-w-4xl w-full max-h-[90vh] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-neutral-100 dark:border-slate-800 shrink-0">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Invoice Preview
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Review details before saving.
+            </p>
+          </div>
 
-        {/* Modal Container */}
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Screen Header */}
-            <div className="px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-semibold text-neutral-900">
-                Invoice Preview
-              </h2>
-              <p className="text-sm text-neutral-500">
-                Review details before saving.
-              </p>
-            </div>
+          {/* Scrollable template */}
+          <div className="overflow-y-auto flex-1">
+            <InvoiceTemplate
+              formData={formData}
+              invoice={invoice}
+              subtotal={subtotal}
+              totalTax={totalTax}
+              grandTotal={grandTotal}
+            />
+          </div>
 
-            {/* Template Rendered for Screen */}
-            <div className="p-0">
-              <InvoiceTemplate
-                formData={formData}
-                invoice={invoice}
-                subtotal={subtotal}
-                totalTax={totalTax}
-                grandTotal={grandTotal}
-              />
-            </div>
-
-            {/* Footer Actions */}
-            <div className="sticky bottom-0 bg-white border-t border-neutral-200 p-4 flex justify-end gap-3 rounded-b-xl">
-              <Button variant="secondary" onClick={onClose}>
-                Back to Edit
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                disabled={isSubmitting}
-              >
-                Print
-              </Button>
-              <Button
-                onClick={onConfirm}
-                isLoading={isSubmitting}
-                leftIcon={<Save className="w-4 h-4" />}
-              >
-                Confirm & Save Changes
-              </Button>
-            </div>
+          {/* Footer Actions */}
+          <div className="border-t border-neutral-100 dark:border-slate-800 p-4 flex justify-end gap-3 shrink-0">
+            <Button variant="secondary" onClick={onClose}>
+              Back to Edit
+            </Button>
+            <Button
+              onClick={() => window.print()}
+              variant="secondary"
+              leftIcon={<Printer className="w-4 h-4" />}
+              disabled={isSubmitting}
+            >
+              Print
+            </Button>
+            <Button
+              onClick={onConfirm}
+              isLoading={isSubmitting}
+              leftIcon={<Save className="w-4 h-4" />}
+            >
+              Confirm & Save Changes
+            </Button>
           </div>
         </div>
       </div>
@@ -426,6 +431,7 @@ function EditInvoiceContent() {
   const params = useParams();
   const id = params?.id as string;
   const { currentBranch, hasPermission } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
@@ -599,7 +605,7 @@ function EditInvoiceContent() {
     },
     onError: (error: Error) => {
       console.error(error);
-      alert("Failed to update invoice");
+      toast.error(error.message || "Failed to update invoice");
     },
   });
 
@@ -631,7 +637,7 @@ function EditInvoiceContent() {
   if (isLoading || !invoice) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading invoice…" />
       </AppLayout>
     );
   }
@@ -643,15 +649,19 @@ function EditInvoiceContent() {
           <Header
             title={`Edit Invoice ${invoice.invoice_number}`}
             subtitle={formatDateLong(invoice.invoice_date)}
+            breadcrumbs={[
+              { label: "Sales Register", href: "/billing" },
+              { label: invoice.invoice_number, href: `/billing/${id}` },
+              { label: "Edit" },
+            ]}
             actions={
-              <Link href={`/billing/${id}`}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(`/billing/${id}`)}
+              >
+                Cancel
+              </Button>
             }
           />
 
@@ -888,11 +898,13 @@ function EditInvoiceContent() {
             </Card>
 
             <div className="flex justify-end gap-4">
-              <Link href={`/billing/${id}`}>
-                <Button variant="secondary" type="button">
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => router.push(`/billing/${id}`)}
+              >
+                Cancel
+              </Button>
               <Button type="submit" leftIcon={<FileText className="w-4 h-4" />}>
                 Preview & Save
               </Button>
@@ -924,7 +936,7 @@ export default function EditInvoicePage() {
     <Suspense
       fallback={
         <AppLayout>
-          <LoadingState />
+          <LoadingState message="Loading invoice…" />
         </AppLayout>
       }
     >

@@ -18,7 +18,7 @@ from expenses.serializers import (
     ExpenseCreateSerializer
 )
 from core.permissions import (
-    IsBranchMember, BranchScopedMixin, IsOwnerOrManager
+    IsBranchMember, BranchScopedMixin, IsOwnerOrManager, CanManageFinance,
 )
 
 
@@ -32,7 +32,7 @@ class ExpenseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     - Monthly/daily stats
     """
     serializer_class = ExpenseSerializer
-    permission_classes = [IsAuthenticated, IsBranchMember]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageFinance]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['category', 'is_recurring', 'expense_date']
     search_fields = ['title', 'description', 'vendor_name']

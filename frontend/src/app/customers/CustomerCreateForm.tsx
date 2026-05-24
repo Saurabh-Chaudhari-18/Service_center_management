@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { Button, Input, Select } from "@/components/ui";
+import { useToast } from "@/context/ToastContext";
 import { customersApi, branchesApi } from "@/lib/api";
 
 const customerSchema = z.object({
@@ -47,6 +48,7 @@ export function CustomerCreateForm({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
+  const { toast } = useToast();
   const [selectedBranchId, setSelectedBranchId] = useState<string>(initialBranchId);
 
   const {
@@ -75,8 +77,15 @@ export function CustomerCreateForm({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast.success("Customer created successfully.");
       reset();
       onSuccess();
+    },
+    onError: (error: { response?: { data?: { detail?: string } }; message?: string }) => {
+      toast.error(
+        "Failed to create customer: " +
+          (error.response?.data?.detail || error.message || "Unknown error"),
+      );
     },
   });
 

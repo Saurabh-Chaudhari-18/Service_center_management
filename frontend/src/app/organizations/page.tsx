@@ -10,7 +10,12 @@ import {
   Badge,
   Modal,
   LoadingState,
+  EmptyState,
+  StatsCard,
 } from "@/components/ui";
+import { PageShell } from "@/components/shell/PageShell";
+import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
+import { formatDateLong } from "@/lib/formatters";
 import { organizationsApi, branchesApi, usersApi } from "@/lib/api";
 import type { Organization, Branch, User } from "@/types";
 import {
@@ -25,9 +30,9 @@ import {
   Shield,
   Search,
   Eye,
-  X,
   Store,
 } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -66,6 +71,7 @@ interface OrgModalProps {
 
 function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isEditing = !!org;
 
   const {
@@ -105,12 +111,12 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      alert(isEditing ? "Organization updated" : "Organization created");
+      toast.success(isEditing ? "Organization updated" : "Organization created");
       onClose();
       reset();
     },
     onError: (error: Error) => {
-      alert(error.message || "Failed to save organization");
+      toast.error(error.message || "Failed to save organization");
     },
   });
 
@@ -133,14 +139,25 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
     }
   }, [org, isOpen, reset]);
 
+  const ORG_FORM_ID = "org-form";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Edit Organization" : "Add New Organization"}
       size="xl"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} type="button">Cancel</Button>
+          <Button type="submit" form={ORG_FORM_ID} isLoading={mutation.isPending}>
+            {isEditing ? "Update Organization" : "Create Organization"}
+          </Button>
+        </>
+      }
     >
       <form
+        id={ORG_FORM_ID}
         onSubmit={handleSubmit((data) => mutation.mutate(data))}
         className="space-y-6"
       >
@@ -228,14 +245,6 @@ function OrgModal({ isOpen, onClose, org }: OrgModalProps) {
           <span className="text-sm text-neutral-700">Active</span>
         </label>
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="secondary" onClick={onClose} type="button">
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={mutation.isPending}>
-            {isEditing ? "Update Organization" : "Create Organization"}
-          </Button>
-        </div>
       </form>
     </Modal>
   );
@@ -274,36 +283,24 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
   const staffCount = orgUsers.filter((u: User) => u.role !== "OWNER").length;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white shadow-2xl overflow-y-auto animate-slide-in-right">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-900">
-              {org.name}
-            </h2>
-            <p className="text-sm text-neutral-500">{org.legal_name}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(org)}
-              leftIcon={<Edit2 className="w-4 h-4" />}
-            >
-              Edit
-            </Button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
-            >
-              <X className="w-5 h-5 text-neutral-500" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={org.name}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button
+            leftIcon={<Edit2 className="w-4 h-4" />}
+            onClick={() => { onEdit(org); onClose(); }}
+          >
+            Edit Organization
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-6">
           {/* Status */}
           <div className="flex items-center gap-2">
             <Badge variant={org.is_active ? "success" : "default"}>
@@ -453,26 +450,11 @@ function OrgDetailDrawer({ org, onClose, onEdit }: OrgDetailProps) {
 
           {/* Timestamps */}
           <div className="border-t pt-4 text-xs text-neutral-400">
-            <p>
-              Created:{" "}
-              {new Date(org.created_at).toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-            <p>
-              Updated:{" "}
-              {new Date(org.updated_at).toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
+            <p>Created: {formatDateLong(org.created_at)}</p>
+            <p>Updated: {formatDateLong(org.updated_at)}</p>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -533,13 +515,7 @@ function OrgCard({
       {/* Footer with action */}
       <div className="flex items-center justify-between pt-3 border-t border-neutral-100">
         <div className="flex items-center gap-1 text-xs text-neutral-400">
-          <span>
-            Created{" "}
-            {new Date(org.created_at).toLocaleDateString("en-IN", {
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
+          <span>Created {formatDateLong(org.created_at)}</span>
         </div>
         <div
           className="flex items-center gap-2"
@@ -624,61 +600,50 @@ export default function OrganizationsPage() {
           }
         />
 
-        <div className="p-6">
+        <PageShell>
           {/* Summary Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900">
-                  {orgs.length}
-                </p>
-                <p className="text-sm text-neutral-500">Total Organizations</p>
-              </div>
-            </div>
-            <div className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900">
-                  {activeCount}
-                </p>
-                <p className="text-sm text-neutral-500">Active</p>
-              </div>
-            </div>
-            <div className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-red-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900">
-                  {inactiveCount}
-                </p>
-                <p className="text-sm text-neutral-500">Inactive</p>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatsCard
+              label="Total Organizations"
+              value={orgs.length}
+              icon={<Building2 className="w-5 h-5" />}
+              variant="accent"
+            />
+            <StatsCard
+              label="Active"
+              value={activeCount}
+              icon={<Shield className="w-5 h-5" />}
+              variant="success"
+            />
+            <StatsCard
+              label="Inactive"
+              value={inactiveCount}
+              icon={<Building2 className="w-5 h-5" />}
+              variant="warning"
+            />
           </div>
 
           {/* Search */}
-          <div className="mb-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-              <input
-                type="text"
+          <RegisterToolbar
+            search={
+              <Input
                 placeholder="Search organizations by name, city, or email..."
+                leftIcon={<Search className="w-4 h-4" />}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
-            </div>
-          </div>
+            }
+          />
 
           {/* Organization Cards */}
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading organizations…" />
+          ) : filteredOrgs.length === 0 ? (
+            <EmptyState
+              icon={<Building2 className="w-8 h-8 text-neutral-400" />}
+              title={searchQuery ? "No organizations match your search" : "No organizations yet"}
+              description={!searchQuery ? 'Click "Add Organization" to create the first one.' : undefined}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredOrgs.map((org) => (
@@ -689,25 +654,9 @@ export default function OrganizationsPage() {
                   onEdit={handleEdit}
                 />
               ))}
-
-              {filteredOrgs.length === 0 && (
-                <div className="col-span-full text-center py-16 bg-neutral-50 rounded-xl border border-dashed border-neutral-300">
-                  <Building2 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                  <p className="text-neutral-500 font-medium">
-                    {searchQuery
-                      ? "No organizations match your search"
-                      : "No organizations yet"}
-                  </p>
-                  {!searchQuery && (
-                    <p className="text-sm text-neutral-400 mt-1">
-                      Click &quot;Add Organization&quot; to create the first one
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           )}
-        </div>
+        </PageShell>
 
         {/* Modals */}
         <OrgModal

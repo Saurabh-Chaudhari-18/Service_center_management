@@ -63,6 +63,12 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ---
 
+## Frontend UI/UX Guidelines
+
+All frontend work must comply with the **[UX Constitution](docs/ux/UX_CONSTITUTION.md)**. It defines non-negotiable patterns for layouts, CRUD surfaces, data fetching, and component usage across the entire `frontend/` application. Read it before making UI changes.
+
+---
+
 ## Deploy
 
 - **Deploy locally for testing** (Docker Compose): `cp deploy/env.docker.example .env`, edit `.env` (set `SECRET_KEY`, `ENCRYPTION_KEY`), then `docker compose up --build -d`. See [DEPLOYMENT.md](DEPLOYMENT.md#deploy-locally-for-testing-docker-compose).

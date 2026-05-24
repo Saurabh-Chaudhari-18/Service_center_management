@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useParams } from "next/navigation";
-import { Wrench, Phone, AlertCircle, FileText, MapPin, Camera } from "lucide-react";
+import { Wrench, Phone, AlertCircle, FileText, MapPin, Camera, RotateCcw, ImageOff } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import { JOB_STATUS_CONFIG, JobStatus } from "@/types";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
@@ -83,6 +83,13 @@ export default function TrackJobPage() {
     }
   };
 
+  const handleReset = () => {
+    setData(null);
+    setPhone("");
+    setPin("");
+    setError(null);
+  };
+
   const getStatusColor = (status: JobStatus) => {
     return JOB_STATUS_CONFIG[status]?.color || "bg-neutral-100 text-neutral-800 border-neutral-200";
   };
@@ -148,7 +155,7 @@ export default function TrackJobPage() {
                 required
               />
 
-              <p className="text-xs text-gray-400 mt-[-8px]">
+              <p className="text-xs text-neutral-400 mt-[-8px]">
                 PIN was sent via SMS when your device was registered. Contact the
                 service center if you don&apos;t have it.
               </p>
@@ -204,7 +211,7 @@ export default function TrackJobPage() {
                     {data.estimated_cost && (
                       <div className="grid grid-cols-3 gap-2">
                         <dt className="text-neutral-500">Est. Cost:</dt>
-                        <dd className="col-span-2 font-medium text-green-600">₹{data.estimated_cost}</dd>
+                        <dd className="col-span-2 font-semibold text-neutral-900">₹{data.estimated_cost}</dd>
                       </div>
                     )}
                     {data.estimated_completion_date && (
@@ -257,7 +264,21 @@ export default function TrackJobPage() {
                     <div key={idx} className="group relative overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 block">
                        <div className="aspect-[4/3] bg-neutral-100 relative">
                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                         <img src={photo.url} alt={photo.description || "Diagnosis photo"} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                         <img
+                           src={photo.url}
+                           alt={photo.description || "Diagnosis photo"}
+                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                           onError={(e) => {
+                             const target = e.currentTarget;
+                             target.style.display = "none";
+                             const fallback = target.nextElementSibling as HTMLElement | null;
+                             if (fallback) fallback.style.display = "flex";
+                           }}
+                         />
+                         <div className="absolute inset-0 hidden flex-col items-center justify-center gap-2 text-neutral-400">
+                           <ImageOff className="w-8 h-8" />
+                           <span className="text-xs">Image unavailable</span>
+                         </div>
                        </div>
                        {photo.description && (
                          <div className="p-3 bg-white border-t border-neutral-100">
@@ -271,6 +292,17 @@ export default function TrackJobPage() {
                 </div>
               </div>
             )}
+
+          {/* Reset Button */}
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 transition-colors px-4 py-2 rounded-lg hover:bg-neutral-100"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Check another job
+            </button>
+          </div>
           </div>
         )}
 

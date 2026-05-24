@@ -114,7 +114,7 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
           }
         `}
       </style>
-      <div className="bg-white text-black p-8 max-w-4xl mx-auto print:p-8 print:text-base print:box-border print:flex print:flex-col print:h-[100vh]">
+      <div className="paper-doc bg-white text-black p-8 max-w-4xl mx-auto print:p-8 print:text-base print:box-border print:flex print:flex-col print:h-[100vh]">
         {/* ============================================= */}
         {/* COMPANY HEADER */}
         {/* ============================================= */}

@@ -78,6 +78,11 @@ def accountant(make_user):
 
 
 @pytest.fixture
+def manager(make_user):
+    return make_user(role=Role.MANAGER)
+
+
+@pytest.fixture
 def receptionist(make_user):
     return make_user(role=Role.RECEPTIONIST)
 
@@ -153,6 +158,34 @@ def seed_permissions(db):
             can_view_reports=False,
             can_manage_branches=False,
             can_manage_users=False,
+            can_view_pickups=True,
+        ),
+        Role.MANAGER: dict(
+            can_view_dashboard=True,
+            can_view_job_cards=True,
+            can_create_job_cards=True,
+            can_edit_job_cards=True,
+            can_view_inventory=True,
+            can_manage_inventory=True,
+            can_view_billing=True,
+            can_create_invoices=True,
+            can_view_reports=True,
+            can_manage_branches=False,
+            can_manage_users=False,
+            can_view_pickups=True,
+        ),
+        Role.SUPER_ADMIN: dict(
+            can_view_dashboard=True,
+            can_view_job_cards=True,
+            can_create_job_cards=True,
+            can_edit_job_cards=True,
+            can_view_inventory=True,
+            can_manage_inventory=True,
+            can_view_billing=True,
+            can_create_invoices=True,
+            can_view_reports=True,
+            can_manage_branches=True,
+            can_manage_users=True,
             can_view_pickups=True,
         ),
     }

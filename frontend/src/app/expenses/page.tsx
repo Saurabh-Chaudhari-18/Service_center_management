@@ -1,15 +1,24 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { expensesApi } from "@/lib/api/services";
 import {
   Plus, IndianRupee, Trash2, Search,
   TrendingDown, Receipt, RefreshCw, BadgePercent,
 } from "lucide-react";
 import type { Expense } from "@/types";
-import { Modal, Button } from "@/components/ui";
+import { Modal, Button, Badge, Input, Select, ConfirmDialog, StatsCard } from "@/components/ui";
+import {
+  PageShell,
+  RegisterListCard,
+  RegisterToolbar,
+  WorkspaceSurface,
+} from "@/components/shell";
+import { formatDateLong } from "@/lib/formatters";
 
 const EXPENSE_CATEGORIES = [
   { value: "RENT", label: "Rent" },
@@ -35,38 +44,90 @@ const PAYMENT_METHODS = [
   { value: "OTHER", label: "Other" },
 ];
 
-export default function ExpensesPage() {
+const GST_RATES = [
+  { value: "5", label: "5%" },
+  { value: "12", label: "12%" },
+  { value: "18", label: "18%" },
+  { value: "28", label: "28%" },
+];
+
+interface ExpenseListCardProps {
+  expense: Expense;
+  categoryLabel: string;
+  onDelete: (id: string) => void;
+}
+
+function ExpenseListCard({ expense, categoryLabel, onDelete }: ExpenseListCardProps) {
+  const itc = (expense as Expense & { is_itc_eligible?: boolean }).is_itc_eligible;
+
+  return (
+    <RegisterListCard>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-neutral-900 dark:text-white">{expense.title}</h3>
+            {expense.is_recurring && <Badge size="sm">Recurring</Badge>}
+            {itc && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300">
+                <BadgePercent className="h-3 w-3" />
+                ITC
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-500 dark:text-neutral-400">
+            <span>{formatDateLong(expense.expense_date)}</span>
+            <span className="rounded-lg bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-slate-700 dark:text-neutral-300">
+              {categoryLabel}
+            </span>
+            {expense.vendor_name ? <span>{expense.vendor_name}</span> : null}
+          </div>
+          <p className="mt-3 text-xl font-bold tabular-nums text-red-600 dark:text-red-400">
+            ₹{Number(expense.amount).toLocaleString("en-IN")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(expense.id)}
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+          aria-label={`Delete expense ${expense.title}`}
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
+      </div>
+    </RegisterListCard>
+  );
+}
+
+const makeEmptyForm = () => ({
+  title: "",
+  category: "MISCELLANEOUS",
+  amount: "",
+  expense_date: new Date().toISOString().split("T")[0],
+  payment_method: "CASH",
+  vendor_name: "",
+  description: "",
+  reference: "",
+  is_recurring: false,
+  is_itc_eligible: false,
+  vendor_gstin: "",
+  vendor_invoice_number: "",
+  gst_rate: "18",
+  taxable_amount: "",
+  cgst_amount: "0",
+  sgst_amount: "0",
+});
+
+function ExpensesPageContent() {
   const { currentBranch } = useAuth();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const [showForm, setShowForm] = useState(false);
-  const [stats, setStats] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [form, setForm] = useState(makeEmptyForm);
 
-  // Form state
-  const [form, setForm] = useState({
-    title: "",
-    category: "MISCELLANEOUS",
-    amount: "",
-    expense_date: new Date().toISOString().split("T")[0],
-    payment_method: "CASH",
-    vendor_name: "",
-    description: "",
-    reference: "",
-    is_recurring: false,
-    // ITC fields
-    is_itc_eligible: false,
-    vendor_gstin: "",
-    vendor_invoice_number: "",
-    gst_rate: "18",
-    taxable_amount: "",
-    cgst_amount: "0",
-    sgst_amount: "0",
-  });
-  const [saving, setSaving] = useState(false);
-
-  // Auto-calculate CGST/SGST when taxable or rate changes
   const handleITCChange = (field: string, value: string | boolean) => {
     setForm(prev => {
       const updated = { ...prev, [field]: value };
@@ -84,52 +145,31 @@ export default function ExpensesPage() {
     });
   };
 
-  const fetchExpenses = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params: any = {};
+  const { data: expensesData, isLoading } = useQuery({
+    queryKey: ["expenses", currentBranch?.id, search, categoryFilter],
+    queryFn: () => {
+      const params: Record<string, unknown> = {};
       if (currentBranch) params.branch = currentBranch.id;
       if (search) params.search = search;
       if (categoryFilter) params.category = categoryFilter;
-      const res = await expensesApi.list(params);
-      setExpenses(res.results || []);
-    } catch (err) {
-      console.error("Failed to load expenses:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentBranch, search, categoryFilter]);
+      return expensesApi.list(params);
+    },
+    enabled: !!currentBranch,
+  });
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const params: any = {};
+  const { data: stats } = useQuery<any>({
+    queryKey: ["expense-stats", currentBranch?.id],
+    queryFn: () => {
+      const params: Record<string, unknown> = {};
       if (currentBranch) params.branch = currentBranch.id;
-      const res = await expensesApi.getStats(params);
-      setStats(res);
-    } catch (err) {
-      console.error("Failed to load expense stats:", err);
-    }
-  }, [currentBranch]);
+      return expensesApi.getStats(params);
+    },
+    enabled: !!currentBranch,
+  });
 
-  useEffect(() => {
-    fetchExpenses();
-    fetchStats();
-  }, [fetchExpenses, fetchStats]);
-
-  const EMPTY_FORM = {
-    title: "", category: "MISCELLANEOUS", amount: "",
-    expense_date: new Date().toISOString().split("T")[0],
-    payment_method: "CASH", vendor_name: "", description: "",
-    reference: "", is_recurring: false,
-    is_itc_eligible: false, vendor_gstin: "", vendor_invoice_number: "",
-    gst_rate: "18", taxable_amount: "", cgst_amount: "0", sgst_amount: "0",
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await expensesApi.create({
+  const createMutation = useMutation({
+    mutationFn: () =>
+      expensesApi.create({
         ...form,
         amount: parseFloat(form.amount),
         taxable_amount: form.is_itc_eligible ? parseFloat(form.taxable_amount) || 0 : 0,
@@ -137,28 +177,29 @@ export default function ExpensesPage() {
         sgst_amount: parseFloat(form.sgst_amount) || 0,
         gst_rate: parseFloat(form.gst_rate) || 0,
         branch: currentBranch?.id,
-      });
+      }),
+    onSuccess: () => {
       setShowForm(false);
-      setForm(EMPTY_FORM);
-      fetchExpenses();
-      fetchStats();
-    } catch (err) {
-      console.error("Failed to create expense:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
+      setForm(makeEmptyForm());
+      toast.success("Expense added.");
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-stats"] });
+    },
+    onError: () => toast.error("Failed to add expense."),
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this expense?")) return;
-    try {
-      await expensesApi.delete(id);
-      fetchExpenses();
-      fetchStats();
-    } catch (err) {
-      console.error("Failed to delete expense:", err);
-    }
-  };
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => expensesApi.delete(id),
+    onSuccess: () => {
+      setPendingDeleteId(null);
+      toast.success("Expense deleted.");
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-stats"] });
+    },
+    onError: () => toast.error("Failed to delete expense."),
+  });
+
+  const expenses: Expense[] = expensesData?.results || [];
 
   const getCategoryLabel = (val: string) =>
     EXPENSE_CATEGORIES.find((c) => c.value === val)?.label || val;
@@ -169,130 +210,115 @@ export default function ExpensesPage() {
         title="Expenses"
         subtitle="Track daily operational costs & calculate net profit"
         actions={
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-          >
-            <Plus className="w-4 h-4" /> Add Expense
-          </button>
+          <Button onClick={() => setShowForm(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            Add Expense
+          </Button>
         }
       />
 
-      <div className="p-4 lg:p-6 space-y-6">
+      <PageShell width="fluid">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100 dark:bg-red-900/30">
-                <TrendingDown className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Total Expenses</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">
-                  ₹{Number(stats?.total_amount || 0).toLocaleString("en-IN")}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-100 dark:bg-violet-900/30">
-                <Receipt className="w-5 h-5 text-violet-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Expense Count</p>
-                <p className="text-xl font-bold text-neutral-900 dark:text-white">
-                  {stats?.expense_count || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
-                <IndianRupee className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Top Category</p>
-                <p className="text-base font-bold text-neutral-900 dark:text-white">
-                  {stats?.by_category?.[0]
-                    ? `${stats.by_category[0].category_display} (₹${Number(stats.by_category[0].total).toLocaleString("en-IN")})`
-                    : "N/A"}
-                </p>
-              </div>
-            </div>
-          </div>
+          <StatsCard
+            label="Total Expenses"
+            value={`₹${Number(stats?.total_amount || 0).toLocaleString("en-IN")}`}
+            icon={<TrendingDown className="w-5 h-5" />}
+            variant="warning"
+          />
+          <StatsCard
+            label="Expense Count"
+            value={stats?.expense_count || 0}
+            icon={<Receipt className="w-5 h-5" />}
+            variant="accent"
+          />
+          <StatsCard
+            label="Top Category"
+            value={stats?.by_category?.[0]
+              ? stats.by_category[0].category_display
+              : "N/A"}
+            icon={<IndianRupee className="w-5 h-5" />}
+            variant="warning"
+          />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <input
+        <RegisterToolbar
+          search={
+            <Input
               type="text"
               placeholder="Search expenses..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+              leftIcon={<Search className="h-4 w-4" />}
+              aria-label="Search expenses"
+              className="py-3 text-sm"
             />
-          </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-          >
-            <option value="">All Categories</option>
-            {EXPENSE_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-          <button onClick={() => { fetchExpenses(); fetchStats(); }} className="p-2 rounded-xl border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+          }
+          filters={
+            <div className="flex items-center gap-3">
+              <Select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                options={[{ value: "", label: "All Categories" }, ...EXPENSE_CATEGORIES]}
+                className="w-48"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+                  void queryClient.invalidateQueries({ queryKey: ["expense-stats"] });
+                }}
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Refresh"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          }
+        />
 
-        {/* Expenses Table */}
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 dark:border-slate-700">
-                  <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Date</th>
-                  <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Title</th>
-                  <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Category</th>
-                  <th className="text-left p-3 font-semibold text-neutral-600 dark:text-neutral-300">Vendor</th>
-                  <th className="text-center p-3 font-semibold text-neutral-600 dark:text-neutral-300">ITC</th>
-                  <th className="text-right p-3 font-semibold text-neutral-600 dark:text-neutral-300">Amount</th>
-                  <th className="text-center p-3 font-semibold text-neutral-600 dark:text-neutral-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-neutral-400">Loading expenses...</td></tr>
-                ) : expenses.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-neutral-400">No expenses found. Add your first expense!</td></tr>
-                ) : (
-                  expenses.map((exp) => (
+        <WorkspaceSurface>
+          {isLoading ? (
+            <div className="p-8 text-center text-neutral-400">Loading expenses...</div>
+          ) : expenses.length === 0 ? (
+            <div className="p-8 text-center text-neutral-400">
+              {search || categoryFilter
+                ? "No expenses found. Try adjusting your filters."
+                : "No expenses yet. Add your first expense!"}
+            </div>
+          ) : (
+            <>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-900/50">
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Date</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Title</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Category</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Vendor</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">ITC</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Amount</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((exp) => (
                     <tr key={exp.id} className="border-b border-neutral-100 dark:border-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="p-3 text-neutral-600 dark:text-neutral-400">
+                      <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
                         {new Date(exp.expense_date).toLocaleDateString("en-IN")}
                       </td>
-                      <td className="p-3 font-medium text-neutral-900 dark:text-white">
+                      <td className="px-4 py-3 font-medium text-neutral-900 dark:text-white">
                         {exp.title}
                         {exp.is_recurring && (
-                          <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 font-semibold">
-                            Recurring
-                          </span>
+                          <Badge size="sm" className="ml-2">Recurring</Badge>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="px-4 py-3">
                         <span className="px-2 py-1 rounded-lg text-xs font-medium bg-neutral-100 dark:bg-slate-700 text-neutral-700 dark:text-neutral-300">
                           {getCategoryLabel(exp.category)}
                         </span>
                       </td>
-                      <td className="p-3 text-neutral-600 dark:text-neutral-400">{exp.vendor_name || "—"}</td>
-                      <td className="p-3 text-center">
+                      <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">{exp.vendor_name || "—"}</td>
+                      <td className="px-4 py-3 text-center">
                         {(exp as any).is_itc_eligible ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
                             <BadgePercent className="w-3 h-3" /> ITC
@@ -301,25 +327,39 @@ export default function ExpensesPage() {
                           <span className="text-neutral-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="p-3 text-right font-semibold text-red-600 dark:text-red-400">
+                      <td className="px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400">
                         ₹{Number(exp.amount).toLocaleString("en-IN")}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() => handleDelete(exp.id)}
-                          className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          type="button"
+                          onClick={() => setPendingDeleteId(exp.id)}
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                          aria-label="Delete expense"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="min-w-0 space-y-3 p-4 lg:hidden">
+              {expenses.map((exp) => (
+                <ExpenseListCard
+                  key={exp.id}
+                  expense={exp}
+                  categoryLabel={getCategoryLabel(exp.category)}
+                  onDelete={setPendingDeleteId}
+                />
+              ))}
+            </div>
+            </>
+          )}
+        </WorkspaceSurface>
+      </PageShell>
 
       <Modal
         isOpen={showForm}
@@ -331,205 +371,185 @@ export default function ExpensesPage() {
             <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
-            <Button type="submit" form="expense-create-form" isLoading={saving}>
+            <Button type="submit" form="expense-create-form" isLoading={createMutation.isPending}>
               Save Expense
             </Button>
           </>
         }
       >
-        <form id="expense-create-form" onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Title *</label>
-                <input
-                  required
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  placeholder="e.g., Office electricity bill"
-                />
-              </div>
+        <form id="expense-create-form" onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4">
+          <Input
+            required
+            label="Title *"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="e.g., Office electricity bill"
+          />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Category *</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  >
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                  </select>
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Category *"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              options={EXPENSE_CATEGORIES}
+            />
+            <Input
+              required
+              label="Amount (₹) *"
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              required
+              label="Date *"
+              type="date"
+              value={form.expense_date}
+              onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
+            />
+            <Select
+              label="Payment Method"
+              value={form.payment_method}
+              onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+              options={PAYMENT_METHODS}
+            />
+          </div>
+
+          <Input
+            label="Vendor / Payee"
+            value={form.vendor_name}
+            onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
+            placeholder="Vendor name"
+          />
+
+          <div>
+            <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Notes</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
+              placeholder="Additional details..."
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+            <input
+              type="checkbox"
+              checked={form.is_recurring}
+              onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
+              className="rounded"
+            />
+            Mark as recurring monthly expense
+          </label>
+
+          {/* ITC Section */}
+          <div className="rounded-xl border border-dashed border-green-300 bg-green-50/50 p-4 space-y-3">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                <BadgePercent className="w-4 h-4 text-green-600" />
+                Claim ITC on this expense
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_itc_eligible}
+                onClick={() => handleITCChange("is_itc_eligible", !form.is_itc_eligible)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  form.is_itc_eligible ? "bg-green-500" : "bg-neutral-300"
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  form.is_itc_eligible ? "translate-x-6" : "translate-x-1"
+                }`} />
+              </button>
+            </label>
+
+            {form.is_itc_eligible && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor GSTIN</label>
+                    <input
+                      type="text"
+                      value={form.vendor_gstin}
+                      onChange={(e) => setForm({ ...form, vendor_gstin: e.target.value.toUpperCase() })}
+                      placeholder="e.g. 27XXXXX1234X1Z5"
+                      maxLength={15}
+                      className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor Invoice #</label>
+                    <input
+                      type="text"
+                      value={form.vendor_invoice_number}
+                      onChange={(e) => setForm({ ...form, vendor_invoice_number: e.target.value })}
+                      placeholder="Vendor's bill number"
+                      className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Amount (₹) *</label>
-                  <input
-                    required
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Select
+                    label="GST Rate (%)"
+                    value={form.gst_rate}
+                    onChange={(e) => handleITCChange("gst_rate", e.target.value)}
+                    options={GST_RATES}
+                  />
+                  <Input
+                    label="Taxable Amount (₹)"
                     type="number"
                     step="0.01"
-                    min="0.01"
-                    value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                    placeholder="0.00"
+                    min="0"
+                    value={form.taxable_amount}
+                    onChange={(e) => handleITCChange("taxable_amount", e.target.value)}
+                    placeholder="Amount before GST"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Date *</label>
-                  <input
-                    required
-                    type="date"
-                    value={form.expense_date}
-                    onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Payment Method</label>
-                  <select
-                    value={form.payment_method}
-                    onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Vendor / Payee</label>
-                <input
-                  type="text"
-                  value={form.vendor_name}
-                  onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-                  placeholder="Vendor name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Notes</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm resize-none"
-                  placeholder="Additional details..."
-                />
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                <input
-                  type="checkbox"
-                  checked={form.is_recurring}
-                  onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
-                  className="rounded"
-                />
-                Mark as recurring monthly expense
-              </label>
-
-              {/* ── ITC Section ──────────────────────────────────── */}
-              <div className="rounded-xl border border-dashed border-green-300 bg-green-50/50 p-4 space-y-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                    <BadgePercent className="w-4 h-4 text-green-600" />
-                    Claim ITC on this expense
-                  </span>
-                  {/* Toggle switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.is_itc_eligible}
-                    onClick={() => handleITCChange("is_itc_eligible", !form.is_itc_eligible)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      form.is_itc_eligible ? "bg-green-500" : "bg-neutral-300"
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                      form.is_itc_eligible ? "translate-x-6" : "translate-x-1"
-                    }`} />
-                  </button>
-                </label>
-
-                {form.is_itc_eligible && (
-                  <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor GSTIN</label>
-                        <input
-                          type="text"
-                          value={form.vendor_gstin}
-                          onChange={(e) => setForm({ ...form, vendor_gstin: e.target.value.toUpperCase() })}
-                          placeholder="e.g. 27XXXXX1234X1Z5"
-                          maxLength={15}
-                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Vendor Invoice #</label>
-                        <input
-                          type="text"
-                          value={form.vendor_invoice_number}
-                          onChange={(e) => setForm({ ...form, vendor_invoice_number: e.target.value })}
-                          placeholder="Vendor's bill number"
-                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1">GST Rate (%)</label>
-                        <select
-                          value={form.gst_rate}
-                          onChange={(e) => handleITCChange("gst_rate", e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
-                        >
-                          {["5", "12", "18", "28"].map(r => (
-                            <option key={r} value={r}>{r}%</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1">Taxable Amount (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={form.taxable_amount}
-                          onChange={(e) => handleITCChange("taxable_amount", e.target.value)}
-                          placeholder="Amount before GST"
-                          className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Auto-calculated preview */}
-                    <div className="grid grid-cols-2 gap-3 bg-white rounded-lg border border-green-200 p-3">
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">CGST (auto)</p>
-                        <p className="text-lg font-bold text-green-700">₹{form.cgst_amount}</p>
-                      </div>
-                      <div className="text-center border-l border-green-100">
-                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">SGST (auto)</p>
-                        <p className="text-lg font-bold text-green-700">₹{form.sgst_amount}</p>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-green-600">* CGST and SGST are auto-calculated from taxable amount and GST rate.</p>
+                <div className="grid grid-cols-2 gap-3 bg-white rounded-lg border border-green-200 p-3">
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">CGST (auto)</p>
+                    <p className="text-lg font-bold text-green-700">₹{form.cgst_amount}</p>
                   </div>
-                )}
+                  <div className="text-center border-l border-green-100">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">SGST (auto)</p>
+                    <p className="text-lg font-bold text-green-700">₹{form.sgst_amount}</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-green-600">* CGST and SGST are auto-calculated from taxable amount and GST rate.</p>
               </div>
-              {/* ─────────────────────────────────────────────────── */}
-
+            )}
+          </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => { if (pendingDeleteId) deleteMutation.mutate(pendingDeleteId); }}
+        title="Delete Expense"
+        message="Are you sure you want to delete this expense? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </AppLayout>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
+      <ExpensesPageContent />
+    </ProtectedRoute>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
+import { PageShell } from "@/components/shell/PageShell";
 import { ProtectedRoute } from "@/context/AuthContext";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
   EmptyState,
   Badge,
   Alert,
+  StatsCard,
 } from "@/components/ui";
 import { jobsApi, usersApi } from "@/lib/api";
 import {
@@ -313,16 +315,16 @@ function TechnicianStatusModal({
 
         {actions.length === 0 && (
           <div className="text-center py-6">
-            <div className="text-gray-400 mb-2">
+            <div className="text-neutral-400 mb-2">
               <CheckCircle className="h-8 w-8 mx-auto" />
             </div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
               {isTerminalStatus(job.status)
                 ? "This job is complete — no further updates needed."
                 : "No actions available for your role at this stage."}
             </p>
             {isTerminalStatus(job.status) && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-neutral-400 mt-1">
                 Status: <span className="font-mono">{job.status}</span>
               </p>
             )}
@@ -559,55 +561,34 @@ export default function MyJobsPage() {
           subtitle={`${totalJobs} jobs assigned to you`}
         />
 
-        <div className="p-6 space-y-6">
+        <PageShell>
           {/* Live Location Sharing Banner */}
           <LiveLocationBanner />
 
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card padding="md" className="stats-card stats-card-accent">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {inProgress.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">In Progress</p>
-                </div>
-              </div>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-warning">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {pending.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">Pending</p>
-                </div>
-              </div>
-            </Card>
-            <Card padding="md" className="stats-card stats-card-success">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-neutral-900">
-                    {ready.length}
-                  </p>
-                  <p className="text-sm text-neutral-500">Ready for Delivery</p>
-                </div>
-              </div>
-            </Card>
+            <StatsCard
+              label="In Progress"
+              value={inProgress.length}
+              icon={<Wrench className="w-5 h-5" />}
+              variant="accent"
+            />
+            <StatsCard
+              label="Pending"
+              value={pending.length}
+              icon={<Clock className="w-5 h-5" />}
+              variant="warning"
+            />
+            <StatsCard
+              label="Ready for Delivery"
+              value={ready.length}
+              icon={<CheckCircle2 className="w-5 h-5" />}
+              variant="success"
+            />
           </div>
 
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading jobs…" />
           ) : error ? (
             <Alert variant="error">Failed to load your jobs</Alert>
           ) : jobs.length === 0 ? (
@@ -620,68 +601,149 @@ export default function MyJobsPage() {
             </Card>
           ) : (
             <>
-              {/* In Progress */}
-              {inProgress.length > 0 && (
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <Wrench className="w-5 h-5 text-cyan-500" />
-                    In Progress ({inProgress.length})
-                  </h2>
-                  <div className="space-y-4">
-                    {inProgress.map((job) => (
-                      <TechnicianJobCard
+              {/* Desktop flat table — lg+ */}
+              <div className="hidden lg:block overflow-hidden rounded-xl border border-neutral-100 bg-white dark:border-slate-700 dark:bg-slate-800">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                      <th scope="col" className="px-4 py-3">Job #</th>
+                      <th scope="col" className="px-4 py-3">Status</th>
+                      <th scope="col" className="px-4 py-3">Customer</th>
+                      <th scope="col" className="px-4 py-3">Device</th>
+                      <th scope="col" className="px-4 py-3">Issue</th>
+                      <th scope="col" className="px-4 py-3">Est. Due</th>
+                      <th scope="col" className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-neutral-800 dark:text-slate-200">
+                    {jobs.map((job) => (
+                      <tr
                         key={job.id}
-                        job={job}
-                        onUpdateStatus={setStatusModal}
-                        onAddNote={setNoteModal}
-                      />
+                        className="border-b border-neutral-100 last:border-b-0 dark:border-slate-800/80"
+                      >
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/jobs/${job.id}`}
+                              className="font-mono text-sm font-semibold text-primary-600 hover:underline dark:text-primary-400"
+                            >
+                              {job.job_number}
+                            </Link>
+                            {job.is_urgent && (
+                              <Badge variant="danger" size="sm">URGENT</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          <JobStatusBadge status={job.status} />
+                        </td>
+                        <td className="px-4 py-3 align-middle font-medium text-neutral-900 dark:text-white">
+                          {job.customer?.first_name} {job.customer?.last_name}
+                        </td>
+                        <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
+                          {job.brand} {job.model}
+                        </td>
+                        <td className="max-w-[200px] truncate px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
+                          {job.customer_complaint}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-middle text-neutral-500 dark:text-slate-500">
+                          {job.estimated_completion_date
+                            ? formatDateLong(job.estimated_completion_date)
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {!isTerminalStatus(job.status) && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                                onClick={() => setStatusModal(job)}
+                              >
+                                Update
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
+                                onClick={() => setNoteModal(job)}
+                              >
+                                Note
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                </div>
-              )}
+                  </tbody>
+                </table>
+              </div>
 
-              {/* Pending */}
-              {pending.length > 0 && (
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-amber-500" />
-                    Pending ({pending.length})
-                  </h2>
-                  <div className="space-y-4">
-                    {pending.map((job) => (
-                      <TechnicianJobCard
-                        key={job.id}
-                        job={job}
-                        onUpdateStatus={setStatusModal}
-                        onAddNote={setNoteModal}
-                      />
-                    ))}
+              {/* Mobile grouped cards — below lg */}
+              <div className="space-y-6 lg:hidden">
+                {/* In Progress */}
+                {inProgress.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                      <Wrench className="w-5 h-5 text-cyan-500" />
+                      In Progress ({inProgress.length})
+                    </h2>
+                    <div className="space-y-4">
+                      {inProgress.map((job) => (
+                        <TechnicianJobCard
+                          key={job.id}
+                          job={job}
+                          onUpdateStatus={setStatusModal}
+                          onAddNote={setNoteModal}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Ready for Delivery */}
-              {ready.length > 0 && (
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    Ready for Delivery ({ready.length})
-                  </h2>
-                  <div className="space-y-4">
-                    {ready.map((job) => (
-                      <TechnicianJobCard
-                        key={job.id}
-                        job={job}
-                        onUpdateStatus={setStatusModal}
-                        onAddNote={setNoteModal}
-                      />
-                    ))}
+                {/* Pending */}
+                {pending.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-amber-500" />
+                      Pending ({pending.length})
+                    </h2>
+                    <div className="space-y-4">
+                      {pending.map((job) => (
+                        <TechnicianJobCard
+                          key={job.id}
+                          job={job}
+                          onUpdateStatus={setStatusModal}
+                          onAddNote={setNoteModal}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Ready for Delivery */}
+                {ready.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      Ready for Delivery ({ready.length})
+                    </h2>
+                    <div className="space-y-4">
+                      {ready.map((job) => (
+                        <TechnicianJobCard
+                          key={job.id}
+                          job={job}
+                          onUpdateStatus={setStatusModal}
+                          onAddNote={setNoteModal}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
-        </div>
+        </PageShell>
 
         {/* Modals */}
         <TechnicianStatusModal

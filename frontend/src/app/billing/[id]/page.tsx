@@ -23,9 +23,11 @@ import {
   ArrowLeft,
   Edit,
   History,
+  MoreVertical,
 } from "lucide-react";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
+import { useToast } from "@/context/ToastContext";
 
 // =====================================================
 // Print Portal Util
@@ -57,6 +59,7 @@ function RecordPaymentModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { toast } = useToast();
   const [amount, setAmount] = useState(balanceDue.toString());
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [reference, setReference] = useState("");
@@ -78,7 +81,7 @@ function RecordPaymentModal({
     },
     onError: (error) => {
       console.error("Failed to record payment", error);
-      alert("Failed to record payment");
+      toast.error("Failed to record payment");
     },
   });
 
@@ -172,7 +175,7 @@ function PaymentHistory({
     enabled: !!invoiceId,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading invoice…" />;
   if (!payments || payments.length === 0) {
     return (
       <Card className="mt-6 print:hidden">
@@ -316,7 +319,7 @@ function EditHistory({ invoiceId }: { invoiceId: string }) {
     enabled: !!invoiceId,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading invoice…" />;
   if (!history || history.length === 0) return null;
 
   return (
@@ -364,6 +367,67 @@ function EditHistory({ invoiceId }: { invoiceId: string }) {
 }
 
 // =====================================================
+// MoreMenu — overflow action dropdown
+// =====================================================
+
+interface MenuAction {
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+}
+
+function MoreMenu({ actions }: { actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  if (actions.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <Button
+        variant="secondary"
+        aria-label="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1.5 z-20 min-w-[11rem] rounded-xl border border-neutral-200 bg-white shadow-lg py-1 overflow-hidden">
+            {actions.map((item) =>
+              item.href ? (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </a>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    item.onClick?.();
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+                >
+                  <span className="text-neutral-400">{item.icon}</span>
+                  {item.label}
+                </button>
+              ),
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================
 // Main Page Component
 // =====================================================
 
@@ -371,6 +435,7 @@ export default function InvoiceDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const { toast } = useToast();
 
   const queryClient = useQueryClient();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -402,10 +467,8 @@ export default function InvoiceDetailsPage() {
     } catch (error) {
       console.error("Failed to log download:", error);
     }
-    // We use window.print() because it renders the exact UI which is much better than the backend generated PDF.
-    // Users can choose "Save as PDF" in the print dialog.
-    alert(
-      "To download the PDF with the best layout, please select 'Save as PDF' as the destination in the print dialog.",
+    toast.info(
+      "Select 'Save as PDF' as the destination in the print dialog to download.",
     );
     window.print();
   };
@@ -413,7 +476,7 @@ export default function InvoiceDetailsPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading invoice…" />
       </AppLayout>
     );
   }
@@ -451,38 +514,18 @@ export default function InvoiceDetailsPage() {
         <Header
           title={`Invoice ${invoice.invoice_number}`}
           subtitle={formatDateLong(invoice.invoice_date)}
+          breadcrumbs={[
+            { label: "Sales Register", href: "/billing" },
+            { label: invoice.invoice_number },
+          ]}
           actions={
-            <div className="flex flex-wrap gap-2 items-center justify-end">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 leftIcon={<ArrowLeft className="w-4 h-4" />}
                 onClick={() => router.push("/billing")}
               >
-                Back
-              </Button>
-              <InvoiceStatusBadge status={invoice.status} />
-
-              <Button
-                variant="secondary"
-                leftIcon={<Edit className="w-4 h-4" />}
-                onClick={() => router.push(`/billing/${id}/edit`)}
-              >
-                Edit Invoice
-              </Button>
-
-              <Button
-                variant="secondary"
-                leftIcon={<Printer className="w-4 h-4" />}
-                onClick={handlePrint}
-              >
-                Print
-              </Button>
-              <Button
-                variant="secondary"
-                leftIcon={<Download className="w-4 h-4" />}
-                onClick={handleDownload}
-              >
-                Download PDF
+                Billing
               </Button>
               {Number(invoice.balance_due) > 0 &&
                 invoice.status !== "CANCELLED" && (
@@ -493,11 +536,35 @@ export default function InvoiceDetailsPage() {
                     Record Payment
                   </Button>
                 )}
+              <MoreMenu
+                actions={[
+                  {
+                    label: "Edit Invoice",
+                    icon: <Edit className="w-4 h-4" />,
+                    onClick: () => router.push(`/billing/${id}/edit`),
+                  },
+                  {
+                    label: "Print",
+                    icon: <Printer className="w-4 h-4" />,
+                    onClick: handlePrint,
+                  },
+                  {
+                    label: "Download PDF",
+                    icon: <Download className="w-4 h-4" />,
+                    onClick: handleDownload,
+                  },
+                ]}
+              />
             </div>
           }
         />
 
         <div className="p-6 max-w-5xl mx-auto">
+          {/* Status strip */}
+          <div className="mb-6 print:hidden">
+            <InvoiceStatusBadge status={invoice.status} />
+          </div>
+
           <Card padding="none" className="overflow-hidden">
             <InvoiceTemplate invoice={invoice} />
           </Card>

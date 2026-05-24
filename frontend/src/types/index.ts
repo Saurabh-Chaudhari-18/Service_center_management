@@ -1058,3 +1058,21 @@ export const ENQUIRY_STATUS_CONFIG: Record<
   LOST: { label: "Lost", color: "#ef4444", bgColor: "#fef2f2", textColor: "#b91c1c" },
   CLOSED: { label: "Closed", color: "#64748b", bgColor: "#f1f5f9", textColor: "#334155" },
 };
+
+// =====================================================
+// Purchase Payment Status Badge Config
+// Badge variant strings for use with <Badge> component
+// =====================================================
+
+export type PurchasePaymentStatus = "PAID" | "PARTIAL" | "PENDING" | "CANCELLED" | "UNPAID";
+
+export const PURCHASE_PAYMENT_STATUS_CONFIG: Record<
+  PurchasePaymentStatus,
+  { label: string; badgeClass: string }
+> = {
+  PAID:      { label: "Paid",      badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300" },
+  PARTIAL:   { label: "Partial",   badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" },
+  PENDING:   { label: "Pending",   badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300" },
+  CANCELLED: { label: "Cancelled", badgeClass: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300" },
+  UNPAID:    { label: "Unpaid",    badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300" },
+};

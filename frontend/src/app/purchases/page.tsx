@@ -1,28 +1,98 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, FileText, ChevronRight, Calculator } from "lucide-react";
+import { Plus, Search, FileText, ChevronRight, Hash } from "lucide-react";
 import { purchasesApi } from "@/lib/api/services";
 import { formatDateLong } from "@/lib/formatters";
 import { useAuth, ProtectedRoute } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { useToast } from "@/context/ToastContext";
 import { Button, EmptyState, Input, LoadingState } from "@/components/ui";
-import { EntityTable, PageShell, RegisterToolbar } from "@/components/shell";
+import {
+  EntityTable,
+  PageShell,
+  RegisterListCard,
+  RegisterToolbar,
+} from "@/components/shell";
 import type { Purchase } from "@/types";
+import { PURCHASE_PAYMENT_STATUS_CONFIG, type PurchasePaymentStatus } from "@/types";
+
+function formatCurrency(amount: string | number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(Number(amount));
+}
+
+interface PurchaseListCardProps {
+  purchase: Purchase;
+  onOpen: () => void;
+}
+
+function PurchaseListCard({ purchase, onOpen }: PurchaseListCardProps) {
+  const balance = parseFloat(String(purchase.balance_due));
+  const statusKey = (purchase.status ?? "UNPAID") as PurchasePaymentStatus;
+  const statusCfg =
+    PURCHASE_PAYMENT_STATUS_CONFIG[statusKey] ??
+    PURCHASE_PAYMENT_STATUS_CONFIG.UNPAID;
+
+  return (
+    <RegisterListCard
+      onClick={onOpen}
+      ariaLabel={`Purchase from ${purchase.vendor_name}, ${purchase.invoice_number || "no invoice number"}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-neutral-900 dark:text-white">
+            {purchase.vendor_name}
+          </h3>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500 dark:text-slate-400">
+            <span className="flex items-center gap-1">
+              <Hash className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              {purchase.invoice_number || "—"}
+            </span>
+            <span className="flex items-center gap-1">
+              <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              {formatDateLong(purchase.purchase_date)}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span
+              className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCfg.badgeClass}`}
+            >
+              {statusCfg.label}
+            </span>
+            <span className="text-lg font-bold tabular-nums text-neutral-900 dark:text-white">
+              {formatCurrency(purchase.total_amount)}
+            </span>
+            {balance > 0 && (
+              <span className="text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                Due {formatCurrency(purchase.balance_due || 0)}
+              </span>
+            )}
+          </div>
+        </div>
+        <ChevronRight className="mx-auto h-5 w-5 shrink-0 text-neutral-400 dark:text-slate-500" aria-hidden />
+      </div>
+    </RegisterListCard>
+  );
+}
 
 export default function PurchasesPage() {
   const router = useRouter();
   const { currentBranch } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
 
-  const searchParam = useMemo(
-    () => (search.length > 2 ? search : undefined),
-    [search],
-  );
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const searchParam = debouncedSearch || undefined;
 
   const errorToastRef = React.useRef(false);
 
@@ -33,7 +103,7 @@ export default function PurchasesPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["purchases", "register", currentBranch?.id, searchParam ?? ""],
+    queryKey: ["purchases", "register", currentBranch?.id, debouncedSearch],
     queryFn: async () => {
       const response = await purchasesApi.list({
         branch: currentBranch!.id,
@@ -53,17 +123,10 @@ export default function PurchasesPage() {
     if (!isError) errorToastRef.current = false;
   }, [isError, toast]);
 
-  const formatCurrency = (amount: string | number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-    }).format(Number(amount));
-  };
-
   const showInitialLoading = !currentBranch || (isLoading && purchases.length === 0);
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "ACCOUNTANT"]}>
       <AppLayout>
         <Header
           title="Purchase History"
@@ -80,30 +143,28 @@ export default function PurchasesPage() {
         />
 
         <PageShell width="fluid" className="font-sans">
-          <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">
-            <RegisterToolbar
-              search={
-                <Input
-                  type="text"
-                  placeholder="Search by vendor name or invoice number..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  leftIcon={<Search className="h-5 w-5" />}
-                  aria-label="Search purchases"
-                  className="text-sm dark:bg-slate-900/60"
-                />
-              }
-              secondaryActions={
-                isFetching && !isLoading ? (
-                  <span className="text-xs text-neutral-500 dark:text-slate-400">Updating…</span>
-                ) : null
-              }
-            />
-          </div>
+          <RegisterToolbar
+            search={
+              <Input
+                type="text"
+                placeholder="Search by vendor name or invoice number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                leftIcon={<Search className="h-5 w-5" />}
+                aria-label="Search purchases"
+                className="text-sm dark:bg-slate-900/60"
+              />
+            }
+            secondaryActions={
+              isFetching && !isLoading ? (
+                <span className="text-xs text-neutral-500 dark:text-slate-400">Updating…</span>
+              ) : null
+            }
+          />
 
           <EntityTable
             loading={showInitialLoading}
-            loadingSlot={<LoadingState />}
+            loadingSlot={<LoadingState message="Loading purchases…" />}
             empty={!showInitialLoading && !isError && purchases.length === 0}
             emptySlot={
               <EmptyState
@@ -131,7 +192,8 @@ export default function PurchasesPage() {
                 />
               </div>
             ) : showInitialLoading || purchases.length === 0 ? null : (
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <>
+              <table className="hidden w-full min-w-[640px] border-collapse text-left text-sm lg:table">
                 <thead>
                   <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
                     <th scope="col" className="px-3 py-2">Vendor</th>
@@ -146,14 +208,8 @@ export default function PurchasesPage() {
                 <tbody className="text-neutral-800 dark:text-slate-200">
                   {purchases.map((purchase: Purchase) => {
                     const balance = parseFloat(String(purchase.balance_due));
-                    const statusCls =
-                      purchase.status === "PAID"
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
-                        : purchase.status === "PARTIAL"
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
-                          : purchase.status === "CANCELLED"
-                            ? "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300"
-                            : "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300";
+                    const statusKey = (purchase.status ?? "UNPAID") as PurchasePaymentStatus;
+                    const statusCfg = PURCHASE_PAYMENT_STATUS_CONFIG[statusKey] ?? PURCHASE_PAYMENT_STATUS_CONFIG.UNPAID;
                     const go = () => router.push(`/purchases/${purchase.id}`);
                     return (
                       <tr
@@ -172,8 +228,8 @@ export default function PurchasesPage() {
                           <span className="block truncate font-medium text-neutral-900 dark:text-white">
                             {purchase.vendor_name}
                           </span>
-                          <span className="mt-0.5 flex items-center gap-1 text-xs text-neutral-500 sm:hidden dark:text-slate-400">
-                            <Calculator className="h-3 w-3 shrink-0 opacity-70" />
+                          <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-neutral-500 sm:hidden dark:text-slate-400">
+                            <Hash className="h-3 w-3 shrink-0 opacity-70" />
                             {purchase.invoice_number || "—"}
                           </span>
                         </td>
@@ -181,14 +237,11 @@ export default function PurchasesPage() {
                           {purchase.invoice_number || "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 align-middle tabular-nums text-neutral-600 dark:text-slate-400">
-                          <span className="inline-flex items-center gap-1">
-                            <Calculator className="hidden h-3.5 w-3.5 opacity-60 sm:inline" aria-hidden />
-                            {formatDateLong(purchase.purchase_date)}
-                          </span>
+                          {formatDateLong(purchase.purchase_date)}
                         </td>
                         <td className="px-3 py-2 align-middle">
-                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCls}`}>
-                            {purchase.status || "UNPAID"}
+                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${statusCfg.badgeClass}`}>
+                            {statusCfg.label}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right align-middle font-semibold tabular-nums">
@@ -211,6 +264,16 @@ export default function PurchasesPage() {
                   })}
                 </tbody>
               </table>
+              <div className="min-w-0 space-y-3 p-4 lg:hidden">
+                {purchases.map((purchase: Purchase) => (
+                  <PurchaseListCard
+                    key={purchase.id}
+                    purchase={purchase}
+                    onOpen={() => router.push(`/purchases/${purchase.id}`)}
+                  />
+                ))}
+              </div>
+              </>
             )}
           </EntityTable>
         </PageShell>

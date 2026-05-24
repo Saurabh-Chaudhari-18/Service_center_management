@@ -10,7 +10,7 @@ import pytest
 
 TOKEN_URL = '/api/auth/token/'
 REFRESH_URL = '/api/auth/token/refresh/'
-JOBS_URL = '/api/jobs/jobs/'
+JOBS_URL = '/api/jobs/'
 
 
 @pytest.mark.django_db
@@ -78,7 +78,10 @@ class TestTokenRefresh:
         assert resp.status_code == 400
 
     def test_refresh_for_deleted_user_returns_401(self, api_client, owner):
+        from audit.models import LoginLog
+
         _, refresh = self._get_tokens(api_client, owner)
+        LoginLog.objects.filter(user=owner).delete()
         owner.delete()
         resp = api_client.post(REFRESH_URL, {'refresh': refresh}, format='json')
         assert resp.status_code == 401

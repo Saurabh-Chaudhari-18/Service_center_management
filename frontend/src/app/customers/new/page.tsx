@@ -35,6 +35,10 @@ export default function NewCustomerPage() {
         <Header
           title="Add Customer"
           subtitle="Create a new customer record"
+          breadcrumbs={[
+            { label: "Customers", href: "/customers" },
+            { label: "Add Customer" },
+          ]}
           actions={
             <Button
               variant="ghost"

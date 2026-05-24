@@ -15,9 +15,9 @@ router = DefaultRouter()
 router.register(r'templates', NotificationTemplateViewSet, basename='notification-template')
 router.register(r'logs', NotificationLogViewSet, basename='notification-log')
 router.register(r'alerts', InternalAlertViewSet, basename='internal-alert')
-router.register(r'send', SendNotificationView, basename='send-notification')
 router.register(r'enums', NotificationEnumsView, basename='notification-enum')
 
 urlpatterns = [
+    path('send/', SendNotificationView.as_view(), name='send-notification'),
     path('', include(router.urls)),
 ]

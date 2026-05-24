@@ -29,6 +29,7 @@ export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showDemo = process.env.NODE_ENV !== "production";
 
   const {
     register,
@@ -116,6 +117,10 @@ export default function LoginPage() {
               />
             </div>
 
+            <p className="text-sm text-neutral-600 text-right -mt-2">
+              Forgot your password? Contact your branch administrator to reset your account.
+            </p>
+
             <Button
               type="submit"
               className="w-full h-12 text-base"
@@ -125,15 +130,17 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo Credentials Info */}
-          <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
-            <p className="text-xs text-neutral-500 text-center">
-              Seeded demo login (run{" "}
-              <span className="font-mono">setup_initial_data</span> once):
-              <br />
-              <span className="font-mono">owner@techfix.com / password123</span>
-            </p>
-          </div>
+          {/* Demo Credentials Info (dev only) */}
+          {showDemo && (
+            <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
+              <p className="text-xs text-neutral-500 text-center">
+                Seeded demo login (run{" "}
+                <span className="font-mono">setup_initial_data</span> once):
+                <br />
+                <span className="font-mono">owner@techfix.com / password123</span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

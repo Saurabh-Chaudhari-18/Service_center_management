@@ -19,8 +19,6 @@ import {
   AlertTriangle,
   Truck,
 } from "lucide-react";
-import Link from "next/link";
-
 // =====================================================
 // Device Types
 // =====================================================
@@ -166,15 +164,18 @@ export default function NewPickupPage() {
         <Header
           title="New Pickup Request"
           subtitle="Create a pickup request from a customer call"
+          breadcrumbs={[
+            { label: "Pickups", href: "/pickups" },
+            { label: "New Request" },
+          ]}
           actions={
-            <Link href="/pickups">
-              <Button
-                variant="ghost"
-                leftIcon={<ArrowLeft className="w-4 h-4" />}
-              >
-                Back
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+              onClick={() => router.push("/pickups")}
+            >
+              Back
+            </Button>
           }
         />
 
@@ -441,9 +442,9 @@ export default function NewPickupPage() {
 
             {/* Submit */}
             <div className="flex justify-end gap-3">
-              <Link href="/pickups">
-                <Button variant="ghost">Cancel</Button>
-              </Link>
+              <Button variant="ghost" onClick={() => router.push("/pickups")}>
+                Cancel
+              </Button>
               <Button
                 type="submit"
                 leftIcon={<Save className="w-4 h-4" />}
