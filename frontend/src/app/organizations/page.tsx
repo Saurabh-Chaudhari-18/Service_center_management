@@ -637,7 +637,7 @@ export default function OrganizationsPage() {
 
           {/* Organization Cards */}
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading organizations…" />
           ) : filteredOrgs.length === 0 ? (
             <EmptyState
               icon={<Building2 className="w-8 h-8 text-neutral-400" />}

@@ -328,7 +328,10 @@ export function ProtectedRoute({
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="spinner" />
+        <div className="text-center">
+          <div className="spinner mx-auto" />
+          <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400 font-medium">Loading…</p>
+        </div>
       </div>
     );
   }
@@ -337,7 +340,10 @@ export function ProtectedRoute({
   if (!isAuthenticated || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="spinner" />
+        <div className="text-center">
+          <div className="spinner mx-auto" />
+          <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400 font-medium">Redirecting to login…</p>
+        </div>
       </div>
     );
   }
@@ -348,12 +354,18 @@ export function ProtectedRoute({
       fallback || (
         <div className="flex min-h-screen items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-neutral-900">
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
               Access Denied
             </h1>
-            <p className="mt-2 text-neutral-600">
+            <p className="mt-2 text-neutral-600 dark:text-neutral-400">
               You do not have permission to access this page.
             </p>
+            <a
+              href="/dashboard"
+              className="inline-flex mt-5 items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              Go to Dashboard
+            </a>
           </div>
         </div>
       )
@@ -366,12 +378,18 @@ export function ProtectedRoute({
       fallback || (
         <div className="flex min-h-screen items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-neutral-900">
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
               Access Denied
             </h1>
-            <p className="mt-2 text-neutral-600">
+            <p className="mt-2 text-neutral-600 dark:text-neutral-400">
               You do not have permission to access this page.
             </p>
+            <a
+              href="/dashboard"
+              className="inline-flex mt-5 items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              Go to Dashboard
+            </a>
           </div>
         </div>
       )

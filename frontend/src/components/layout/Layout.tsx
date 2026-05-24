@@ -86,7 +86,7 @@ const navigationItems: NavItem[] = [
       { name: "GST Dashboard", href: "/gst", icon: BadgePercent },
     ],
   },
-  { name: "Reports",       href: "/reports",       icon: BarChart3,       permission: "canViewReports" },
+  { name: "Business Reports", href: "/reports",    icon: BarChart3,       permission: "canViewReports" },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },
@@ -125,9 +125,11 @@ export function Sidebar() {
     const state: Record<string, boolean> = {};
     for (const item of navigationItems) {
       if (item.children) {
-        state[item.name] = item.children.some(
+        const hasActiveChild = item.children.some(
           (c) => c.href && (pathname === c.href || pathname?.startsWith(`${c.href}/`)),
         );
+        // Keep finance groups expanded by default so sub-pages are discoverable.
+        state[item.name] = hasActiveChild || true;
       }
     }
     return state;
@@ -148,7 +150,6 @@ export function Sidebar() {
       await switchBranch(branchId);
       setBranchMenuOpen(false);
       await queryClient.invalidateQueries();
-      router.push("/dashboard");
       router.refresh();
     } catch (error) {
       console.error("Failed to switch branch:", error);
@@ -405,7 +406,8 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
         </button>
 
         {/* Notifications */}
-        <button
+        <Link
+          href="/notifications"
           aria-label="Notifications"
           title="Notifications"
           className="relative p-2 rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
@@ -416,7 +418,7 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           )}
-        </button>
+        </Link>
 
         {/* Branch Badge */}
         {currentBranch && (

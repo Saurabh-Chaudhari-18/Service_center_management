@@ -299,7 +299,7 @@ export default function EnquiriesPage() {
           <OperationalSectionLabel title="Lead queue" hint="Triage &amp; actions" />
 
           {listLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading enquiries…" />
           ) : listError ? (
             <EmptyState
               icon={<UserSearch className="h-8 w-8 text-neutral-400" />}

@@ -31,7 +31,6 @@ import {
   Phone,
   User,
 } from "lucide-react";
-import Link from "next/link";
 import type { InventoryItem } from "@/types";
 import { CustomerSearch } from "@/components/billing/CustomerSearch";
 import {
@@ -324,15 +323,18 @@ function CreateInvoiceContent() {
           <Header
             title="Create Invoice"
             subtitle={job ? `For Job: ${job.job_number}` : "New Invoice"}
+            breadcrumbs={[
+              { label: "Sales Register", href: "/billing" },
+              { label: "Create Invoice" },
+            ]}
             actions={
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Back
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/billing")}
+              >
+                Back
+              </Button>
             }
           />
 
@@ -625,11 +627,13 @@ function CreateInvoiceContent() {
             </Card>
 
             <div className="flex justify-end gap-4">
-              <Link href={jobId ? `/jobs/${jobId}` : "/billing"}>
-                <Button variant="secondary" type="button">
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/billing")}
+              >
+                Cancel
+              </Button>
               <Button type="submit" leftIcon={<FileText className="w-4 h-4" />}>
                 Preview Invoice
               </Button>

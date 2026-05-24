@@ -258,7 +258,7 @@ function NotificationsSection() {
     },
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading settings…" />;
 
   if (!templates || templates.length === 0) {
     return (
@@ -358,6 +358,7 @@ export default function SettingsPage() {
         <Header
           title="Settings"
           subtitle="Manage your account and preferences"
+          breadcrumbs={[{ label: "Settings" }]}
         />
 
         <PageShell>

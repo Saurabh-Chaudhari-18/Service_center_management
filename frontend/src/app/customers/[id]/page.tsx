@@ -195,6 +195,10 @@ export default function CustomerDetailPage() {
         <Header
           title={loadingCustomer ? "Loading…" : fullName}
           subtitle={customer?.mobile ? formatPhone(customer.mobile) : undefined}
+          breadcrumbs={[
+            { label: "Customers", href: "/customers" },
+            { label: loadingCustomer ? "…" : fullName },
+          ]}
           actions={
             <>
               <Button
@@ -206,16 +210,19 @@ export default function CustomerDetailPage() {
               </Button>
               {customer && (
                 <>
-                  <Link href={`/jobs/new?customer=${customer.id}`}>
-                    <Button leftIcon={<Hash className="h-4 w-4" />}>
-                      New Job Card
-                    </Button>
-                  </Link>
-                  <Link href={`/customers/${customer.id}/edit`}>
-                    <Button variant="secondary" leftIcon={<Pencil className="h-4 w-4" />}>
-                      Edit
-                    </Button>
-                  </Link>
+                  <Button
+                    leftIcon={<Hash className="h-4 w-4" />}
+                    onClick={() => router.push(`/jobs/new?customer=${customer.id}`)}
+                  >
+                    New Job Card
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    leftIcon={<Pencil className="h-4 w-4" />}
+                    onClick={() => router.push(`/customers/${customer.id}/edit`)}
+                  >
+                    Edit
+                  </Button>
                   {canErase && (
                     <MoreMenu onErase={() => setShowDeleteDialog(true)} />
                   )}
@@ -228,7 +235,7 @@ export default function CustomerDetailPage() {
         <PageShell width="fluid">
           {loadingCustomer ? (
             <div className="py-12">
-              <LoadingState />
+              <LoadingState message="Loading customer…" />
             </div>
           ) : !customer ? (
             <div className="py-12">
@@ -260,7 +267,7 @@ export default function CustomerDetailPage() {
                     </div>
 
                     {loadingHistory ? (
-                      <LoadingState />
+                      <LoadingState message="Loading jobs…" />
                     ) : serviceHistory && serviceHistory.length > 0 ? (
                       <div className="space-y-2">
                         {serviceHistory.map((job) => (

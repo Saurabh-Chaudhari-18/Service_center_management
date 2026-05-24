@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { Customer } from "@/types";
-import { formatPhone } from "@/lib/formatters";
+import { formatDateLong, formatPhone } from "@/lib/formatters";
 
 // =====================================================
 // Customer Card Component
@@ -77,16 +77,14 @@ function CustomerCard({ customer }: CustomerCardProps) {
             )}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right sm:ml-auto shrink-0">
           {customer.pending_jobs_count && customer.pending_jobs_count > 0 && (
             <Badge variant="warning">
               {customer.pending_jobs_count} pending
             </Badge>
           )}
-          <p className="text-xs text-neutral-400 mt-2">
-            {customer.created_at
-              ? `Since ${new Date(customer.created_at).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`
-              : "Recently joined"}
+          <p className="text-xs text-neutral-400 mt-2 whitespace-nowrap">
+            {customer.created_at ? `Since ${formatDateLong(customer.created_at)}` : "Recently joined"}
           </p>
         </div>
       </div>
@@ -188,7 +186,7 @@ export default function CustomersPage() {
           <WorkspaceSurface>
             {isLoading ? (
               <div className="p-8">
-                <LoadingState />
+                <LoadingState message="Loading customers…" />
               </div>
             ) : customers.length === 0 ? (
               <div className="p-8">

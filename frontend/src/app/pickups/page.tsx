@@ -145,11 +145,12 @@ export default function PickupsPage() {
           title="Pickup & Drop"
           subtitle="Manage device pickup requests from customers"
           actions={
-            <Link href="/pickups/new">
-              <Button leftIcon={<Plus className="w-4 h-4" />}>
-                New Pickup Request
-              </Button>
-            </Link>
+            <Button
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push("/pickups/new")}
+            >
+              New Pickup Request
+            </Button>
           }
         />
 
@@ -197,7 +198,7 @@ export default function PickupsPage() {
           <WorkspaceSurface>
             {isLoading ? (
               <div className="p-8">
-                <LoadingState />
+                <LoadingState message="Loading pickups…" />
               </div>
             ) : pickups.length === 0 ? (
               <div className="p-8">

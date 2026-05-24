@@ -20,7 +20,6 @@ import {
   Save,
   Package,
 } from "lucide-react";
-import Link from "next/link";
 import { formatDateLong } from "@/lib/formatters";
 import type { Invoice } from "@/types";
 import { useToast } from "@/context/ToastContext";
@@ -638,7 +637,7 @@ function EditInvoiceContent() {
   if (isLoading || !invoice) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading invoice…" />
       </AppLayout>
     );
   }
@@ -650,15 +649,19 @@ function EditInvoiceContent() {
           <Header
             title={`Edit Invoice ${invoice.invoice_number}`}
             subtitle={formatDateLong(invoice.invoice_date)}
+            breadcrumbs={[
+              { label: "Sales Register", href: "/billing" },
+              { label: invoice.invoice_number, href: `/billing/${id}` },
+              { label: "Edit" },
+            ]}
             actions={
-              <Link href={`/billing/${id}`}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(`/billing/${id}`)}
+              >
+                Cancel
+              </Button>
             }
           />
 
@@ -895,11 +898,13 @@ function EditInvoiceContent() {
             </Card>
 
             <div className="flex justify-end gap-4">
-              <Link href={`/billing/${id}`}>
-                <Button variant="secondary" type="button">
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => router.push(`/billing/${id}`)}
+              >
+                Cancel
+              </Button>
               <Button type="submit" leftIcon={<FileText className="w-4 h-4" />}>
                 Preview & Save
               </Button>
@@ -931,7 +936,7 @@ export default function EditInvoicePage() {
     <Suspense
       fallback={
         <AppLayout>
-          <LoadingState />
+          <LoadingState message="Loading invoice…" />
         </AppLayout>
       }
     >

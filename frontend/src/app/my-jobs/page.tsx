@@ -588,7 +588,7 @@ export default function MyJobsPage() {
           </div>
 
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading jobs…" />
           ) : error ? (
             <Alert variant="error">Failed to load your jobs</Alert>
           ) : jobs.length === 0 ? (

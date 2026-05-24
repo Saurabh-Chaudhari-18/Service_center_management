@@ -827,7 +827,7 @@ export default function StaffManagementPage() {
 
           {/* Users Grid */}
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading staff…" />
           ) : filteredUsers.length === 0 ? (
             <EmptyState
               icon={<UserPlus className="w-8 h-8 text-neutral-400" />}

@@ -38,8 +38,7 @@ import {
   Edit,
   IndianRupee,
 } from "lucide-react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatDateLong } from "@/lib/formatters";
 import type { Invoice } from "@/types";
 import { getInvoiceStatusPresentation, SemanticStatusBadge } from "@/platform/semantics";
@@ -210,6 +209,7 @@ function InvoiceRow({
   onSelect,
   onDownload,
 }: InvoiceRowProps) {
+  const router = useRouter();
   const statusPresentation = getInvoiceStatusPresentation(invoice.status);
 
   return (
@@ -263,11 +263,14 @@ function InvoiceRow({
           className="flex items-center gap-2"
           onClick={(e) => e.stopPropagation()}
         >
-          <Link href={`/billing/${invoice.id}`}>
-            <Button variant="secondary" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
-              View
-            </Button>
-          </Link>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<Eye className="w-4 h-4" />}
+            onClick={() => router.push(`/billing/${invoice.id}`)}
+          >
+            View
+          </Button>
           {invoice.status !== "CANCELLED" && (
             <Button
               variant="secondary"
@@ -292,6 +295,7 @@ const BILLING_LIST_PAGE_SIZE = 10;
 
 function BillingContent() {
   const { currentBranch } = useAuth();
+  const router = useRouter();
 
   // Read initial status from URL (e.g. /billing?status=PENDING)
   const searchParams = useSearchParams();
@@ -463,11 +467,12 @@ function BillingContent() {
           title="Billing & Invoices"
           subtitle={`${data?.count || 0} total invoices`}
           actions={
-            <Link href="/billing/new">
-              <Button leftIcon={<Plus className="w-4 h-4" />}>
-                New Invoice
-              </Button>
-            </Link>
+            <Button
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push("/billing/new")}
+            >
+              New Invoice
+            </Button>
           }
         />
 
@@ -533,7 +538,7 @@ function BillingContent() {
               className={`min-w-0 flex-1 transition-all duration-300 ${selectedInvoice ? "mr-[550px]" : ""}`}
             >
               {isLoading ? (
-                <LoadingState />
+                <LoadingState message="Loading invoices…" />
               ) : invoices.length === 0 ? (
                 <Card>
                   <EmptyState
@@ -548,11 +553,12 @@ function BillingContent() {
                       !searchInput &&
                       !statusFilter &&
                       !hasColumnFilters && (
-                        <Link href="/billing/new">
-                          <Button leftIcon={<Plus className="w-4 h-4" />}>
-                            Create Invoice
-                          </Button>
-                        </Link>
+                        <Button
+                          leftIcon={<Plus className="w-4 h-4" />}
+                          onClick={() => router.push("/billing/new")}
+                        >
+                          Create Invoice
+                        </Button>
                       )
                     }
                   />
@@ -673,37 +679,36 @@ function BillingContent() {
                 width="md"
                 headerActions={
                   <>
-                    <Link href={`/billing/${selectedInvoice.id}`}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<Eye className="h-4 w-4" />}
-                      >
-                        Full View
-                      </Button>
-                    </Link>
-                    <Link href={`/billing/${selectedInvoice.id}/edit`}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<Edit className="h-4 w-4" />}
-                      >
-                        Edit
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={<Eye className="h-4 w-4" />}
+                      onClick={() => router.push(`/billing/${selectedInvoice.id}`)}
+                    >
+                      Full View
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={<Edit className="h-4 w-4" />}
+                      onClick={() =>
+                        router.push(`/billing/${selectedInvoice.id}/edit`)
+                      }
+                    >
+                      Edit
+                    </Button>
                   </>
                 }
                 footer={
                   <div className="flex items-center gap-3">
-                    <Link href={`/billing/${selectedInvoice.id}`} className="flex-1">
-                      <Button
-                        variant="primary"
-                        className="w-full"
-                        leftIcon={<Eye className="h-4 w-4" />}
-                      >
-                        View Full Details
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="primary"
+                      className="w-full flex-1"
+                      leftIcon={<Eye className="h-4 w-4" />}
+                      onClick={() => router.push(`/billing/${selectedInvoice.id}`)}
+                    >
+                      View Full Details
+                    </Button>
                     {selectedInvoice.status !== "CANCELLED" && (
                       <Button
                         variant="secondary"
@@ -728,7 +733,7 @@ function BillingContent() {
 
 export default function BillingPage() {
   return (
-    <React.Suspense fallback={<AppLayout><LoadingState /></AppLayout>}>
+    <React.Suspense fallback={<AppLayout><LoadingState message="Loading billing…" /></AppLayout>}>
       <BillingContent />
     </React.Suspense>
   );

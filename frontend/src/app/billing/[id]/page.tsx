@@ -175,7 +175,7 @@ function PaymentHistory({
     enabled: !!invoiceId,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading invoice…" />;
   if (!payments || payments.length === 0) {
     return (
       <Card className="mt-6 print:hidden">
@@ -319,7 +319,7 @@ function EditHistory({ invoiceId }: { invoiceId: string }) {
     enabled: !!invoiceId,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading invoice…" />;
   if (!history || history.length === 0) return null;
 
   return (
@@ -476,7 +476,7 @@ export default function InvoiceDetailsPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading invoice…" />
       </AppLayout>
     );
   }

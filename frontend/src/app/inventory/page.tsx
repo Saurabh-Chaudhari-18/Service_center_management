@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { SegmentedControl, type SegmentedOption } from "@/components/shell";
 import { inventoryApi } from "@/lib/api";
+import { formatDate } from "@/lib/formatters";
 import {
   Plus,
   Search,
@@ -490,11 +491,7 @@ function DetailPanel({ item, onClose, onEdit, onAdjust }: DetailPanelProps) {
                     </p>
                     <div className="flex items-center justify-between mt-2 text-xs text-neutral-400">
                       <span>{adj.adjusted_by_name || "System"}</span>
-                      <span>
-                        {adj.created_at
-                          ? new Date(adj.created_at).toLocaleDateString("en-IN")
-                          : ""}
-                      </span>
+                      <span>{formatDate(adj.created_at)}</span>
                     </div>
                   </div>
                 ))}
@@ -1035,7 +1032,7 @@ export default function InventoryPage() {
               leftIcon={<Plus className="w-4 h-4" />}
               onClick={() => setShowAddModal(true)}
             >
-              New
+              Add Item
             </Button>
           }
         />
@@ -1190,7 +1187,7 @@ export default function InventoryPage() {
 
               {/* Content */}
               {isLoading ? (
-                <LoadingState />
+                <LoadingState message="Loading inventory…" />
               ) : sortedItems.length === 0 ? (
                 <div className="bg-white rounded-xl border border-neutral-100">
                   <EmptyState

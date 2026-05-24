@@ -573,11 +573,11 @@ export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   return <div className={`spinner ${sizeClasses[size]}`} />;
 }
 
-export function LoadingState() {
+export function LoadingState({ message = "Loading…" }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <Spinner size="lg" />
-      <p className="text-sm text-neutral-500 font-medium">Loading…</p>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">{message}</p>
     </div>
   );
 }

@@ -105,7 +105,7 @@ export default function PurchasesPage() {
 
           <EntityTable
             loading={showInitialLoading}
-            loadingSlot={<LoadingState />}
+            loadingSlot={<LoadingState message="Loading purchases…" />}
             empty={!showInitialLoading && !isError && purchases.length === 0}
             emptySlot={
               <EmptyState

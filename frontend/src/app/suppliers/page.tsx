@@ -143,7 +143,7 @@ export default function SuppliersPage() {
         <WorkspaceSurface>
           {isLoading ? (
             <div className="p-8">
-              <LoadingState />
+              <LoadingState message="Loading suppliers…" />
             </div>
           ) : suppliers.length === 0 ? (
             <div className="p-8">

@@ -18,6 +18,7 @@ import {
   Activity,
   FileSpreadsheet,
 } from "lucide-react";
+import { formatDate, formatDateLong } from "@/lib/formatters";
 import {
   format,
   subDays,
@@ -132,7 +133,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
       reportsApi.getRevenue({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const chartData = data.daily_breakdown || [];
@@ -162,9 +163,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="date"
-              tickFormatter={(value: string) =>
-                format(new Date(value), "MMM dd")
-              }
+              tickFormatter={(value: string) => formatDate(value)}
               stroke="#64748b"
               fontSize={12}
             />
@@ -180,9 +179,7 @@ function RevenueChart({ fromDate, toDate }: RevenueChartProps) {
                 `₹${Number(value ?? 0).toLocaleString("en-IN")}`,
                 "Revenue",
               ]}
-              labelFormatter={(label: string) =>
-                format(new Date(label), "MMM dd, yyyy")
-              }
+              labelFormatter={(label: string) => formatDateLong(label)}
               contentStyle={{
                 backgroundColor: "white",
                 border: "1px solid #e2e8f0",
@@ -211,7 +208,7 @@ function JobsByStatusChart() {
     queryFn: () => reportsApi.getPendingJobs(),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.by_status || data.by_status.length === 0) return null;
 
   const COLORS = ["#6366f1", "#f59e0b", "#f97316", "#06b6d4", "#22c55e"];
@@ -307,7 +304,7 @@ function TechnicianProductivity({
       }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.technicians || data.technicians.length === 0) {
     return (
       <Card>
@@ -416,7 +413,7 @@ function InventoryOverview({ fromDate, toDate }: InventoryOverviewProps) {
       }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data || !data.top_items || data.top_items.length === 0) return null;
 
   const categoryData = data.by_category || [];
@@ -537,7 +534,7 @@ function CustomerInsights({ fromDate, toDate }: CustomerInsightsProps) {
       reportsApi.getCustomerAnalysis({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const topCustomers = data.top_customers || [];
@@ -627,7 +624,7 @@ function GstSummary({ fromDate, toDate }: GstSummaryProps) {
       reportsApi.getGstSummary({ from_date: fromDate, to_date: toDate }),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
   if (!data) return null;
 
   const summary = data.summary || {};
@@ -694,7 +691,7 @@ function LowStockList() {
     queryFn: () => reportsApi.getLowStock(),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading reports…" />;
 
   // Backend returns { total_items, items } — extract the items array
   const items: InventoryItem[] = Array.isArray(data)
@@ -888,8 +885,7 @@ export default function ReportsContent() {
 
               <div className="ml-auto text-sm text-neutral-500">
                 <Calendar className="w-4 h-4 inline mr-1" />
-                {format(new Date(dateRange.from), "MMM dd, yyyy")} -{" "}
-                {format(new Date(dateRange.to), "MMM dd, yyyy")}
+                {formatDateLong(dateRange.from)} – {formatDateLong(dateRange.to)}
               </div>
             </div>
           </Card>

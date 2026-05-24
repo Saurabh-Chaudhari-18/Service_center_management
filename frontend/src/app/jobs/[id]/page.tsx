@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -154,6 +154,7 @@ function DetailRow({
 
 export default function JobDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const jobId = params.id as string;
   const { hasPermission, isRole, accessibleBranches } = useAuth();
   const { toast } = useToast();
@@ -184,7 +185,7 @@ export default function JobDetailPage() {
     return (
       <ProtectedRoute requiredPermission="canViewJobCards">
         <AppLayout>
-          <LoadingState />
+          <LoadingState message="Loading job card…" />
         </AppLayout>
       </ProtectedRoute>
     );
@@ -296,14 +297,13 @@ export default function JobDetailPage() {
           ]}
           actions={
             <div className="flex items-center gap-2">
-              <Link href="/jobs">
-                <Button
-                  variant="ghost"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Jobs
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push("/jobs")}
+              >
+                Jobs
+              </Button>
               {headerPrimaryAction}
               <MoreMenu actions={moreMenuActions} />
             </div>
@@ -575,18 +575,14 @@ export default function JobDetailPage() {
                       </Button>
                     )}
                     {showInvoice && (
-                      <Link
-                        href={`/billing/new?jobId=${job.id}`}
-                        className="block"
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        leftIcon={<Receipt className="w-4 h-4" />}
+                        onClick={() => router.push(`/billing/new?jobId=${job.id}`)}
                       >
-                        <Button
-                          variant="secondary"
-                          className="w-full justify-start"
-                          leftIcon={<Receipt className="w-4 h-4" />}
-                        >
-                          Create Invoice
-                        </Button>
-                      </Link>
+                        Create Invoice
+                      </Button>
                     )}
                     {showAssign && (
                       <Button

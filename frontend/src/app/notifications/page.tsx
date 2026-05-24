@@ -93,7 +93,7 @@ function TemplatesTab() {
     onError: () => toast.error("Failed to create default templates."),
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState message="Loading notifications…" />;
 
   if (!templates || templates.length === 0) {
     return (
@@ -270,7 +270,7 @@ function LogsTab() {
       </div>
 
       {isLoading ? (
-        <LoadingState />
+        <LoadingState message="Loading notifications…" />
       ) : logs.length === 0 ? (
         <EmptyState
           icon={<Bell className="w-8 h-8 text-neutral-400" />}

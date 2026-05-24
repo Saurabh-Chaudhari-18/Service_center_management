@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -43,6 +44,7 @@ import Link from "next/link";
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths } from "date-fns";
 import type { JobCard, PickupRequest, InventoryItem } from "@/types";
 import { PICKUP_STATUS_CONFIG, JOB_STATUS_CONFIG } from "@/types";
+import { formatDateTime } from "@/lib/formatters";
 import {
   LineChart,
   Line,
@@ -531,7 +533,7 @@ function RevenueTrendChart() {
 
       {isLoading ? (
         <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] flex items-center justify-center">
-          <LoadingState />
+          <LoadingState message="Loading dashboard…" />
         </div>
       ) : chartData.length === 0 ? (
         <div className="flex-1 min-h-[12rem] sm:min-h-[16rem] flex items-center justify-center">
@@ -598,74 +600,6 @@ function RevenueTrendChart() {
 }
 
 // =====================================================
-// Revenue Summary Card
-// =====================================================
-
-function RevenueSummary() {
-  const { currentBranch } = useAuth();
-
-  const { data: stats } = useQuery({
-    queryKey: ["invoice-stats", currentBranch?.id],
-    queryFn: () => billingApi.getStats(),
-    enabled: !!currentBranch,
-  });
-
-  const incoming = stats?.total_paid || 0;
-  const outstanding = stats?.total_pending || 0;
-  const totalInvoiced = stats?.total_invoiced || 0;
-
-  return (
-    <Card className="flex flex-col">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-1">
-        Financial Summary
-      </h3>
-      <p className="text-sm text-neutral-500 mb-4">Real-time billing status</p>
-
-      <div className="flex-1 flex flex-col justify-between space-y-3">
-        {/* Collected */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-green-50 border border-green-100">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-            <span className="text-sm font-medium text-green-700">Collected</span>
-          </div>
-          <span className="text-lg font-bold text-green-700">
-            ₹{incoming.toLocaleString("en-IN")}
-          </span>
-        </div>
-
-        {/* Outstanding */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span className="text-sm font-medium text-amber-700">Outstanding</span>
-          </div>
-          <span className="text-lg font-bold text-amber-700">
-            ₹{outstanding.toLocaleString("en-IN")}
-          </span>
-        </div>
-
-        {/* Total Invoiced */}
-        <div className="pt-3 border-t border-neutral-100 dark:border-neutral-700">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-neutral-600">Total Invoiced</span>
-            <span className="text-xl font-bold text-neutral-900">
-              ₹{totalInvoiced.toLocaleString("en-IN")}
-            </span>
-          </div>
-        </div>
-
-        {/* Generate Statement Button */}
-        <Link href="/reports">
-          <Button className="w-full mt-1" size="md">
-            Generate Statement
-          </Button>
-        </Link>
-      </div>
-    </Card>
-  );
-}
-
-// =====================================================
 // Net Profit Widget
 // =====================================================
 
@@ -701,7 +635,7 @@ function NetProfitWidget() {
 
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center py-6">
-          <LoadingState />
+          <LoadingState message="Loading revenue…" />
         </div>
       ) : (
         <div className="flex-1 flex flex-col justify-between space-y-3">
@@ -811,7 +745,7 @@ function JobStatusChart() {
 
       {isLoading ? (
         <div className="h-36 flex items-center justify-center">
-          <LoadingState />
+          <LoadingState message="Loading jobs…" />
         </div>
       ) : chartData.length === 0 ? (
         <div className="h-28 sm:h-36 flex items-center justify-center">
@@ -877,6 +811,7 @@ function JobStatusChart() {
 
 function RecentJobs() {
   const { currentBranch } = useAuth();
+  const router = useRouter();
 
   const { data, isLoading } = useQuery({
     queryKey: ["recent-jobs", currentBranch?.id],
@@ -895,19 +830,18 @@ function RecentJobs() {
           </h3>
           <p className="text-sm text-neutral-500">Latest service requests</p>
         </div>
-        <Link href="/jobs">
-          <Button
-            variant="ghost"
-            size="sm"
-            rightIcon={<ArrowRight className="w-4 h-4" />}
-          >
-            View All
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          rightIcon={<ArrowRight className="w-4 h-4" />}
+          onClick={() => router.push("/jobs")}
+        >
+          View All
+        </Button>
       </div>
 
       {isLoading ? (
-        <LoadingState />
+        <LoadingState message="Loading jobs…" />
       ) : recentJobs.length === 0 ? (
         <EmptyState
           icon={<FileText className="w-8 h-8 text-neutral-400" />}
@@ -940,7 +874,7 @@ function RecentJobs() {
                     {job.brand} {job.model}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">
-                    {format(new Date(job.created_at), "MMM dd, yyyy h:mm a")}
+                    {formatDateTime(job.created_at)}
                   </p>
                 </div>
                 <ArrowRight className="w-5 h-5 text-neutral-400" />
@@ -1024,6 +958,7 @@ function QuickActions() {
 
 function PendingPickups() {
   const { currentBranch, hasPermission } = useAuth();
+  const router = useRouter();
 
   const { data } = useQuery({
     queryKey: ["pending-pickups", currentBranch?.id],
@@ -1081,16 +1016,15 @@ function PendingPickups() {
               </Link>
             ))}
           </div>
-          <Link href="/pickups">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              View All Pickups
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3"
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+            onClick={() => router.push("/pickups")}
+          >
+            View All Pickups
+          </Button>
         </div>
       </div>
     </Card>
@@ -1103,6 +1037,7 @@ function PendingPickups() {
 
 function LowStockAlerts() {
   const { currentBranch, hasPermission } = useAuth();
+  const router = useRouter();
 
   const { data: lowStockItems } = useQuery({
     queryKey: ["low-stock", currentBranch?.id],
@@ -1143,16 +1078,15 @@ function LowStockAlerts() {
               </div>
             ))}
           </div>
-          <Link href="/inventory">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              View Inventory
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3"
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+            onClick={() => router.push("/inventory")}
+          >
+            View Inventory
+          </Button>
         </div>
       </div>
     </Card>
@@ -1165,6 +1099,7 @@ function LowStockAlerts() {
 
 function TechnicianJobs() {
   const { user } = useAuth();
+  const router = useRouter();
 
   const { data, isLoading } = useQuery({
     queryKey: ["technician-jobs", user?.id],
@@ -1181,18 +1116,17 @@ function TechnicianJobs() {
         <h3 className="text-lg font-semibold text-neutral-900">
           My Assigned Jobs
         </h3>
-        <Link href="/jobs">
-          <Button
-            variant="ghost"
-            size="sm"
-            rightIcon={<ArrowRight className="w-4 h-4" />}
-          >
-            View All
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          rightIcon={<ArrowRight className="w-4 h-4" />}
+          onClick={() => router.push("/jobs")}
+        >
+          View All
+        </Button>
       </div>
       {isLoading ? (
-        <LoadingState />
+        <LoadingState message="Loading jobs…" />
       ) : jobs.length === 0 ? (
         <EmptyState
           icon={<FileText className="w-8 h-8 text-neutral-400" />}
@@ -1220,7 +1154,7 @@ function TechnicianJobs() {
                     {job.brand} {job.model}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">
-                    {format(new Date(job.created_at), "MMM dd, yyyy h:mm a")}
+                    {formatDateTime(job.created_at)}
                   </p>
                 </div>
                 <ArrowRight className="w-5 h-5 text-neutral-400" />
@@ -1240,6 +1174,7 @@ function TechnicianJobs() {
 export default function DashboardPage() {
   const { user, currentBranch, hasPermission, isRole, organizationBranding } =
     useAuth();
+  const router = useRouter();
   const [revenueOpen, setRevenueOpen] = useState(true);
   const [alertsOpen, setAlertsOpen] = useState(true);
 
@@ -1260,12 +1195,13 @@ export default function DashboardPage() {
           }
           actions={
             hasPermission("canCreateJobCards") ? (
-              <div className="flex items-center gap-3">
-                <Link href="/jobs/new">
-                  <Button leftIcon={<Plus className="w-4 h-4" />}>
-                    New Job Card
-                  </Button>
-                </Link>
+              <div className="hidden lg:flex items-center gap-3">
+                <Button
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  onClick={() => router.push("/jobs/new")}
+                >
+                  New Job Card
+                </Button>
               </div>
             ) : undefined
           }

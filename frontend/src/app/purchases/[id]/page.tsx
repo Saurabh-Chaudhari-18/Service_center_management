@@ -109,7 +109,7 @@ export default function PurchaseDetailPage() {
     return (
       <ProtectedRoute>
         <AppLayout>
-          <LoadingState />
+          <LoadingState message="Loading purchase…" />
         </AppLayout>
       </ProtectedRoute>
     );
@@ -144,6 +144,15 @@ export default function PurchaseDetailPage() {
       <AppLayout>
         <Header
           title="Purchase Details"
+          breadcrumbs={[
+            { label: "Purchases", href: "/purchases" },
+            {
+              label:
+                purchase.invoice_number ||
+                purchase.vendor_name ||
+                "Purchase",
+            },
+          ]}
           actions={
             <Button
               variant="ghost"

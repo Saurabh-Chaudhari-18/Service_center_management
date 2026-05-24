@@ -158,6 +158,10 @@ export default function NewPurchasePage() {
         <Header 
           title="Add New Purchase"
           subtitle="Record an inbound transfer of inventory from a vendor."
+          breadcrumbs={[
+            { label: "Purchases", href: "/purchases" },
+            { label: "Add Purchase" },
+          ]}
           actions={
             <button
               onClick={() => router.push("/purchases")}

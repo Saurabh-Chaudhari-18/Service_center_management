@@ -29,14 +29,13 @@ import {
   Check,
   AlertCircle,
   Phone,
-  Printer,
+  Building2,
   ChevronRight,
   ChevronLeft,
   Wrench,
 } from "lucide-react";
-import Link from "next/link";
 import type { Customer, DeviceType, AccessoryType } from "@/types";
-import { formatPhone } from "@/lib/formatters";
+import { cleanDropdownLabel, formatPhone } from "@/lib/formatters";
 
 // =====================================================
 // Validation Schema
@@ -601,18 +600,17 @@ export default function CreateJobCardPage() {
             { label: "New Job Card" },
           ]}
           actions={
-            <Link href="/jobs">
-              <Button
-                variant="ghost"
-                leftIcon={<ArrowLeft className="w-4 h-4" />}
-              >
-                Go Back
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+              onClick={() => router.push("/jobs")}
+            >
+              Go Back
+            </Button>
           }
         />
 
-        <div className="p-6 w-full max-w-[1920px] mx-auto">
+        <div className="p-6 w-full max-w-[1920px] mx-auto pb-32 sm:pb-6">
           {error && (
             <Alert variant="error" className="mb-6" title="Error">
               {error.message}
@@ -625,15 +623,12 @@ export default function CreateJobCardPage() {
 
             {/* ── STEP 1: INTAKE ── */}
             {step === 1 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8">
-
-                {/* LEFT COLUMN */}
-                <div className="space-y-6">
+              <div className="max-w-3xl mx-auto space-y-6">
 
                   {hasPermission("canManageBranches") && (
                     <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
                       <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
-                        <Printer className="w-5 h-5 text-primary-500" />
+                        <Building2 className="w-5 h-5 text-primary-500" />
                         Branch Assignment
                       </h3>
                       <Select
@@ -682,21 +677,21 @@ export default function CreateJobCardPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
                       <Select
-                        label="Device Type *"
+                        label="Device Type"
                         options={deviceTypes}
                         {...register("device_type")}
                         error={errors.device_type?.message}
                         required
                       />
                       <Input
-                        label="Brand *"
+                        label="Brand"
                         placeholder="e.g., Dell, Apple"
                         {...register("brand")}
                         error={errors.brand?.message}
                         required
                       />
                       <Input
-                        label="Model *"
+                        label="Model"
                         placeholder="e.g., XPS 15"
                         {...register("model")}
                         error={errors.model?.message}
@@ -748,88 +743,6 @@ export default function CreateJobCardPage() {
                     />
                   </Card>
 
-                </div>
-
-                {/* RIGHT COLUMN */}
-                <div className="space-y-6">
-
-                  <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
-                    <h3 className="text-base font-bold text-neutral-900 mb-4">
-                      Items & Condition
-                    </h3>
-
-                    <div className="space-y-6">
-                      {/* Accessories */}
-                      <div>
-                        <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
-                          Included Accessories
-                        </h4>
-                        <AccessoriesChecklist
-                          value={accessories}
-                          onChange={setAccessories}
-                        />
-                        {Object.values(accessories).some(a => a?.present) && (
-                          <div className="mt-3 animate-in fade-in">
-                            <Textarea
-                              placeholder="Add Serial Numbers or specific notes for accessories..."
-                              value={accessoryManualDetails}
-                              onChange={(e) => setAccessoryManualDetails(e.target.value)}
-                              rows={2}
-                              className="text-sm bg-neutral-50"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="border-t border-neutral-100" />
-
-                      {/* Physical Condition Chips */}
-                      <div>
-                        <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
-                          Physical Condition
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {physicalConditionOptions.map((option) => {
-                            const isChecked = selectedPhysicalConditions.includes(option.id);
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPhysicalConditions(prev =>
-                                    isChecked
-                                      ? prev.filter(id => id !== option.id)
-                                      : [...prev, option.id]
-                                  );
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold cursor-pointer ${
-                                  isChecked
-                                    ? "bg-amber-50 border-amber-300 text-amber-800 shadow-sm"
-                                    : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
-                                }`}
-                              >
-                                {isChecked && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                                <span>{option.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {selectedPhysicalConditions.some(id =>
-                          physicalConditionOptions.find(o => o.id === id && o.has_text_input)
-                        ) && (
-                          <div className="mt-3 animate-in fade-in">
-                            <Input
-                              placeholder="Please describe 'Other' physical condition..."
-                              value={physicalConditionOtherText}
-                              onChange={(e) => setPhysicalConditionOtherText(e.target.value)}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-
-                </div>
               </div>
             )}
 
@@ -845,6 +758,80 @@ export default function CreateJobCardPage() {
                   isUrgent={!!watch("is_urgent")}
                   onEdit={handleBack}
                 />
+
+                <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                  <h3 className="text-base font-bold text-neutral-900 mb-4">
+                    Items & Condition
+                  </h3>
+
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
+                        Included Accessories
+                      </h4>
+                      <AccessoriesChecklist
+                        value={accessories}
+                        onChange={setAccessories}
+                      />
+                      {Object.values(accessories).some(a => a?.present) && (
+                        <div className="mt-3 animate-in fade-in">
+                          <Textarea
+                            placeholder="Add Serial Numbers or specific notes for accessories..."
+                            value={accessoryManualDetails}
+                            onChange={(e) => setAccessoryManualDetails(e.target.value)}
+                            rows={2}
+                            className="text-sm bg-neutral-50"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-neutral-100" />
+
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-500 mb-2.5 uppercase tracking-wider">
+                        Physical Condition
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {physicalConditionOptions.map((option) => {
+                          const isChecked = selectedPhysicalConditions.includes(option.id);
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPhysicalConditions(prev =>
+                                  isChecked
+                                    ? prev.filter(id => id !== option.id)
+                                    : [...prev, option.id]
+                                );
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all text-xs font-semibold cursor-pointer ${
+                                isChecked
+                                  ? "bg-amber-50 border-amber-300 text-amber-800 shadow-sm"
+                                  : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300"
+                              }`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                              <span>{cleanDropdownLabel(option.label)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedPhysicalConditions.some(id =>
+                        physicalConditionOptions.find(o => o.id === id && o.has_text_input)
+                      ) && (
+                        <div className="mt-3 animate-in fade-in">
+                          <Input
+                            placeholder="Please describe 'Other' physical condition..."
+                            value={physicalConditionOtherText}
+                            onChange={(e) => setPhysicalConditionOtherText(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
 
                 <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
                   <h3 className="text-base font-bold text-neutral-900 mb-4 flex items-center gap-2">
@@ -882,7 +869,7 @@ export default function CreateJobCardPage() {
                                   }`}
                                 >
                                   {isChecked && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                                  <span>{option.label}</span>
+                                  <span>{cleanDropdownLabel(option.label)}</span>
                                 </button>
                               );
                             })}
@@ -920,7 +907,7 @@ export default function CreateJobCardPage() {
             )}
 
             {/* ── STICKY FOOTER ── */}
-            <div className="mt-8 bg-white border border-neutral-200 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-6 sticky bottom-6 z-10 ring-4 ring-neutral-50/50">
+            <div className="mt-8 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-6 fixed sm:sticky bottom-0 sm:bottom-6 left-0 right-0 sm:left-auto sm:right-auto z-10 sm:ring-4 ring-neutral-50/50 dark:ring-slate-900/40 sm:mx-0 mx-4">
 
               {step === 1 && (
                 <>
@@ -947,11 +934,14 @@ export default function CreateJobCardPage() {
                   </div>
 
                   <div className="flex gap-3 w-full sm:w-auto">
-                    <Link href="/jobs" className="w-full sm:w-auto">
-                      <Button variant="secondary" type="button" className="w-full font-semibold">
-                        Cancel
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      className="w-full font-semibold"
+                      onClick={() => router.push("/jobs")}
+                    >
+                      Cancel
+                    </Button>
                     <Button
                       type="button"
                       onClick={handleNextStep}

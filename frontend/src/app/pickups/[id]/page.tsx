@@ -30,7 +30,6 @@ import {
   UserPlus,
   ChevronRight,
 } from "lucide-react";
-import Link from "next/link";
 import { formatDateTime } from "@/lib/formatters";
 import type { PickupRequestStatus } from "@/types";
 import { PICKUP_STATUS_CONFIG } from "@/types";
@@ -156,7 +155,7 @@ function TechnicianTrackingView({
     return (
       <div className="h-48 flex items-center justify-center bg-neutral-50 rounded-xl border border-neutral-100">
         <div className="text-center">
-          <LoadingState />
+          <LoadingState message="Loading pickup…" />
           <p className="text-xs text-neutral-500 mt-2">
             Locating technician...
           </p>
@@ -277,7 +276,7 @@ export default function PickupDetailPage() {
         <AppLayout>
           <Header title="Pickup Details" />
           <div className="p-6">
-            <LoadingState />
+            <LoadingState message="Loading pickup…" />
           </div>
         </AppLayout>
       </ProtectedRoute>
@@ -291,9 +290,9 @@ export default function PickupDetailPage() {
           <Header title="Pickup Not Found" />
           <div className="p-6 text-center">
             <p className="text-neutral-500">Pickup request not found.</p>
-            <Link href="/pickups">
-              <Button className="mt-4">Back to Pickups</Button>
-            </Link>
+            <Button className="mt-4" onClick={() => router.push("/pickups")}>
+              Back to Pickups
+            </Button>
           </div>
         </AppLayout>
       </ProtectedRoute>
@@ -335,16 +334,19 @@ export default function PickupDetailPage() {
         <Header
           title={pickup.pickup_number}
           subtitle={`${pickup.customer?.first_name ?? ""} ${pickup.customer?.last_name ?? ""}`}
+          breadcrumbs={[
+            { label: "Pickups", href: "/pickups" },
+            { label: pickup.pickup_number },
+          ]}
           actions={
             <div className="flex items-center gap-2">
-              <Link href="/pickups">
-                <Button
-                  variant="ghost"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Pickups
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push("/pickups")}
+              >
+                Pickups
+              </Button>
               {headerPrimaryAction}
             </div>
           }
@@ -565,15 +567,14 @@ export default function PickupDetailPage() {
                         Created from this pickup
                       </p>
                     </div>
-                    <Link href={`/jobs/${pickup.job}`}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        rightIcon={<ChevronRight className="w-4 h-4" />}
-                      >
-                        View
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      rightIcon={<ChevronRight className="w-4 h-4" />}
+                      onClick={() => router.push(`/jobs/${pickup.job}`)}
+                    >
+                      View
+                    </Button>
                   </div>
                 </Card>
               )}

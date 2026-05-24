@@ -205,7 +205,7 @@ export default function PaymentsPage() {
         <WorkspaceSurface>
           {loading ? (
             <div className="p-8">
-              <LoadingState />
+              <LoadingState message="Loading payments…" />
             </div>
           ) : listError ? (
             <div className="p-8">

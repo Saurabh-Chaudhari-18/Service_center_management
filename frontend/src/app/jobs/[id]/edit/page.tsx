@@ -20,7 +20,6 @@ import {
 } from "@/components/ui";
 import { jobsApi, branchesApi } from "@/lib/api";
 import { ArrowLeft, Check, Save, Printer } from "lucide-react";
-import Link from "next/link";
 import type { AccessoryType } from "@/types";
 
 // Schema - mostly same as create but all optional basically
@@ -238,7 +237,7 @@ export default function EditJobPage() {
   if (jobLoading) {
     return (
       <AppLayout>
-        <LoadingState />
+        <LoadingState message="Loading job card…" />
       </AppLayout>
     );
   }
@@ -268,16 +267,20 @@ export default function EditJobPage() {
         <Header
           title={`Edit Job: ${job.job_number}`}
           subtitle="Modify any job details (Owner Access)"
+          breadcrumbs={[
+            { label: "Job Cards", href: "/jobs" },
+            { label: job.job_number, href: `/jobs/${jobId}` },
+            { label: "Edit" },
+          ]}
           actions={
             <div className="flex items-center gap-3">
-              <Link href={`/jobs/${jobId}`}>
-                <Button
-                  variant="secondary"
-                  leftIcon={<ArrowLeft className="w-4 h-4" />}
-                >
-                  Cancel
-                </Button>
-              </Link>
+              <Button
+                variant="secondary"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+                onClick={() => router.push(`/jobs/${jobId}`)}
+              >
+                Cancel
+              </Button>
             </div>
           }
         />

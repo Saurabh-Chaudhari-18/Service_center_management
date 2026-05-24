@@ -415,7 +415,7 @@ export default function BranchesPage() {
           />
 
           {isLoading ? (
-            <LoadingState />
+            <LoadingState message="Loading branches…" />
           ) : filteredBranches.length === 0 ? (
             <EmptyState
               icon={<Building2 className="w-8 h-8 text-neutral-400" />}

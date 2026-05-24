@@ -33,7 +33,6 @@ import {
   Laptop,
   AlertTriangle,
   Zap,
-  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import type { JobCard } from "@/types";
@@ -66,14 +65,15 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
       (1000 * 60 * 60 * 24),
   );
 
+  const hasQuickAction = Boolean(onQuickUpdate && QUICK_ACTIONS[job.status]);
+
   return (
-    <Link href={`/jobs/${job.id}`} className="block">
-      <div className="card p-5 hover:shadow-lg transition-all duration-200 cursor-pointer">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+    <div className="card p-5 hover:shadow-lg transition-all duration-200">
+      <div className="flex items-start justify-between gap-4">
+        <Link href={`/jobs/${job.id}`} className="flex-1 min-w-0">
             {/* Header Row */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="font-mono text-sm font-semibold text-neutral-900">
+              <span className="font-mono text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 {job.job_number}
               </span>
               {!job.branch_name && (
@@ -122,35 +122,38 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
             </p>
 
             {/* Footer Info */}
-            <div className="mt-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-xs text-neutral-400">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{daysSinceCreated}d ago · {formatDate(job.created_at)}</span>
-                </div>
-                {job.assigned_technician_name && (
-                  <div className="flex items-center gap-1">
-                    <User className="w-3.5 h-3.5" />
-                    <span>{job.assigned_technician_name}</span>
-                  </div>
-                )}
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-neutral-400 dark:text-neutral-500">
+              <div className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                <span>{daysSinceCreated}d ago · {formatDate(job.created_at)}</span>
               </div>
-              {onQuickUpdate && (
-                <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-                  <QuickStatusButton
-                    job={job}
-                    isUpdating={isUpdating ?? false}
-                    onUpdate={onQuickUpdate}
-                  />
-                </button>
+              {job.assigned_technician_name && (
+                <div className="flex items-center gap-1">
+                  <User className="w-3.5 h-3.5" />
+                  <span>{job.assigned_technician_name}</span>
+                </div>
               )}
             </div>
-          </div>
+        </Link>
 
-          <ArrowRight className="w-5 h-5 text-neutral-300 flex-shrink-0" />
+        <div className="flex flex-col items-end justify-between gap-2 shrink-0 self-stretch">
+          {hasQuickAction && onQuickUpdate && (
+            <QuickStatusButton
+              job={job}
+              isUpdating={isUpdating ?? false}
+              onUpdate={onQuickUpdate}
+            />
+          )}
+          <Link
+            href={`/jobs/${job.id}`}
+            className="text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-400"
+            aria-label={`View job ${job.job_number}`}
+          >
+            <ArrowRight className="w-5 h-5" />
+          </Link>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -225,7 +228,8 @@ function StatusTabs({
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="relative">
+      <div className="flex gap-2 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory scrollbar-hide [-webkit-overflow-scrolling:touch]">
       {showMyJobs && (
         <button
           key="my-jobs"
@@ -312,6 +316,11 @@ function StatusTabs({
           </button>
         );
       })}
+    </div>
+      <div
+        className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-white via-white/80 to-transparent dark:from-slate-900 dark:via-slate-900/80 md:hidden"
+        aria-hidden
+      />
     </div>
   );
 }
@@ -424,11 +433,12 @@ export default function JobsPage() {
           subtitle={`${totalJobsStat} total job cards`}
           actions={
             hasPermission("canCreateJobCards") && (
-              <Link href="/jobs/new">
-                <Button leftIcon={<Plus className="w-4 h-4" />}>
-                  New Job Card
-                </Button>
-              </Link>
+              <Button
+                leftIcon={<Plus className="w-4 h-4" />}
+                onClick={() => router.push("/jobs/new")}
+              >
+                New Job Card
+              </Button>
             )
           }
         />
@@ -465,7 +475,7 @@ export default function JobsPage() {
           <WorkspaceSurface>
             {isLoading ? (
               <div className="p-8">
-                <LoadingState />
+                <LoadingState message="Loading job cards…" />
               </div>
             ) : error ? (
               <div className="p-8">
@@ -492,9 +502,12 @@ export default function JobsPage() {
                     hasPermission("canCreateJobCards") &&
                     !search &&
                     !statusFilter && (
-                      <Link href="/jobs/new">
-                        <Button leftIcon={<Plus className="h-4 w-4" />}>Create Job Card</Button>
-                      </Link>
+                      <Button
+                        leftIcon={<Plus className="h-4 w-4" />}
+                        onClick={() => router.push("/jobs/new")}
+                      >
+                        Create Job Card
+                      </Button>
                     )
                   }
                 />
