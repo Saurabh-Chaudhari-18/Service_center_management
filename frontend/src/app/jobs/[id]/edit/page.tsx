@@ -171,7 +171,7 @@ export default function EditJobPage() {
         model: job.model,
         serial_number: job.serial_number || "",
         customer_complaint: job.customer_complaint,
-        physical_condition: job.physical_condition,
+        physical_condition: typeof job.physical_condition === 'string' ? job.physical_condition : (job as any).physical_condition_display || undefined,
         is_urgent: job.is_urgent,
         is_warranty_repair: job.is_warranty_repair,
         warranty_details: job.warranty_details || "",
