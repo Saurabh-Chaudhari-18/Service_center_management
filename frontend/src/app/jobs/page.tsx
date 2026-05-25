@@ -564,11 +564,11 @@ export default function JobsPage() {
                           </td>
                           <td className="max-w-[160px] px-4 py-2.5 align-middle">
                             <span className="block truncate font-medium text-neutral-900 dark:text-white">
-                              {job.customer?.first_name} {job.customer?.last_name}
+                              {job.customer_name || `${job.customer?.first_name ?? ''} ${job.customer?.last_name ?? ''}`.trim() || '—'}
                             </span>
-                            {job.customer?.mobile && (
+                            {(job.customer_mobile || job.customer?.mobile) && (
                               <span className="block truncate text-xs text-neutral-500 dark:text-slate-400">
-                                {formatPhone(job.customer.mobile)}
+                                {formatPhone(job.customer_mobile || job.customer?.mobile || '')}
                               </span>
                             )}
                           </td>
