@@ -432,86 +432,15 @@ function BillingContent() {
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (downloadingInvoice && printRef.current) {
-      const generatePdf = () => {
-        const element = printRef.current;
-        if (!element) return;
-
-        // Create a hidden iframe
-        const iframe = document.createElement("iframe");
-        iframe.style.position = "fixed";
-        iframe.style.right = "0";
-        iframe.style.bottom = "0";
-        iframe.style.width = "0";
-        iframe.style.height = "0";
-        iframe.style.border = "0";
-        document.body.appendChild(iframe);
-
-        const doc = iframe.contentWindow?.document;
-        if (!doc) {
-          console.error("Failed to access iframe document.");
-          setDownloadingInvoice(null);
-          return;
-        }
-
-        // Copy all stylesheets from the current document into the iframe
-        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-          .map((link) => link.outerHTML)
-          .join("\n");
-        const styleBlocks = Array.from(document.querySelectorAll("style"))
-          .map((s) => `<style>${s.innerHTML}</style>`)
-          .join("\n");
-
-        doc.open();
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8" />
-              <title>${downloadingInvoice.invoice_number}</title>
-              ${styleLinks}
-              ${styleBlocks}
-              <style>
-                @media print {
-                  @page { size: A4; margin: 0; }
-                  body { margin: 0; padding: 0; }
-                }
-                body { background: white; font-family: sans-serif; }
-              </style>
-            </head>
-            <body>
-              ${element.innerHTML}
-            </body>
-          </html>
-        `);
-        doc.close();
-
-        // Print function
-        const triggerPrint = () => {
-          if (!iframe.contentWindow) return;
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          
-          billingApi.logDownload(downloadingInvoice.id).catch(() => {});
-          setDownloadingInvoice(null);
-          
-          // Cleanup iframe after print dialog is closed
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-          }, 1000);
-        };
-
-        // Wait for iframe contents to fully load before printing
-        iframe.onload = () => {
-          setTimeout(triggerPrint, 500);
-        };
-
-        // Fallback for browsers where onload doesn't fire for doc.write
-        setTimeout(triggerPrint, 1500);
-      };
-
-      // Wait for React to render the invoice into the hidden container
-      setTimeout(generatePdf, 300);
+    if (downloadingInvoice) {
+      // Wait for React to render the invoice, then call native print
+      const timer = setTimeout(() => {
+        window.print();
+        billingApi.logDownload(downloadingInvoice.id).catch(() => {});
+        setDownloadingInvoice(null);
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [downloadingInvoice]);
 
@@ -628,7 +557,7 @@ function BillingContent() {
     <ProtectedRoute requiredPermission="canViewBilling">
       <AppLayout>
         {/* Off-screen invoice container for print/PDF generation */}
-        <div style={{ position: "fixed", top: "-9999px", left: "-9999px", zIndex: -1, width: "794px" }}>
+        <div className="print-container">
           <div ref={printRef}>
             {downloadingInvoice && <InvoiceTemplate invoice={downloadingInvoice} />}
           </div>
