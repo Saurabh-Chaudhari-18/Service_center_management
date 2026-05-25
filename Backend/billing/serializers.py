@@ -115,6 +115,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating DRAFT invoices."""
     job_id = serializers.UUIDField(required=False, allow_null=True)
     customer_id = serializers.UUIDField(required=False, allow_null=True)
+    line_items = AddLineItemSerializer(many=True, required=False)
 
     class Meta:
         model = Invoice
@@ -125,6 +126,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
             'customer_address', 'customer_gstin', 'customer_state_code',
             'invoice_date', 'due_date', 'is_interstate',
             'discount_amount', 'notes', 'terms_and_conditions',
+            'line_items',
             'created_at',
         ]
         read_only_fields = ['id', 'invoice_number', 'status', 'is_finalized', 'created_at']
@@ -167,6 +169,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        line_items_data = validated_data.pop('line_items', [])
         job_id = validated_data.pop('job_id', None)
         customer_id = validated_data.pop('customer_id', None)
 
@@ -199,16 +202,47 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
         validated_data.setdefault('customer_mobile', '')
         validated_data.setdefault('customer_address', '')
-        validated_data['created_by'] = self.context['request'].user
+        request = self.context.get('request')
+        validated_data['created_by'] = request.user if request else None
 
         invoice = Invoice.objects.create(**validated_data)
 
+        added_details = []
+        if line_items_data:
+            for item_data in line_items_data:
+                new_item = InvoiceLineItem.objects.create(
+                    invoice=invoice,
+                    **item_data
+                )
+                
+                # Direct sales deduction for new item added during creation
+                if new_item.inventory_item and not new_item.job_part_usage:
+                    try:
+                        new_item.inventory_item.deduct_stock(
+                            quantity=new_item.quantity,
+                            reason=f"Added to new Invoice {invoice.invoice_number}",
+                            user=request.user if request else None
+                        )
+                    except Exception as e:
+                        from rest_framework.exceptions import ValidationError
+                        raise ValidationError(f"Insufficient stock for {new_item.inventory_item.name}. {str(e)}")
+                
+                added_details.append(f"{new_item.description} (x{new_item.quantity})")
+
+            # Calculate totals for the invoice based on added line items
+            invoice.calculate_totals()
+            invoice.save()
+
+        summary = f'Invoice {invoice.invoice_number} created as draft.'
+        if added_details:
+            summary += f" Items: {', '.join(added_details)}"
+
         InvoiceEditHistory.objects.create(
             invoice=invoice,
-            edited_by=self.context['request'].user,
+            edited_by=request.user if request else None,
             edit_type=InvoiceEditType.CREATED,
-            summary=f'Invoice {invoice.invoice_number} created as draft.',
-            new_values={'status': invoice.status},
+            summary=summary,
+            new_values={'status': invoice.status, 'total_amount': str(invoice.total_amount)},
         )
 
         # Refresh so DateField values are proper date objects (not datetime)
