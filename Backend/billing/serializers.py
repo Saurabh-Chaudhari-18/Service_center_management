@@ -109,6 +109,16 @@ class InvoiceListSerializer(serializers.ModelSerializer):
             'paid_amount', 'balance_due', 'status', 'status_display',
             'is_finalized', 'total_tax'
         ]
+class AddLineItemSerializer(serializers.ModelSerializer):
+    """Serializer for adding line items to invoice."""
+    
+    class Meta:
+        model = InvoiceLineItem
+        fields = [
+            'item_type', 'description', 'hsn_sac_code',
+            'quantity', 'unit', 'unit_price', 'gst_rate',
+            'discount_percent', 'inventory_item', 'job_part_usage'
+        ]
 
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
@@ -428,16 +438,7 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
-class AddLineItemSerializer(serializers.ModelSerializer):
-    """Serializer for adding line items to invoice."""
-    
-    class Meta:
-        model = InvoiceLineItem
-        fields = [
-            'item_type', 'description', 'hsn_sac_code',
-            'quantity', 'unit', 'unit_price', 'gst_rate',
-            'discount_percent', 'inventory_item', 'job_part_usage'
-        ]
+
 
 
 class RecordPaymentSerializer(serializers.Serializer):
