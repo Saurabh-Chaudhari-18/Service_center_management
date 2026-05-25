@@ -438,7 +438,14 @@ function BillingContent() {
             margin: 0,
             filename: `${downloadingInvoice.invoice_number}.pdf`,
             image: { type: "jpeg" as const, quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              letterRendering: true,
+              // Force a white background so oklch transparency doesn't cause issues
+              backgroundColor: "#ffffff",
+            },
             jsPDF: { unit: "in", format: "a4", orientation: "portrait" as const },
           };
           const element = pdfContainerRef.current;
@@ -455,7 +462,8 @@ function BillingContent() {
         }
       };
 
-      setTimeout(generatePdf, 150);
+      // Increased to 300ms to ensure the invoice DOM is fully painted before capture
+      setTimeout(generatePdf, 300);
     }
   }, [downloadingInvoice]);
 
@@ -571,9 +579,33 @@ function BillingContent() {
   return (
     <ProtectedRoute requiredPermission="canViewBilling">
       <AppLayout>
-        {/* Hidden PDF Template Container */}
-        <div style={{ display: "none" }}>
-          <div ref={pdfContainerRef}>
+        {/* Hidden PDF Template Container — must be visible for html2canvas to render correctly */}
+        <div style={{ position: "fixed", top: "-9999px", left: "-9999px", zIndex: -1, width: "794px" }}>
+          {/* Force safe hex colors — html2canvas (inside html2pdf.js) does NOT support oklch/lab/oklab CSS color functions */}
+          <style>{`
+            #pdf-invoice-container, #pdf-invoice-container * {
+              --tw-text-opacity: 1;
+              color-scheme: light !important;
+            }
+            #pdf-invoice-container .text-green-700 { color: #15803d !important; }
+            #pdf-invoice-container .text-green-600 { color: #16a34a !important; }
+            #pdf-invoice-container .text-neutral-50 { color: #fafafa !important; }
+            #pdf-invoice-container .text-neutral-100 { color: #f5f5f5 !important; }
+            #pdf-invoice-container .text-neutral-300 { color: #d4d4d4 !important; }
+            #pdf-invoice-container .text-neutral-400 { color: #a3a3a3 !important; }
+            #pdf-invoice-container .text-neutral-500 { color: #737373 !important; }
+            #pdf-invoice-container .text-neutral-600 { color: #525252 !important; }
+            #pdf-invoice-container .text-neutral-700 { color: #404040 !important; }
+            #pdf-invoice-container .text-neutral-800 { color: #262626 !important; }
+            #pdf-invoice-container .text-neutral-900 { color: #171717 !important; }
+            #pdf-invoice-container .bg-neutral-50 { background-color: #fafafa !important; }
+            #pdf-invoice-container .bg-neutral-100 { background-color: #f5f5f5 !important; }
+            #pdf-invoice-container .bg-white { background-color: #ffffff !important; }
+            #pdf-invoice-container .border-neutral-300 { border-color: #d4d4d4 !important; }
+            #pdf-invoice-container .border-neutral-400 { border-color: #a3a3a3 !important; }
+            #pdf-invoice-container .border-dashed { border-style: dashed !important; }
+          `}</style>
+          <div id="pdf-invoice-container" ref={pdfContainerRef}>
             {downloadingInvoice && <InvoiceTemplate invoice={downloadingInvoice} />}
           </div>
         </div>
