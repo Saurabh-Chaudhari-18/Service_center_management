@@ -10,7 +10,10 @@ import axios, {
 
 // API Base URL - configurable via environment (export for direct fetch use)
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "development"
+    ? "http://127.0.0.1:8001/api"
+    : "https://servicehub-backend1.onrender.com/api");
 
 // Token storage keys (sessionStorage limits XSS persistence vs localStorage)
 const ACCESS_TOKEN_KEY = "scm_access_token";
