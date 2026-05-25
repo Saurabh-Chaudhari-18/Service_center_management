@@ -389,11 +389,12 @@ pre {
   #print-portal-root, .print-container {
     display: block !important;
     background: white;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  #print-portal-root * {
+  #print-portal-root *, .print-container * {
     visibility: visible !important;
-    color: black !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
