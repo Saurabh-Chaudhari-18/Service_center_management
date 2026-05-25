@@ -437,17 +437,24 @@ function BillingContent() {
         const element = printRef.current;
         if (!element) return;
 
-        // Open a blank popup, write the invoice HTML into it, and call print()
-        // This approach is 100% reliable — the browser's native print engine handles
-        // all CSS (including modern oklch/lab colors) correctly, unlike html2canvas.
-        const popup = window.open("", "_blank", "width=900,height=1200");
-        if (!popup) {
-          console.error("Popup blocked! Allow popups for this site to download invoices.");
+        // Create a hidden iframe
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (!doc) {
+          console.error("Failed to access iframe document.");
           setDownloadingInvoice(null);
           return;
         }
 
-        // Copy all stylesheets from the current document into the popup
+        // Copy all stylesheets from the current document into the iframe
         const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
           .map((link) => link.outerHTML)
           .join("\n");
@@ -455,7 +462,8 @@ function BillingContent() {
           .map((s) => `<style>${s.innerHTML}</style>`)
           .join("\n");
 
-        popup.document.write(`
+        doc.open();
+        doc.write(`
           <!DOCTYPE html>
           <html>
             <head>
@@ -476,28 +484,30 @@ function BillingContent() {
             </body>
           </html>
         `);
-        popup.document.close();
+        doc.close();
 
-        // Wait for styles to load, then print
-        popup.onload = () => {
+        // Print function
+        const triggerPrint = () => {
+          if (!iframe.contentWindow) return;
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          
+          billingApi.logDownload(downloadingInvoice.id).catch(() => {});
+          setDownloadingInvoice(null);
+          
+          // Cleanup iframe after print dialog is closed
           setTimeout(() => {
-            popup.focus();
-            popup.print();
-            // Log download after triggering print
-            billingApi.logDownload(downloadingInvoice.id).catch(() => {});
-            setDownloadingInvoice(null);
-          }, 500);
+            document.body.removeChild(iframe);
+          }, 1000);
         };
 
-        // Fallback if onload doesn't fire (some browsers)
-        setTimeout(() => {
-          if (!popup.closed) {
-            popup.focus();
-            popup.print();
-            billingApi.logDownload(downloadingInvoice.id).catch(() => {});
-            setDownloadingInvoice(null);
-          }
-        }, 1500);
+        // Wait for iframe contents to fully load before printing
+        iframe.onload = () => {
+          setTimeout(triggerPrint, 500);
+        };
+
+        // Fallback for browsers where onload doesn't fire for doc.write
+        setTimeout(triggerPrint, 1500);
       };
 
       // Wait for React to render the invoice into the hidden container
