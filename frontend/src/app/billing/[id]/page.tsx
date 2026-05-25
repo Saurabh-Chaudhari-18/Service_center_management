@@ -36,7 +36,7 @@ import { useToast } from "@/context/ToastContext";
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
   return createPortal(
-    <div id="print-portal-root">{children}</div>,
+    <div id="print-portal-root" className="print-container">{children}</div>,
     document.body,
   );
 };
@@ -579,7 +579,7 @@ export default function InvoiceDetailsPage() {
 
         {/* Print Portal */}
         <PrintPortal>
-          <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:z-[9999]">
+          <div>
             <InvoiceTemplate invoice={invoice} />
           </div>
         </PrintPortal>

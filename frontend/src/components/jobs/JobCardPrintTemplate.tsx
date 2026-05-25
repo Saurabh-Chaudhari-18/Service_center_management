@@ -7,7 +7,7 @@ import type { JobCard, Branch } from "@/types";
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
   return createPortal(
-    <div id="print-portal-root">{children}</div>,
+    <div id="print-portal-root" className="print-container">{children}</div>,
     document.body,
   );
 };
