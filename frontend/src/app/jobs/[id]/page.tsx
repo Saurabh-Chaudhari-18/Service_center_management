@@ -452,17 +452,6 @@ export default function JobDetailPage() {
                       </p>
                     </div>
                   )}
-
-                  {job.additional_comments && (
-                    <div>
-                      <p className="text-sm font-medium text-neutral-500 mb-1">
-                        Internal Notes
-                      </p>
-                      <p className="text-neutral-900 bg-amber-50 p-3 rounded-lg border border-amber-100">
-                        {job.additional_comments}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </Card>
 
