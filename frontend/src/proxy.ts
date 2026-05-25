@@ -27,7 +27,7 @@ const PROTECTED_PREFIXES = [
   "/settings",
 ];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
