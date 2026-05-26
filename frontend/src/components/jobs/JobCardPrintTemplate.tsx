@@ -73,7 +73,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
               <BrandLogo brand="LENOVO" />
             </div>
             <div className="text-right">
-              <h1 className="text-2xl font-bold uppercase tracking-wider">
+              <h1 className="text-2xl font-bold uppercase tracking-wider" style={{ color: '#8B0000' }}>
                 {shopName}
               </h1>
               <p className="text-sm font-semibold">
@@ -193,26 +193,35 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
         </div>
 
         {/* ============================================= */}
-        {/* ISSUE DETAILS */}
+        {/* CUSTOMER COMPLAINT */}
         {/* ============================================= */}
         <div className="print-section border border-black p-2 mb-3 print:mb-2">
           <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100 px-1">
-            ISSUE DETAILS
+            CUSTOMER COMPLAINT
           </p>
           <div className="space-y-1">
             <p>
               <b>Customer Complaint:</b> {job.customer_complaint}
             </p>
-            {job.diagnosis_notes && (
-              <p>
-                <b>Diagnosis Notes:</b> {job.diagnosis_notes}
-              </p>
-            )}
             {job.additional_comments && (
               <p>
                 <b>Additional Comments:</b> {job.additional_comments}
               </p>
             )}
+          </div>
+        </div>
+
+        {/* ============================================= */}
+        {/* ENGINEER DIAGNOSIS */}
+        {/* ============================================= */}
+        <div className="print-section border border-black p-2 mb-3 print:mb-2">
+          <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100 px-1">
+            ENGINEER DIAGNOSIS
+          </p>
+          <div className="space-y-1">
+            <p>
+              <b>Diagnosis Notes:</b> {job.diagnosis_notes || "Pending"}
+            </p>
           </div>
         </div>
 
