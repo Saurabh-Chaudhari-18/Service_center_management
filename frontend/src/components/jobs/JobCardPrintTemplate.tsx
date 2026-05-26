@@ -19,18 +19,15 @@ interface JobCardPrintTemplateProps {
 }
 
 export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplateProps) {
-  const shopName = branchDetails?.organization_name || branchDetails?.name || "Service Center";
-  const branchName = branchDetails?.name || shopName;
-  const addressParts = [
-    branchDetails?.address_line1,
-    branchDetails?.address_line2,
-    branchDetails?.city,
-    branchDetails?.state,
-    branchDetails?.pincode,
-  ].filter(Boolean);
-  const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : "—";
-  const phone = branchDetails?.phone ? formatPhone(branchDetails.phone) : "—";
-  const phone2 = (branchDetails as any)?.phone2 ? formatPhone((branchDetails as any).phone2) : null;
+  // Use branch data when available, but fall back to hardcoded shop details
+  // (matching the Invoice template) since branch records may not have these fields populated.
+  const shopName = branchDetails?.organization_name || "SHIVANGI INFOTECH";
+  const fullAddress = branchDetails?.address_line1
+    ? [branchDetails.address_line1, branchDetails.address_line2, branchDetails.city, branchDetails.state, branchDetails.pincode].filter(Boolean).join(", ")
+    : "Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom, Pune-411038";
+  const phone = branchDetails?.phone
+    ? formatPhone(branchDetails.phone)
+    : "9890888295, 9850292673";
 
   return (
     <PrintPortal>
@@ -89,7 +86,7 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
               {fullAddress}
             </p>
             <p className="text-[10pt] font-bold mt-0.5">
-              Mobile: {phone}{phone2 ? `, ${phone2}` : ""}
+              Mobile: {phone}
             </p>
           </div>
           <div className="text-center mt-2 pt-2 border-t border-black">
