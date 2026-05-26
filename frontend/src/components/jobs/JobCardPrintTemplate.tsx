@@ -203,11 +203,6 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
             <p>
               <b>Customer Complaint:</b> {job.customer_complaint}
             </p>
-            {job.additional_comments && (
-              <p>
-                <b>Additional Comments:</b> {job.additional_comments}
-              </p>
-            )}
           </div>
         </div>
 
@@ -220,8 +215,19 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
           </p>
           <div className="space-y-1">
             <p>
-              <b>Diagnosis Notes:</b> {job.diagnosis_notes || "Pending"}
+              <b>Engineer Diagnosis:</b>{" "}
+              {(job as any).engineer_diagnosis_display || "Pending"}
             </p>
+            {job.diagnosis_notes && (
+              <p>
+                <b>Diagnosis Notes:</b> {job.diagnosis_notes}
+              </p>
+            )}
+            {job.additional_comments && (
+              <p>
+                <b>Additional Comments:</b> {job.additional_comments}
+              </p>
+            )}
           </div>
         </div>
 
