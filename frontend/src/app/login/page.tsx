@@ -143,10 +143,22 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-white/60 mt-6">
-          © 2026 ServiceHub. All rights reserved.
-        </p>
+        {/* Footer with Build Info */}
+        <div className="text-center mt-6 space-y-1">
+          <p className="text-sm text-white/60">
+            © 2026 ServiceHub. All rights reserved.
+          </p>
+          <p className="text-xs text-white/40 font-mono">
+            Build: {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "local"}{" "}
+            | {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP
+              ? new Date(process.env.NEXT_PUBLIC_BUILD_TIMESTAMP).toLocaleString("en-IN", {
+                  day: "2-digit", month: "short", year: "numeric",
+                  hour: "2-digit", minute: "2-digit", hour12: true,
+                  timeZone: "Asia/Kolkata",
+                })
+              : "dev"}
+          </p>
+        </div>
       </div>
     </div>
   );
