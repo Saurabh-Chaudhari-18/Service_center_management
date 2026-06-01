@@ -396,33 +396,90 @@ DATABASES['default']['CONN_MAX_AGE'] = env.int('CONN_MAX_AGE', default=60)
 # falls back to LocMemCache automatically, in *every* environment.
 # -----------------------------------------------------------------------
 # -----------------------------------------------------------------------
-# Cache — Redis
+# Cache — Redis with automatic TLS fix + startup probe + LocMemCache fallback
 # -----------------------------------------------------------------------
 
 REDIS_URL = env('REDIS_URL', default='')
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'IGNORE_EXCEPTIONS': True,
-            'CONNECTION_POOL_KWARGS': {
-                'ssl_cert_reqs': None,
+# ── Auto-correct Upstash TLS scheme ──────────────────────────────────
+# Upstash (and most managed Redis providers) require TLS.  The correct
+# URL scheme is  rediss://  (double-s).  If the env var was set with
+# redis://  by mistake Django-redis will open a plain TCP socket and
+# Upstash will close it immediately — the connection silently fails.
+# We normalise the URL here so a mis-configured env-var still works.
+if REDIS_URL and REDIS_URL.startswith('redis://'):
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "REDIS_URL uses 'redis://' scheme — Upstash requires TLS. "
+        "Auto-correcting to 'rediss://'. Fix the env var to suppress this warning."
+    )
+    REDIS_URL = 'rediss://' + REDIS_URL[len('redis://'):]
+
+def _build_redis_caches(url: str) -> dict:
+    """Return a RedisCache CACHES dict if url is non-empty, else LocMemCache."""
+    if not url:
+        return {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                'LOCATION': 'default',
+            }
+        }
+    return {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': url,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'IGNORE_EXCEPTIONS': True,
+                'CONNECTION_POOL_KWARGS': {
+                    'ssl_cert_reqs': None,  # required for Upstash / managed TLS
+                },
             },
-        },
-        'KEY_PREFIX': 'scm',
-        'TIMEOUT': 300,
+            'KEY_PREFIX': 'scm',
+            'TIMEOUT': 300,
+        }
     }
-}
+
+def _probe_redis(url: str) -> bool:
+    """
+    Send an actual PING to Redis and return True if it succeeds.
+
+    Why not just try a TCP connect?  A slow Redis can accept the socket
+    but never send a reply — the PING forces an actual round-trip within
+    SOCKET_CONNECT_TIMEOUT seconds so startup latency stays bounded.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    try:
+        import redis as _redis  # type: ignore
+        client = _redis.from_url(
+            url,
+            socket_connect_timeout=3,
+            socket_timeout=3,
+            ssl_cert_reqs=None,
+        )
+        client.ping()
+        _logger.info("Redis startup probe: OK (%s)", url.split('@')[-1])
+        return True
+    except Exception as exc:
+        _logger.warning(
+            "Redis startup probe FAILED — falling back to LocMemCache. "
+            "Reason: %s", exc
+        )
+        return False
+
+if REDIS_URL and _probe_redis(REDIS_URL):
+    CACHES = _build_redis_caches(REDIS_URL)
+else:
+    CACHES = _build_redis_caches('')  # LocMemCache fallback
 
 # -----------------------------------------------------------------------
 # Celery — async task queue backed by Redis.
 # Workers are started separately: celery -A config worker -l info
 # -----------------------------------------------------------------------
+# Use the already TLS-corrected REDIS_URL so Celery always connects over TLS.
 CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=REDIS_URL or 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=REDIS_URL or 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
@@ -435,6 +492,7 @@ CELERY_TASK_SOFT_TIME_LIMIT = 120      # SoftTimeLimitExceeded after 2 min
 CELERY_TASK_TIME_LIMIT = 180           # SIGKILL after 3 min (safety net)
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # fair dispatch for long-running tasks
 CELERY_RESULT_EXPIRES = 60 * 60 * 24  # keep results for 24 h
+
 
 # -----------------------------------------------------------------------
 # HTTP Security Headers
