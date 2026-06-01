@@ -395,67 +395,29 @@ DATABASES['default']['CONN_MAX_AGE'] = env.int('CONN_MAX_AGE', default=60)
 # but never send a reply).  If the probe fails for any reason the app
 # falls back to LocMemCache automatically, in *every* environment.
 # -----------------------------------------------------------------------
-import socket as _socket
-from urllib.parse import urlparse as _urlparse
-import logging as _logging
-
-_cache_log = _logging.getLogger('django')
+# -----------------------------------------------------------------------
+# Cache — Redis
+# -----------------------------------------------------------------------
 
 REDIS_URL = env('REDIS_URL', default='')
 
-
-def _redis_reachable(url: str, timeout: float = 1.0) -> bool:
-    """
-    Return True only when Redis answers a PING within *timeout* seconds.
-
-    A plain TCP-connect check is insufficient: a misconfigured Redis can
-    complete the handshake but then hang on the first command.  This
-    function sends the inline PING command and verifies the +PONG reply,
-    so it catches both "connection refused" and "connects but hangs".
-    """
-    try:
-        parsed = _urlparse(url)
-        host = parsed.hostname or 'localhost'
-        port = parsed.port or 6379
-        with _socket.create_connection((host, port), timeout=timeout) as sock:
-            sock.sendall(b'*1\r\n$4\r\nPING\r\n')
-            reply = sock.recv(7)
-            return reply == b'+PONG\r\n'
-    except Exception as exc:  # noqa: BLE001
-        _cache_log.warning('Redis probe failed (%s) — falling back to LocMemCache.', exc)
-        return False
-
-
-_use_redis = bool(REDIS_URL) and _redis_reachable(REDIS_URL)
-
-if _use_redis:
-    _cache_log.info('Redis reachable at %s — using RedisCache.', REDIS_URL)
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'SOCKET_CONNECT_TIMEOUT': 2,
-                'SOCKET_TIMEOUT': 2,
-                'IGNORE_EXCEPTIONS': True,  # degrade gracefully if Redis drops at runtime
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'IGNORE_EXCEPTIONS': True,
+            'CONNECTION_POOL_KWARGS': {
+                'ssl_cert_reqs': None,
             },
-            'KEY_PREFIX': 'scm',
-            'TIMEOUT': 300,
-        }
+        },
+        'KEY_PREFIX': 'scm',
+        'TIMEOUT': 300,
     }
-else:
-    if REDIS_URL:
-        _cache_log.warning(
-            'REDIS_URL is set but Redis did not respond — using LocMemCache. '
-            'Start Redis or unset REDIS_URL to suppress this warning.'
-        )
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'scm-default',
-        }
-    }
+}
 
 # -----------------------------------------------------------------------
 # Celery — async task queue backed by Redis.
