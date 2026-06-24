@@ -7,6 +7,15 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { createPortal } from "react-dom";
+
+const PrintPortal = ({ children }: { children: React.ReactNode }) => {
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div id="print-portal-root" className="print-container">{children}</div>,
+    document.body,
+  );
+};
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -557,11 +566,11 @@ function BillingContent() {
     <ProtectedRoute requiredPermission="canViewBilling">
       <AppLayout>
         {/* Off-screen invoice container for print/PDF generation */}
-        <div className="print-container">
+        <PrintPortal>
           <div ref={printRef}>
             {downloadingInvoice && <InvoiceTemplate invoice={downloadingInvoice} />}
           </div>
-        </div>
+        </PrintPortal>
 
         <Header
           title="Billing & Invoices"

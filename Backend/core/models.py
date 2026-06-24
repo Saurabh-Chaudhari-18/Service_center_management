@@ -198,13 +198,20 @@ class Branch(TimeStampedModel):
     def __str__(self):
         return f"{self.organization.name} - {self.name}"
 
+    @property
+    def jobcard_number_prefix(self):
+        """Return prefix for job cards, e.g., 'apeksha-' if branch name contains 'apeksha info'."""
+        if self.name and "apeksha info" in self.name.lower():
+            return "apeksha-"
+        return ""
+
     def get_current_financial_year(self):
         """Get current financial year in format YYYY-YY (e.g., 2025-26)."""
         from django.conf import settings
         today = timezone.now().date()
-        fy_start_month = getattr(settings, 'FINANCIAL_YEAR_START_MONTH', 4)
+        for_month = getattr(settings, 'FINANCIAL_YEAR_START_MONTH', 4)
         
-        if today.month >= fy_start_month:
+        if today.month >= for_month:
             start_year = today.year
         else:
             start_year = today.year - 1
@@ -239,24 +246,42 @@ class Branch(TimeStampedModel):
     def get_next_jobcard_number(self):
         """
         Generate next job card number for this branch.
-        Format: PREFIX/FY/BRANCH_CODE/SEQUENCE
-        Example: JC/2025-26/MUM/00001
+        Format: [PREFIX-]YYYYMMDDNN
+        Example: apeksha-2026062401 (1st job on 24-Jun-2026 for Apeksha Info branch)
 
-        Uses a dedicated BranchSequence row (same rationale as get_next_invoice_number).
+        The daily sequence resets each day. We count existing jobs for
+        today's date prefix in this branch and increment by 1.
+        Uses SELECT FOR UPDATE on BranchSequence to serialize concurrent
+        inserts and avoid duplicate numbers.
         """
         from django.db import transaction
 
+        prefix = self.jobcard_number_prefix
+        today = timezone.now().date()
+        date_prefix = today.strftime('%Y%m%d')  # e.g. "20260624"
+        full_prefix = f"{prefix}{date_prefix}"
+
         with transaction.atomic():
+            # Lock the sequence row to serialize concurrent creates
             seq, _ = BranchSequence.objects.select_for_update().get_or_create(
                 branch=self,
                 kind=BranchSequence.Kind.JOBCARD,
-                defaults={'last_value': self.jobcard_current_number},
+                defaults={'last_value': 0},
             )
-            seq.last_value += 1
+
+            # Count jobs already created today for this branch with this prefix
+            from jobs.models import JobCard
+            today_count = JobCard.objects.filter(
+                branch=self,
+                job_number__startswith=full_prefix,
+            ).count()
+
+            next_seq = today_count + 1
+            # Update the sequence tracker (informational, not used for numbering)
+            seq.last_value = next_seq
             seq.save(update_fields=['last_value'])
 
-            fy = self.get_current_financial_year()
-            return f"{self.jobcard_prefix}/{fy}/{self.code}/{str(seq.last_value).zfill(5)}"
+            return f"{full_prefix}{str(next_seq).zfill(2)}"
 
 
 class BranchSequence(models.Model):

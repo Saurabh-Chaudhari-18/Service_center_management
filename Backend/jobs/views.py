@@ -567,10 +567,17 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if not request.user.has_branch_access(branch):
              raise PermissionDenied('Access denied')
 
-        # Predict
-        fy = branch.get_current_financial_year()
-        next_sequence = str(branch.jobcard_current_number + 1).zfill(5)
-        predicted_number = f"{branch.jobcard_prefix}/{fy}/{branch.code}/{next_sequence}"
+        # Predict using new date-based format: [PREFIX-]YYYYMMDDNN
+        prefix = branch.jobcard_number_prefix
+        today = timezone.now().date()
+        date_prefix = today.strftime('%Y%m%d')
+        full_prefix = f"{prefix}{date_prefix}"
+        today_count = JobCard.objects.filter(
+            branch=branch,
+            job_number__startswith=full_prefix,
+        ).count()
+        next_sequence = str(today_count + 1).zfill(2)
+        predicted_number = f"{full_prefix}{next_sequence}"
         
         return Response({'next_number': predicted_number})
 
