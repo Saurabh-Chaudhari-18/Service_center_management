@@ -102,6 +102,14 @@ class BranchSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source='organization.name', read_only=True)
     users_count = serializers.SerializerMethodField()
     
+    # Read-only resolved effective fields
+    effective_bank_name = serializers.CharField(read_only=True)
+    effective_bank_account_number = serializers.CharField(read_only=True)
+    effective_bank_ifsc = serializers.CharField(read_only=True)
+    effective_bank_branch = serializers.CharField(read_only=True)
+    effective_upi_id = serializers.CharField(read_only=True)
+    effective_authorized_signatory = serializers.CharField(read_only=True)
+    
     class Meta:
         model = Branch
         fields = [
@@ -110,12 +118,25 @@ class BranchSerializer(serializers.ModelSerializer):
             'city', 'state', 'pincode', 'gstin', 'state_code',
             'invoice_prefix', 'invoice_current_number',
             'jobcard_prefix', 'jobcard_current_number',
+            
+            # Edit fields
+            'bank_name', 'bank_account_number', 'bank_ifsc', 'bank_branch',
+            'upi_id', 'authorized_signatory',
+            
+            # Resolved fields
+            'effective_bank_name', 'effective_bank_account_number',
+            'effective_bank_ifsc', 'effective_bank_branch',
+            'effective_upi_id', 'effective_authorized_signatory',
+            
             'sms_enabled', 'whatsapp_enabled', 'default_gst_rate',
             'is_active', 'users_count', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'organization', 'invoice_current_number',
-            'jobcard_current_number', 'created_at', 'updated_at'
+            'jobcard_current_number', 'created_at', 'updated_at',
+            'effective_bank_name', 'effective_bank_account_number',
+            'effective_bank_ifsc', 'effective_bank_branch',
+            'effective_upi_id', 'effective_authorized_signatory'
         ]
 
     def get_users_count(self, obj):

@@ -148,6 +148,18 @@ export interface Branch extends BaseEntity {
   whatsapp_enabled: boolean;
   default_gst_rate: number;
   is_active: boolean;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_ifsc?: string;
+  bank_branch?: string;
+  upi_id?: string;
+  authorized_signatory?: string;
+  effective_bank_name?: string;
+  effective_bank_account_number?: string;
+  effective_bank_ifsc?: string;
+  effective_bank_branch?: string;
+  effective_upi_id?: string;
+  effective_authorized_signatory?: string;
 }
 
 // =====================================================
@@ -523,6 +535,7 @@ export interface Payment extends BaseEntity {
 export interface Invoice extends BaseEntity {
   branch: string;
   branch_name?: string;
+  branch_details?: Branch;
   invoice_number: string;
   job: string;
   job_number?: string;

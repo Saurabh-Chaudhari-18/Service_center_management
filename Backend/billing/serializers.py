@@ -58,6 +58,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     """Full invoice serializer."""
     branch_name = serializers.CharField(source='branch.name', read_only=True)
+    branch_details = serializers.SerializerMethodField()
     job_number = serializers.CharField(source='job.job_number', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     line_items = InvoiceLineItemSerializer(many=True, read_only=True)
@@ -74,7 +75,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'id', 'branch', 'branch_name', 'invoice_number',
+            'id', 'branch', 'branch_name', 'branch_details', 'invoice_number',
             'job', 'job_number',
             'customer_name', 'customer_mobile', 'customer_email',
             'customer_address', 'customer_gstin', 'customer_state_code',
@@ -93,6 +94,12 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'paid_amount', 'is_finalized', 'finalized_at',
             'created_by', 'created_at', 'updated_at'
         ]
+
+    def get_branch_details(self, obj):
+        if not obj.branch:
+            return None
+        from core.serializers import BranchSerializer
+        return BranchSerializer(obj.branch, context=self.context).data
 
 
 class InvoiceListSerializer(serializers.ModelSerializer):

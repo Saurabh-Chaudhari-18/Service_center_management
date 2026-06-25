@@ -169,6 +169,44 @@ class Branch(TimeStampedModel):
         default=0,
         help_text="Current job card number counter"
     )
+
+    # Branch-specific Billing & Bank Details (falls back to organization defaults if blank)
+    bank_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Branch-specific bank name (falls back to organization defaults if blank)"
+    )
+    bank_account_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Branch-specific bank account number (falls back to organization defaults if blank)"
+    )
+    bank_ifsc = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text="Branch-specific bank IFSC (falls back to organization defaults if blank)"
+    )
+    bank_branch = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Branch-specific bank branch name (falls back to organization defaults if blank)"
+    )
+    upi_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Branch-specific UPI ID for payment QR codes (falls back to organization defaults if blank)"
+    )
+    authorized_signatory = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Branch-specific authorized signatory name (falls back to organization defaults if blank)"
+    )
     
     # Notification Settings
     sms_enabled = models.BooleanField(default=True)
@@ -204,6 +242,30 @@ class Branch(TimeStampedModel):
         if self.name and "apeksha info" in self.name.lower():
             return "apeksha-"
         return ""
+
+    @property
+    def effective_bank_name(self):
+        return self.bank_name or (self.organization.bank_name if self.organization else "")
+
+    @property
+    def effective_bank_account_number(self):
+        return self.bank_account_number or (self.organization.bank_account_number if self.organization else "")
+
+    @property
+    def effective_bank_ifsc(self):
+        return self.bank_ifsc or (self.organization.bank_ifsc if self.organization else "")
+
+    @property
+    def effective_bank_branch(self):
+        return self.bank_branch or (self.organization.bank_branch if self.organization else "")
+
+    @property
+    def effective_upi_id(self):
+        return self.upi_id or (self.organization.upi_id if self.organization else "")
+
+    @property
+    def effective_authorized_signatory(self):
+        return self.authorized_signatory or (self.organization.authorized_signatory if self.organization else "")
 
     def get_current_financial_year(self):
         """Get current financial year in format YYYY-YY (e.g., 2025-26)."""

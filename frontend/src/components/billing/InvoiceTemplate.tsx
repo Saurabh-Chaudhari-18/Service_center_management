@@ -404,18 +404,23 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
                 </div>
                 <div className="p-3 text-xs space-y-1 print:p-2 print:text-xs print:space-y-0 text-black">
                   <p className="text-[#000000]">
-                    <span className="font-semibold text-black">Bank:</span> HDFC Bank
+                    <span className="font-semibold text-black">Bank:</span>{" "}
+                    {invoice.branch_details?.effective_bank_name || "HDFC Bank"}
                   </p>
                   <p className="text-[#000000]">
-                    <span className="font-semibold text-black">A/c Name:</span> Shivangi
-                    Infotech
+                    <span className="font-semibold text-black">A/c Name:</span>{" "}
+                    {invoice.branch_details?.name || "Shivangi Infotech"}
                   </p>
                   <p className="text-[#000000]">
                     <span className="font-semibold text-black">A/c No:</span>{" "}
-                    50200012345678
+                    {invoice.branch_details?.effective_bank_account_number || "50200012345678"}
                   </p>
                   <p className="text-[#000000]">
-                    <span className="font-semibold text-black">IFSC:</span> HDFC0000123
+                    <span className="font-semibold text-black">IFSC:</span>{" "}
+                    {invoice.branch_details?.effective_bank_ifsc || "HDFC0000123"}
+                    {invoice.branch_details?.effective_bank_branch
+                      ? ` (${invoice.branch_details.effective_bank_branch})`
+                      : ""}
                   </p>
                 </div>
               </div>
@@ -436,9 +441,11 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
               </div>
               <div className="p-4 print:p-2 flex flex-col justify-between text-right w-1/2 border-l-2 border-dashed border-neutral-400 print:border-neutral-400">
                 <p className="font-bold text-sm print:text-sm text-black">
-                  For SHIVANGI INFOTECH
+                  For {invoice.branch_details?.name?.toUpperCase() || "SHIVANGI INFOTECH"}
                 </p>
-                <p className="text-xs print:text-xs text-black">Authorized Signatory</p>
+                <p className="text-xs print:text-xs text-black">
+                  {invoice.branch_details?.effective_authorized_signatory || "Authorized Signatory"}
+                </p>
               </div>
             </div>
           </div>
