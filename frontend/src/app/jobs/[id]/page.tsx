@@ -158,7 +158,7 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = params.id as string;
-  const { hasPermission, isRole, accessibleBranches } = useAuth();
+  const { hasPermission, isRole, accessibleBranches, currentBranch } = useAuth();
   const { toast } = useToast();
 
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -272,7 +272,10 @@ export default function JobDetailPage() {
   moreMenuActions.push({
     label: "Print Job Card",
     icon: <Printer className="w-4 h-4" />,
-    onClick: () => setShowPrintOptionsModal(true),
+    onClick: () => {
+      const activeBranch = currentBranch || accessibleBranches.find((b) => b.id === job.branch) || null;
+      handlePrint(activeBranch);
+    },
   });
 
   // ── Header primary action ────────────────────────────────────────
@@ -750,15 +753,7 @@ export default function JobDetailPage() {
           customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
         />
 
-        <PrintJobCardOptionsModal
-          isOpen={showPrintOptionsModal}
-          onClose={() => setShowPrintOptionsModal(false)}
-          onConfirm={handlePrint}
-          branchDetails={
-            accessibleBranches.find((b) => b.id === job.branch) ?? null
-          }
-          allBranches={accessibleBranches}
-        />
+        {/* PrintOptionsModal is bypassed and printed directly using the active/default branch template */}
 
         {/* PRINT-ONLY: Job Card Printable Template */}
         {showPrintView && (
