@@ -328,10 +328,17 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
             notes='Job created'
         )
         
-        # Trigger notification
-        from notifications.services import NotificationService
-        NotificationService.on_job_created(job)
-        
+        # Trigger notification (non-blocking: notification failure must never
+        # prevent a job from being created — e.g. Celery/Redis may be down)
+        try:
+            from notifications.services import NotificationService
+            NotificationService.on_job_created(job)
+        except Exception as notify_err:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Job {job.job_number} created successfully but notification failed: {notify_err}"
+            )
+
         return job
 
 

@@ -493,6 +493,17 @@ CELERY_TASK_TIME_LIMIT = 180           # SIGKILL after 3 min (safety net)
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # fair dispatch for long-running tasks
 CELERY_RESULT_EXPIRES = 60 * 60 * 24  # keep results for 24 h
 
+# Fail fast when broker is unreachable — prevents request threads from hanging
+# while waiting for a TCP connection to a Redis that isn't running locally.
+CELERY_BROKER_CONNECTION_TIMEOUT = 3        # seconds before giving up on connect
+CELERY_BROKER_CONNECTION_RETRY = False      # don't retry on the request thread
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False  # suppress noisy startup warning
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_connect_timeout': 3,
+    'socket_timeout': 3,
+    'max_retries': 1,
+}
+
 
 # -----------------------------------------------------------------------
 # HTTP Security Headers
