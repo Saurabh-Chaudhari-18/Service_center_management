@@ -37,6 +37,13 @@ const branchSchema = z.object({
   sms_enabled: z.boolean().default(false),
   whatsapp_enabled: z.boolean().default(false),
   is_active: z.boolean().default(true),
+  // Bank & Billing Details (optional — falls back to organization defaults if blank)
+  bank_name: z.string().optional().or(z.literal("")),
+  bank_account_number: z.string().optional().or(z.literal("")),
+  bank_ifsc: z.string().optional().or(z.literal("")),
+  bank_branch: z.string().optional().or(z.literal("")),
+  upi_id: z.string().optional().or(z.literal("")),
+  authorized_signatory: z.string().optional().or(z.literal("")),
 });
 
 type BranchFormData = z.infer<typeof branchSchema>;
@@ -82,6 +89,12 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
           jobcard_prefix: "JC",
           gstin: "",
           state_code: "",
+          bank_name: "",
+          bank_account_number: "",
+          bank_ifsc: "",
+          bank_branch: "",
+          upi_id: "",
+          authorized_signatory: "",
         },
   });
 
@@ -140,6 +153,12 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               jobcard_prefix: "JC",
               gstin: "",
               state_code: "",
+              bank_name: "",
+              bank_account_number: "",
+              bank_ifsc: "",
+              bank_branch: "",
+              upi_id: "",
+              authorized_signatory: "",
             },
       );
     }
@@ -260,6 +279,53 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
             label="Job Card Prefix"
             {...register("jobcard_prefix")}
             error={errors.jobcard_prefix?.message}
+          />
+        </div>
+
+        {/* Bank & Billing Details */}
+        <div className="col-span-2 text-neutral-900 font-medium pb-2 border-b mt-2">
+          Bank &amp; Billing Details
+          <span className="ml-2 text-xs font-normal text-neutral-400">
+            (optional — if blank, organization defaults are used)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Bank Name"
+            placeholder="e.g. HDFC Bank"
+            {...register("bank_name")}
+            error={errors.bank_name?.message}
+          />
+          <Input
+            label="Account Number"
+            placeholder="e.g. 50200012345678"
+            {...register("bank_account_number")}
+            error={errors.bank_account_number?.message}
+          />
+          <Input
+            label="IFSC Code"
+            placeholder="e.g. HDFC0000123"
+            {...register("bank_ifsc")}
+            error={errors.bank_ifsc?.message}
+          />
+          <Input
+            label="Bank Branch"
+            placeholder="e.g. Paud Road, Pune"
+            {...register("bank_branch")}
+            error={errors.bank_branch?.message}
+          />
+          <Input
+            label="UPI ID"
+            placeholder="e.g. shivangi@hdfc"
+            {...register("upi_id")}
+            error={errors.upi_id?.message}
+          />
+          <Input
+            label="Authorized Signatory"
+            placeholder="Name printed on invoices/job cards"
+            {...register("authorized_signatory")}
+            error={errors.authorized_signatory?.message}
           />
         </div>
 

@@ -308,8 +308,8 @@ class Branch(TimeStampedModel):
     def get_next_jobcard_number(self):
         """
         Generate next job card number for this branch.
-        Format: [PREFIX-]YYYYMMDDNN
-        Example: apeksha-2026062401 (1st job on 24-Jun-2026 for Apeksha Info branch)
+        Format: [PREFIX-]YYMMDDNN
+        Example: apeksha-26062401 (1st job on 24-Jun-2026 for Apeksha Info branch)
 
         The daily sequence resets each day. We count existing jobs for
         today's date prefix in this branch and increment by 1.
@@ -320,7 +320,7 @@ class Branch(TimeStampedModel):
 
         prefix = self.jobcard_number_prefix
         today = timezone.now().date()
-        date_prefix = today.strftime('%Y%m%d')  # e.g. "20260624"
+        date_prefix = today.strftime('%y%m%d')  # e.g. "260624" (2-digit year)
         full_prefix = f"{prefix}{date_prefix}"
 
         with transaction.atomic():

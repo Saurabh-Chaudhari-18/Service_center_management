@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import type { Branch } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
@@ -40,6 +41,7 @@ import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
 import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
 import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
 import { JobCardPrintTemplate } from "@/components/jobs/JobCardPrintTemplate";
+import { PrintJobCardOptionsModal } from "@/components/jobs/PrintJobCardOptionsModal";
 import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
 import { useToast } from "@/context/ToastContext";
 
@@ -164,6 +166,9 @@ export default function JobDetailPage() {
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
+  const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
+  const [selectedPrintBranch, setSelectedPrintBranch] = useState<Branch | null>(null);
+  const [selectedPrintCustomName, setSelectedPrintCustomName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const handleAfterPrint = () => setShowPrintView(false);
@@ -241,7 +246,9 @@ export default function JobDetailPage() {
     showDiagnosis;
 
   // ── Handlers ────────────────────────────────────────────────────
-  const handlePrint = () => {
+  const handlePrint = (selectedBranch: Branch | null, customName?: string) => {
+    setSelectedPrintBranch(selectedBranch);
+    setSelectedPrintCustomName(customName);
     setShowPrintView(true);
     setTimeout(() => window.print(), 500);
   };
@@ -265,7 +272,7 @@ export default function JobDetailPage() {
   moreMenuActions.push({
     label: "Print Job Card",
     icon: <Printer className="w-4 h-4" />,
-    onClick: handlePrint,
+    onClick: () => setShowPrintOptionsModal(true),
   });
 
   // ── Header primary action ────────────────────────────────────────
@@ -743,13 +750,22 @@ export default function JobDetailPage() {
           customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
         />
 
+        <PrintJobCardOptionsModal
+          isOpen={showPrintOptionsModal}
+          onClose={() => setShowPrintOptionsModal(false)}
+          onConfirm={handlePrint}
+          branchDetails={
+            accessibleBranches.find((b) => b.id === job.branch) ?? null
+          }
+          allBranches={accessibleBranches}
+        />
+
         {/* PRINT-ONLY: Job Card Printable Template */}
         {showPrintView && (
           <JobCardPrintTemplate
             job={job}
-            branchDetails={
-              accessibleBranches.find((b) => b.id === job.branch) ?? null
-            }
+            branchDetails={selectedPrintBranch}
+            customShopName={selectedPrintCustomName}
           />
         )}
       </AppLayout>

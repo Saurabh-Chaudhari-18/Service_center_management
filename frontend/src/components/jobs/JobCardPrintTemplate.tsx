@@ -15,19 +15,35 @@ const PrintPortal = ({ children }: { children: React.ReactNode }) => {
 
 interface JobCardPrintTemplateProps {
   job: JobCard;
+  /**
+   * The branch whose header (name, address, phone, GSTIN) should appear on the print.
+   * This is the branch SELECTED by the user in the print options modal — NOT necessarily
+   * the branch the job belongs to. That distinction lets staff print any branch's letterhead.
+   */
   branchDetails?: Branch | null;
+  /**
+   * Optional override for the displayed shop name only.
+   * All other header details (address, phone, GSTIN) still come from branchDetails.
+   */
+  customShopName?: string;
 }
 
-export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplateProps) {
-  // Use branch data when available, but fall back to hardcoded shop details
-  // (matching the Invoice template) since branch records may not have these fields populated.
-  const shopName = branchDetails?.organization_name || "SHIVANGI INFOTECH";
+export function JobCardPrintTemplate({ job, branchDetails, customShopName }: JobCardPrintTemplateProps) {
+  // Shop name: custom override → branch name → fallback
+  const shopName = customShopName || branchDetails?.name || branchDetails?.organization_name || "SHIVANGI INFOTECH";
+
+  // Address: fully from the selected branch; blank lines are filtered out
   const fullAddress = branchDetails?.address_line1
     ? [branchDetails.address_line1, branchDetails.address_line2, branchDetails.city, branchDetails.state, branchDetails.pincode].filter(Boolean).join(", ")
     : "Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom, Pune-411038";
+
+  // Phone from selected branch
   const phone = branchDetails?.phone
     ? formatPhone(branchDetails.phone)
     : "9890888295, 9850292673";
+
+  // GSTIN from selected branch
+  const gstin = branchDetails?.gstin ?? "";
 
   return (
     <PrintPortal>
@@ -88,6 +104,11 @@ export function JobCardPrintTemplate({ job, branchDetails }: JobCardPrintTemplat
             <p className="text-[10pt] font-bold mt-0.5">
               Mobile: {phone}
             </p>
+            {gstin && (
+              <p className="text-[9pt] font-semibold mt-0.5">
+                GSTIN: {gstin}
+              </p>
+            )}
           </div>
           <div className="text-center mt-2 pt-2 border-t border-black">
             <p className="font-bold text-lg uppercase tracking-wide">

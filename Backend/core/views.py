@@ -381,9 +381,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-branches')
     def my_branches(self, request):
-        """Get branches accessible to current user."""
+        """Get branches accessible to current user — returns full details so
+        the frontend can use address, phone, GSTIN etc. for job card printing."""
         branches = request.user.get_accessible_branches()
-        serializer = BranchMinimalSerializer(branches, many=True)
+        serializer = BranchSerializer(branches, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='set-current-branch')
