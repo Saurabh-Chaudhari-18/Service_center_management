@@ -514,9 +514,9 @@ class JobEstimateApprovalSerializer(serializers.Serializer):
 
 class JobDeliverySerializer(serializers.Serializer):
     """Serializer for job delivery with OTP/signature verification."""
-    otp = serializers.CharField(required=False)
-    signature = serializers.ImageField(required=False)
-    notes = serializers.CharField(required=False, allow_blank=True)
+    otp = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    signature = serializers.ImageField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate(self, data):
         # Verification disabled for now (bypass OTP/Signature check)
