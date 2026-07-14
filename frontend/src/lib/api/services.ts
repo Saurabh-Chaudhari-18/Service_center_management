@@ -362,8 +362,8 @@ export const jobsApi = {
     return apiPost<JobCard>(`/jobs/${jobId}/deliver/`, { otp, notes });
   },
 
-  resendDeliveryOtp: async (jobId: string): Promise<void> => {
-    return apiPost(`/jobs/${jobId}/resend-delivery-otp/`);
+  resendDeliveryOtp: async (jobId: string): Promise<{ message: string; otp?: string }> => {
+    return apiPost<{ message: string; otp?: string }>(`/jobs/${jobId}/resend-delivery-otp/`);
   },
 
   accessDevicePassword: async (

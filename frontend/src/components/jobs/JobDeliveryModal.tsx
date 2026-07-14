@@ -43,8 +43,14 @@ export function JobDeliveryModal({
 
   const { mutate: resendOtp, isPending: isResending } = useMutation({
     mutationFn: () => jobsApi.resendDeliveryOtp(jobId),
-    onSuccess: () => toast.success("OTP resent to customer."),
-    onError: () => toast.error("Failed to resend OTP."),
+    onSuccess: (data) => {
+      if (data?.otp && data.otp !== "******") {
+        toast.success(`OTP sent. Code: ${data.otp}`);
+      } else {
+        toast.success("OTP sent to customer.");
+      }
+    },
+    onError: () => toast.error("Failed to send OTP."),
   });
 
   const handleClose = () => {
