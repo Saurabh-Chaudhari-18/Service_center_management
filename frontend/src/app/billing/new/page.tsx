@@ -194,6 +194,29 @@ function CreateInvoiceContent() {
         });
       }
 
+      // 3. Outsourced Repair Costs
+      if (job.outsourced_repairs && job.outsourced_repairs.length > 0) {
+        job.outsourced_repairs.forEach((repair) => {
+          if (
+            repair.status === "RETURNED" &&
+            repair.actual_cost &&
+            Number(repair.actual_cost) > 0
+          ) {
+            items.push({
+              item_type: "SERVICE",
+              description: `Outsourced Repair: ${repair.vendor_name}${
+                repair.vendor_invoice_number
+                  ? ` (Vendor Inv: ${repair.vendor_invoice_number})`
+                  : ""
+              }`,
+              quantity: 1,
+              unit_price: Number(repair.actual_cost),
+              gst_rate: 18,
+            });
+          }
+        });
+      }
+
       if (items.length > 0) {
         setValue("line_items", items);
       }
