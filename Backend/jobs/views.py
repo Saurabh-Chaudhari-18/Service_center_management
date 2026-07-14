@@ -934,26 +934,13 @@ class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     CRUD ViewSet for outsource vendor directory.
     Vendors are branch-scoped (or shared if branch is null).
     """
+    queryset = OutsourceVendor.objects.filter(is_active=True)
     serializer_class = OutsourceVendorSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'contact_person', 'phone', 'city', 'specialization']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
-
-    def get_queryset(self):
-        qs = OutsourceVendor.objects.filter(is_active=True)
-        branch = self.get_branch()
-        if branch:
-            # Show vendors for this branch + shared vendors (branch=null)
-            qs = qs.filter(
-                django_models.Q(branch=branch) | django_models.Q(branch__isnull=True)
-            )
-        return qs
-
-    def perform_create(self, serializer):
-        branch = self.get_branch()
-        serializer.save(branch=branch)
 
 
 # =====================================================
