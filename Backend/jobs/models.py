@@ -109,6 +109,10 @@ class JobCard(TimeStampedModel):
         default='',
         help_text="Customer-facing PIN for public job tracking (digits only)",
     )
+    received_date = models.DateField(
+        default=timezone.now,
+        help_text="The date the device was actually received from the customer"
+    )
 
     # Customer
     customer = models.ForeignKey(
@@ -413,7 +417,10 @@ class JobCard(TimeStampedModel):
         from django.db.models import Max
         
         prefix = "UNIV-JC-"
-        year = str(timezone.now().year)[-2:]
+        target_date = self.received_date or timezone.now().date()
+        if hasattr(target_date, 'date'):
+            target_date = target_date.date()
+        year = str(target_date.year)[-2:]
         prefix_with_year = f"{prefix}{year}-"
         
         last_job = JobCard.objects.filter(
@@ -435,7 +442,7 @@ class JobCard(TimeStampedModel):
         # Generate job number if not set
         if not self.job_number:
             if self.branch:
-                self.job_number = self.branch.get_next_jobcard_number()
+                self.job_number = self.branch.get_next_jobcard_number(self.received_date)
             else:
                 self.job_number = self.get_universal_job_number()
         if not self.tracking_pin:

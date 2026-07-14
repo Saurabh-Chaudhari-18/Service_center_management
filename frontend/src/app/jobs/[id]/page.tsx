@@ -636,6 +636,10 @@ export default function JobDetailPage() {
                     }
                   />
                   <DetailRow
+                    label="Received Date"
+                    value={job.received_date ? formatDateLong(job.received_date) : formatDateLong(job.created_at)}
+                  />
+                  <DetailRow
                     label="Created"
                     value={formatDateLong(job.created_at)}
                   />

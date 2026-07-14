@@ -62,6 +62,7 @@ const createJobSchema = z.object({
   warranty_details: z.string().optional(),
   diagnosis_notes: z.string().optional(),
   additional_comments: z.string().optional(),
+  received_date: z.string().min(1, "Received date is required"),
 });
 
 type CreateJobFormData = z.infer<typeof createJobSchema>;
@@ -384,6 +385,14 @@ export default function CreateJobCardPage() {
   const [serviceCharge, setServiceCharge] = useState("");
   const [accessoryManualDetails, setAccessoryManualDetails] = useState("");
 
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const {
     register,
     handleSubmit,
@@ -399,6 +408,7 @@ export default function CreateJobCardPage() {
       is_warranty_repair: false,
       physical_condition: { selected: [], other_text: "" },
       engineer_diagnosis: { selected: [], other_text: "" },
+      received_date: getLocalDateString(),
     },
   });
 
@@ -625,31 +635,47 @@ export default function CreateJobCardPage() {
             {step === 1 && (
               <div className="max-w-3xl mx-auto space-y-6">
 
-                  {hasPermission("canManageBranches") && (
-                    <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
-                      <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-primary-500" />
-                        Branch Assignment
-                      </h3>
-                      <Select
-                        label="Assign to Branch"
-                        value={selectedBranchId}
-                        onChange={(e) => setSelectedBranchId(e.target.value)}
-                        options={[
-                          {
-                            value: "universal",
-                            label: "🌍 Universal / All Branches",
-                          },
-                          ...(Array.isArray(branches)
-                            ? branches
-                            : Object.hasOwn(branches, "results")
-                              ? (branches as { results: { id: string; name: string }[] }).results
-                              : []
-                          ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
-                        ]}
+                  <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
+                    <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">
+                      <Building2 className="w-5 h-5 text-primary-500" />
+                      Intake Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {hasPermission("canManageBranches") ? (
+                        <Select
+                          label="Assign to Branch"
+                          value={selectedBranchId}
+                          onChange={(e) => setSelectedBranchId(e.target.value)}
+                          options={[
+                            {
+                              value: "universal",
+                              label: "🌍 Universal / All Branches",
+                            },
+                            ...(Array.isArray(branches)
+                              ? branches
+                              : Object.hasOwn(branches, "results")
+                                ? (branches as { results: { id: string; name: string }[] }).results
+                                : []
+                            ).map((b: { id: string; name: string }) => ({ value: b.id, label: b.name })),
+                          ]}
+                        />
+                      ) : (
+                        <Input
+                          label="Branch"
+                          value={currentBranch.name}
+                          disabled
+                          readOnly
+                        />
+                      )}
+                      <Input
+                        type="date"
+                        label="Received Date"
+                        {...register("received_date")}
+                        error={errors.received_date?.message}
+                        required
                       />
-                    </Card>
-                  )}
+                    </div>
+                  </Card>
 
                   <Card className="border border-neutral-200 shadow-sm p-5 hover:border-neutral-300 transition-colors">
                     <h3 className="text-base font-bold text-neutral-900 mb-3 flex items-center gap-2">

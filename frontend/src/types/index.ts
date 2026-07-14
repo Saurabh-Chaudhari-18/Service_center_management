@@ -391,6 +391,7 @@ export interface JobCard extends BaseEntity {
   part_requests?: PartRequest[];
   diagnosis_parts?: DiagnosisPart[];
   invoices?: Invoice[];
+  received_date?: string;
 }
 
 export interface CreateJobCardData {
@@ -416,6 +417,7 @@ export interface CreateJobCardData {
     condition?: string;
     description?: string;
   }>;
+  received_date?: string;
 }
 
 // =====================================================

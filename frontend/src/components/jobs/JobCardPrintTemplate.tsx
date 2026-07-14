@@ -115,7 +115,7 @@ export function JobCardPrintTemplate({ job, branchDetails, customShopName }: Job
               JOB CARD: {job.job_number}
             </p>
             <p className="text-[11pt] font-medium">
-              Date: {formatDateLong(job.created_at)}
+              Date: {job.received_date ? formatDateLong(job.received_date) : formatDateLong(job.created_at)}
             </p>
             <p className="text-[10pt] font-medium text-neutral-600">
               Status: {job.status?.replace(/_/g, " ")}

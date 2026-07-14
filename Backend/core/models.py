@@ -305,7 +305,7 @@ class Branch(TimeStampedModel):
             fy = self.get_current_financial_year()
             return f"{self.invoice_prefix}/{fy}/{self.code}/{str(seq.last_value).zfill(5)}"
 
-    def get_next_jobcard_number(self):
+    def get_next_jobcard_number(self, received_date=None):
         """
         Generate next job card number for this branch.
         Format: [PREFIX-]YYMMDDNN
@@ -319,8 +319,11 @@ class Branch(TimeStampedModel):
         from django.db import transaction
 
         prefix = self.jobcard_number_prefix
-        today = timezone.now().date()
-        date_prefix = today.strftime('%y%m%d')  # e.g. "260624" (2-digit year)
+        # Use received_date if provided, otherwise default to today
+        target_date = received_date or timezone.now().date()
+        if hasattr(target_date, 'date'):
+            target_date = target_date.date()
+        date_prefix = target_date.strftime('%y%m%d')  # e.g. "260624" (2-digit year)
         full_prefix = f"{prefix}{date_prefix}"
 
         with transaction.atomic():

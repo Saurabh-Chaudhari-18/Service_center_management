@@ -181,7 +181,7 @@ class JobCardSerializer(serializers.ModelSerializer):
             'completion_notes', 'actual_completion_date',
             'delivery_date', 'delivered_by',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
-            'total_parts_cost',
+            'total_parts_cost', 'received_date',
             'accessories', 'photos', 'notes', 'status_history', 'diagnosis_parts',
             'created_at', 'updated_at'
         ]
@@ -264,7 +264,7 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
             'customer_complaint', 'physical_condition', 'engineer_diagnosis',
             'diagnosis_notes',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
-            'accessories', 'additional_comments', 'estimated_cost'
+            'accessories', 'additional_comments', 'estimated_cost', 'received_date'
         ]
         read_only_fields = ['id', 'job_number', 'tracking_pin', 'status']
 
@@ -364,7 +364,7 @@ class JobCardUpdateSerializer(serializers.ModelSerializer):
             'diagnosis_notes',
             'estimated_cost', 'estimated_completion_date',
             'is_urgent', 'is_warranty_repair', 'warranty_details',
-            'accessories', 'additional_comments'
+            'accessories', 'additional_comments', 'received_date'
         ]
         read_only_fields = ['id', 'job_number', 'branch']
 
@@ -415,7 +415,7 @@ class JobCardListSerializer(serializers.ModelSerializer):
             'id', 'job_number', 'branch_name', 'customer_name', 'customer_mobile',
             'device_type', 'brand', 'model', 'status', 'status_display',
             'is_urgent', 'assigned_technician_name',
-            'estimated_completion_date', 'created_at'
+            'estimated_completion_date', 'received_date', 'created_at'
         ]
 
 
