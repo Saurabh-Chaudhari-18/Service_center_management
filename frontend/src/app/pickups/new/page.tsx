@@ -6,8 +6,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/context/AuthContext";
-import { Card, Button, Select } from "@/components/ui";
+import { Card, Button, Select, Input } from "@/components/ui";
 import { pickupsApi, customersApi } from "@/lib/api";
+import { NewCustomerModal } from "@/components/customers/NewCustomerModal";
+import type { Customer } from "@/types";
+import { formatPhone } from "@/lib/formatters";
 import {
   ArrowLeft,
   Save,
@@ -18,6 +21,7 @@ import {
   Calendar,
   AlertTriangle,
   Truck,
+  Plus,
 } from "lucide-react";
 // =====================================================
 // Device Types
@@ -48,14 +52,7 @@ const TIME_SLOTS = [
 export default function NewPickupPage() {
   const router = useRouter();
   const { currentBranch } = useAuth();
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<{
-    id: string;
-    name: string;
-    mobile: string;
-    address?: string;
-  } | null>(null);
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -69,13 +66,6 @@ export default function NewPickupPage() {
     contact_number: "",
     notes: "",
     is_urgent: false,
-  });
-
-  // Search customers
-  const { data: customerResults } = useQuery({
-    queryKey: ["customer-search", customerSearch],
-    queryFn: () => customersApi.list({ search: customerSearch, page: 1 }),
-    enabled: customerSearch.length >= 2,
   });
 
   const createMutation = useMutation({
@@ -131,26 +121,18 @@ export default function NewPickupPage() {
     });
   };
 
-  const selectCustomer = (customer: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    mobile: string;
-    address?: string;
-  }) => {
-    setSelectedCustomer({
-      id: customer.id,
-      name: `${customer.first_name} ${customer.last_name}`,
-      mobile: customer.mobile,
-      address: customer.address,
-    });
-    setCustomerSearch("");
-    setShowCustomerDropdown(false);
-    if (customer.mobile && !form.contact_number) {
-      setForm((f) => ({ ...f, contact_number: customer.mobile }));
-    }
-    if (customer.address && !form.pickup_address) {
-      setForm((f) => ({ ...f, pickup_address: customer.address || "" }));
+  const handleSelectCustomer = (customer: Customer | null) => {
+    setSelectedCustomer(customer);
+    if (customer) {
+      if (customer.mobile && !form.contact_number) {
+        setForm((f) => ({ ...f, contact_number: customer.mobile }));
+      }
+      const fullAddress = [customer.address_line1, customer.address_line2]
+        .filter(Boolean)
+        .join(", ");
+      if (fullAddress && !form.pickup_address) {
+        setForm((f) => ({ ...f, pickup_address: fullAddress }));
+      }
     }
   };
 
@@ -194,63 +176,11 @@ export default function NewPickupPage() {
                 Customer Details
               </h3>
 
-              {selectedCustomer ? (
-                <div className="flex items-center justify-between p-4 bg-primary-50 rounded-lg border border-primary-200">
-                  <div>
-                    <p className="font-medium text-neutral-900">
-                      {selectedCustomer.name}
-                    </p>
-                    <p className="text-sm text-neutral-600">
-                      {selectedCustomer.mobile}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedCustomer(null)}
-                  >
-                    Change
-                  </Button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                    <input
-                      type="text"
-                      placeholder="Search customer by name or mobile..."
-                      value={customerSearch}
-                      onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        setShowCustomerDropdown(true);
-                      }}
-                      onFocus={() => setShowCustomerDropdown(true)}
-                      className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  {showCustomerDropdown &&
-                    customerResults?.results &&
-                    customerResults.results.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {customerResults.results.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => selectCustomer(c)}
-                            className="w-full text-left px-4 py-3 hover:bg-neutral-50 border-b border-neutral-100 last:border-0"
-                          >
-                            <p className="font-medium text-neutral-900 text-sm">
-                              {c.first_name} {c.last_name}
-                            </p>
-                            <p className="text-xs text-neutral-500">
-                              {c.mobile}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                </div>
-              )}
+              <CustomerSearch
+                selectedCustomer={selectedCustomer}
+                onSelect={handleSelectCustomer}
+                branchId={currentBranch?.id || ""}
+              />
             </Card>
 
             {/* Device Info */}
@@ -459,5 +389,144 @@ export default function NewPickupPage() {
         </div>
       </AppLayout>
     </ProtectedRoute>
+  );
+}
+
+
+// =====================================================
+// Customer Search Helper Component (shared with job form)
+// =====================================================
+
+interface CustomerSearchProps {
+  onSelect: (customer: Customer | null) => void;
+  selectedCustomer: Customer | null;
+  branchId: string;
+}
+
+function CustomerSearch({
+  onSelect,
+  selectedCustomer,
+  branchId,
+}: CustomerSearchProps) {
+  const [search, setSearch] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["customer-search-pickup", search, branchId],
+    queryFn: () =>
+      customersApi.list({ search, branch: branchId }).then((res) => res.results || []),
+    enabled: search.trim().length >= 2,
+  });
+
+  const customers = data || [];
+
+  if (selectedCustomer) {
+    return (
+      <div className="p-4 border border-primary-200 bg-primary-50 rounded-xl transition-all">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-medium shrink-0 shadow-sm">
+              {selectedCustomer.first_name[0]}
+              {selectedCustomer.last_name?.[0]}
+            </div>
+            <div>
+              <p className="font-semibold text-neutral-900">
+                {selectedCustomer.first_name} {selectedCustomer.last_name}
+              </p>
+              <p className="text-sm text-neutral-600 flex items-center gap-1 font-medium">
+                <Phone className="w-3.5 h-3.5" />
+                {formatPhone(selectedCustomer.mobile)}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => onSelect(null)}>
+            Change
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Input
+          placeholder="Search by name or mobile..."
+          leftIcon={<Search className="w-5 h-5 text-neutral-400" />}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setShowResults(true);
+          }}
+          onFocus={() => setShowResults(true)}
+          onBlur={() => setTimeout(() => setShowResults(false), 200)}
+          className="bg-white"
+        />
+
+        {showResults && search.trim().length >= 2 && (
+          <div className="customer-search-dropdown absolute z-50 w-full bg-white mt-1 border border-neutral-200 rounded-lg shadow-xl max-h-60 overflow-y-auto ring-1 ring-black/5">
+            {isLoading ? (
+              <div className="p-4 text-center text-neutral-500 text-sm">
+                Searching...
+              </div>
+            ) : customers.length > 0 ? (
+              customers.map((customer) => (
+                <button
+                  key={customer.id}
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary-50 text-left transition-colors border-b border-neutral-100 last:border-0 group"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelect(customer);
+                    setShowResults(false);
+                  }}
+                >
+                  <div className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-600 group-hover:bg-primary-100 group-hover:text-primary-700 flex items-center justify-center text-sm font-semibold shrink-0 transition-colors">
+                    {customer.first_name[0]}
+                  </div>
+                  <div>
+                    <p className="font-medium text-neutral-900 text-sm">
+                      {customer.first_name} {customer.last_name}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {formatPhone(customer.mobile)} · {customer.city || "—"}
+                    </p>
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="p-4 text-center">
+                <p className="text-sm text-neutral-500 mb-2">No customer found for &quot;{search}&quot;</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs text-neutral-500 pl-1">
+        Type at least 2 characters to search existing clients
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setShowNewCustomerModal(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-dashed border-primary-200 text-primary-600 hover:bg-primary-50 hover:border-primary-400 transition-all text-sm font-semibold bg-white"
+      >
+        <Plus className="w-4 h-4" />
+        Register New Customer
+      </button>
+
+      <NewCustomerModal
+        isOpen={showNewCustomerModal}
+        onClose={() => setShowNewCustomerModal(false)}
+        onCustomerCreated={(customer) => {
+          onSelect(customer);
+          setShowNewCustomerModal(false);
+        }}
+        branchId={branchId}
+        initialMobile={search}
+      />
+    </div>
   );
 }
