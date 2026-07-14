@@ -253,6 +253,35 @@ export function JobCardPrintTemplate({ job, branchDetails, customShopName }: Job
         </div>
 
         {/* ============================================= */}
+        {/* OUTSOURCED REPAIRS */}
+        {/* ============================================= */}
+        {job.outsourced_repairs && job.outsourced_repairs.length > 0 && (
+          <div className="print-section border border-black p-2 mb-3 print:mb-2 text-[10pt]">
+            <p className="font-bold border-b border-black text-[11pt] mb-2 uppercase bg-slate-100 px-1">
+              OUTSOURCED REPAIR DETAILS
+            </p>
+            <div className="space-y-2">
+              {job.outsourced_repairs.map((item) => (
+                <div key={item.id} className="border-b border-dashed border-neutral-300 last:border-0 pb-1.5 mb-1.5 last:pb-0 last:mb-0">
+                  <div className="grid grid-cols-2 gap-2">
+                    <p><b>Vendor:</b> {item.vendor_name} ({item.vendor_city || "No City"})</p>
+                    <p className="text-right"><b>Status:</b> {item.status_display || item.status}</p>
+                  </div>
+                  <p><b>Reason:</b> {item.reason}</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <p><b>Sent Date:</b> {item.sent_date}</p>
+                    {item.return_date && <p><b>Return Date:</b> {item.return_date}</p>}
+                    {item.actual_cost && <p><b>Vendor Cost:</b> ₹{Number(item.actual_cost).toFixed(0)}</p>}
+                  </div>
+                  {item.vendor_notes && <p className="text-xs"><b>Vendor Report:</b> {item.vendor_notes}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+
+        {/* ============================================= */}
         {/* TERMS & CONDITIONS */}
         {/* ============================================= */}
         <div className="print-section border border-black p-2 mb-3 print:mb-2 terms-text">

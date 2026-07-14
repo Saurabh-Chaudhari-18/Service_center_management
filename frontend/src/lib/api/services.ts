@@ -33,6 +33,8 @@ import type {
   TechnicianProductivityData,
   PickupRequest,
   Purchase,
+  OutsourceVendor,
+  OutsourcedRepair,
 } from "@/types";
 
 // =====================================================
@@ -453,6 +455,55 @@ export const jobsApi = {
     Array<{ value: string; label: string }>
   > => {
     return apiGet("/jobs/enums/device-types/");
+  },
+
+  // Outsource Actions
+  outsource: async (
+    jobId: string,
+    data: {
+      vendor: string;
+      reason: string;
+      sent_date: string;
+      estimated_cost?: number | null;
+      expected_return_date?: string | null;
+      notes?: string;
+    },
+  ): Promise<OutsourcedRepair> => {
+    return apiPost<OutsourcedRepair>(`/jobs/${jobId}/outsource/`, data);
+  },
+
+  markOutsourceReturned: async (
+    jobId: string,
+    outsourceId: string,
+    data: {
+      return_date: string;
+      actual_cost?: number | null;
+      repair_outcome: string;
+      vendor_notes?: string;
+      vendor_invoice_number?: string;
+      new_job_status: string;
+    },
+  ): Promise<OutsourcedRepair> => {
+    return apiPost<OutsourcedRepair>(
+      `/jobs/${jobId}/outsource/${outsourceId}/return/`,
+      data,
+    );
+  },
+};
+
+// =====================================================
+// Outsource Vendors API
+// =====================================================
+
+export const outsourceVendorsApi = {
+  list: async (params?: { search?: string }): Promise<OutsourceVendor[]> => {
+    // Backend uses ModelViewSet with simple format, so it might not be paginated if the route returns list
+    // Let's call GET /jobs/outsource-vendors/
+    return apiGet<OutsourceVendor[]>("/jobs/outsource-vendors/", params);
+  },
+
+  create: async (data: Omit<OutsourceVendor, "id" | "created_at" | "updated_at">): Promise<OutsourceVendor> => {
+    return apiPost<OutsourceVendor>("/jobs/outsource-vendors/", data);
   },
 };
 

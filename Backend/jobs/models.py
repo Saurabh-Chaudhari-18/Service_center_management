@@ -31,6 +31,7 @@ class JobStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Customer Rejected'  # Customer rejected repair (dead end)
     WAITING_FOR_PARTS = 'WAITING_FOR_PARTS', 'Waiting for Parts'  # FRD: WAITING_FOR_PARTS
     REPAIR_IN_PROGRESS = 'REPAIR_IN_PROGRESS', 'Repair in Progress'  # FRD: REPAIR_IN_PROGRESS
+    OUTSOURCED = 'OUTSOURCED', 'Outsourced for Repair'  # Device sent to external vendor
     READY_FOR_DELIVERY = 'READY_FOR_DELIVERY', 'Ready for Delivery'  # FRD: READY_FOR_DELIVERY
     DELIVERED = 'DELIVERED', 'Delivered'  # Device delivered to customer
     CANCELLED = 'CANCELLED', 'Cancelled'  # Job cancelled (dead end)
@@ -39,12 +40,13 @@ class JobStatus(models.TextChoices):
 # Define allowed status transitions (FRD Section 8.2: sequential only)
 ALLOWED_STATUS_TRANSITIONS = {
     JobStatus.RECEIVED: [JobStatus.DIAGNOSIS, JobStatus.CANCELLED],
-    JobStatus.DIAGNOSIS: [JobStatus.ESTIMATE_SHARED, JobStatus.CANCELLED],
+    JobStatus.DIAGNOSIS: [JobStatus.ESTIMATE_SHARED, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
     JobStatus.ESTIMATE_SHARED: [JobStatus.APPROVED, JobStatus.REJECTED, JobStatus.CANCELLED],
-    JobStatus.APPROVED: [JobStatus.WAITING_FOR_PARTS, JobStatus.REPAIR_IN_PROGRESS, JobStatus.CANCELLED],
+    JobStatus.APPROVED: [JobStatus.WAITING_FOR_PARTS, JobStatus.REPAIR_IN_PROGRESS, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
     JobStatus.REJECTED: [],  # Terminal state
-    JobStatus.WAITING_FOR_PARTS: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.CANCELLED],
-    JobStatus.REPAIR_IN_PROGRESS: [JobStatus.WAITING_FOR_PARTS, JobStatus.READY_FOR_DELIVERY, JobStatus.CANCELLED],
+    JobStatus.WAITING_FOR_PARTS: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
+    JobStatus.REPAIR_IN_PROGRESS: [JobStatus.WAITING_FOR_PARTS, JobStatus.READY_FOR_DELIVERY, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
+    JobStatus.OUTSOURCED: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.READY_FOR_DELIVERY, JobStatus.CANCELLED],
     JobStatus.READY_FOR_DELIVERY: [JobStatus.DELIVERED, JobStatus.REPAIR_IN_PROGRESS],  # Can go back if issues found
     JobStatus.DELIVERED: [],  # Terminal state (FRD: Job becomes read-only after delivery)
     JobStatus.CANCELLED: [],  # Terminal state
@@ -890,3 +892,159 @@ class DropdownOption(TimeStampedModel):
     def __str__(self):
         dt = f" ({self.get_device_type_display()})" if self.device_type else " (All)"
         return f"{self.get_category_display()}{dt}: {self.label}"
+
+
+# =====================================================
+# Outsource Vendor & Outsourced Repair Models
+# =====================================================
+
+class OutsourceVendor(TimeStampedModel):
+    """
+    Directory of external repair vendors / third-party service providers.
+    Separate from the Supplier model (which is for parts purchasing).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name='outsource_vendors',
+        null=True,
+        blank=True,
+        help_text="Branch that created this vendor. NULL = shared across branches."
+    )
+
+    # Vendor Info
+    name = models.CharField(max_length=255, help_text="Vendor / shop name")
+    contact_person = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=15, help_text="Primary contact number")
+    alternate_phone = models.CharField(max_length=15, blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    specialization = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="What they specialize in (e.g., BGA rework, motherboard repair)"
+    )
+    notes = models.TextField(blank=True, help_text="Internal notes about this vendor")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class OutsourcedRepairStatus(models.TextChoices):
+    """Status of an individual outsource record."""
+    SENT = 'SENT', 'Sent to Vendor'
+    RETURNED = 'RETURNED', 'Returned from Vendor'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class RepairOutcome(models.TextChoices):
+    """Outcome of the outsourced repair."""
+    REPAIRED = 'REPAIRED', 'Repaired Successfully'
+    PARTIALLY_REPAIRED = 'PARTIALLY_REPAIRED', 'Partially Repaired'
+    NOT_REPAIRED = 'NOT_REPAIRED', 'Could Not Repair'
+
+
+class OutsourcedRepair(TimeStampedModel):
+    """
+    Tracks a single outsource event for a job card.
+    A job can be outsourced multiple times (e.g., Vendor A fails → sent to Vendor B).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        JobCard,
+        on_delete=models.CASCADE,
+        related_name='outsourced_repairs'
+    )
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name='outsourced_repairs'
+    )
+    vendor = models.ForeignKey(
+        OutsourceVendor,
+        on_delete=models.PROTECT,
+        related_name='repair_jobs',
+        help_text="The external vendor handling this repair"
+    )
+
+    # Outward details
+    reason = models.TextField(help_text="Why the device is being outsourced")
+    sent_date = models.DateField(help_text="Date device was sent to vendor")
+    estimated_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Vendor's estimated/quoted repair cost"
+    )
+    expected_return_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expected date of return from vendor"
+    )
+    notes = models.TextField(blank=True, help_text="Internal notes")
+    sent_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='outsourced_sent',
+        help_text="Staff member who sent the device"
+    )
+
+    # Return details
+    status = models.CharField(
+        max_length=20,
+        choices=OutsourcedRepairStatus.choices,
+        default=OutsourcedRepairStatus.SENT,
+        db_index=True
+    )
+    return_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date device was received back from vendor"
+    )
+    actual_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual amount charged by vendor"
+    )
+    repair_outcome = models.CharField(
+        max_length=25,
+        choices=RepairOutcome.choices,
+        blank=True,
+        help_text="Result of the outsourced repair"
+    )
+    vendor_notes = models.TextField(
+        blank=True,
+        help_text="What the vendor reported (work done, issues found)"
+    )
+    vendor_invoice_number = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Vendor's bill/receipt reference number"
+    )
+    received_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='outsourced_received',
+        help_text="Staff member who received the device back"
+    )
+
+    class Meta:
+        ordering = ['-sent_date', '-created_at']
+        indexes = [
+            models.Index(fields=['job', 'status']),
+            models.Index(fields=['vendor']),
+        ]
+
+    def __str__(self):
+        return f"{self.job.job_number} → {self.vendor.name} ({self.get_status_display()})"
+

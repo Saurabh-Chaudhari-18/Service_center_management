@@ -33,6 +33,7 @@ import {
   Printer,
   MoreVertical,
   Copy,
+  Truck,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDateLong, formatPhone } from "@/lib/formatters";
@@ -43,6 +44,9 @@ import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
 import { JobCardPrintTemplate } from "@/components/jobs/JobCardPrintTemplate";
 import { PrintJobCardOptionsModal } from "@/components/jobs/PrintJobCardOptionsModal";
 import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
+import { OutsourceRepairModal } from "@/components/jobs/OutsourceRepairModal";
+import { OutsourceReturnModal } from "@/components/jobs/OutsourceReturnModal";
+import { OutsourceDetailsCard } from "@/components/jobs/OutsourceDetailsCard";
 import { useToast } from "@/context/ToastContext";
 
 // =====================================================
@@ -165,6 +169,9 @@ export default function JobDetailPage() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showOutsourceModal, setShowOutsourceModal] = useState(false);
+  const [showOutsourceReturnModal, setShowOutsourceReturnModal] = useState(false);
+  const [activeOutsourceId, setActiveOutsourceId] = useState("");
   const [showPrintView, setShowPrintView] = useState(false);
   const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
   const [selectedPrintBranch, setSelectedPrintBranch] = useState<Branch | null>(null);
@@ -238,12 +245,16 @@ export default function JobDetailPage() {
     (isRole("TECHNICIAN") ||
       hasPermission("canEditJobCards") ||
       isRole("OWNER", "SUPER_ADMIN"));
+  const showOutsource =
+    ["DIAGNOSIS", "APPROVED", "WAITING_FOR_PARTS", "REPAIR_IN_PROGRESS"].includes(job.status) &&
+    canEdit;
   const hasAnyAction =
     showDeliver ||
     showUpdateStatus ||
     showInvoice ||
     showAssign ||
-    showDiagnosis;
+    showDiagnosis ||
+    showOutsource;
 
   // ── Handlers ────────────────────────────────────────────────────
   const handlePrint = (selectedBranch: Branch | null, customName?: string) => {
@@ -465,6 +476,17 @@ export default function JobDetailPage() {
                 </div>
               </Card>
 
+              {/* Outsource History Details */}
+              {job.outsourced_repairs && job.outsourced_repairs.length > 0 && (
+                <OutsourceDetailsCard
+                  repairs={job.outsourced_repairs}
+                  onMarkReturned={(outsourceId) => {
+                    setActiveOutsourceId(outsourceId);
+                    setShowOutsourceReturnModal(true);
+                  }}
+                />
+              )}
+
               {/* Spare Parts Required */}
               {job.diagnosis_parts && job.diagnosis_parts.length > 0 && (
                 <Card>
@@ -616,6 +638,16 @@ export default function JobDetailPage() {
                         Add Diagnosis
                       </Button>
                     )}
+                    {showOutsource && (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-start"
+                        onClick={() => setShowOutsourceModal(true)}
+                        leftIcon={<Truck className="w-4 h-4 text-orange-500" />}
+                      >
+                        Outsource Repair
+                      </Button>
+                    )}
                   </div>
                 </Card>
               )}
@@ -755,6 +787,17 @@ export default function JobDetailPage() {
           onClose={() => setShowDeliveryModal(false)}
           jobId={jobId}
           customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
+        />
+        <OutsourceRepairModal
+          isOpen={showOutsourceModal}
+          onClose={() => setShowOutsourceModal(false)}
+          jobId={jobId}
+        />
+        <OutsourceReturnModal
+          isOpen={showOutsourceReturnModal}
+          onClose={() => setShowOutsourceReturnModal(false)}
+          jobId={jobId}
+          outsourceId={activeOutsourceId}
         />
 
         {/* PrintOptionsModal is bypassed and printed directly using the active/default branch template */}

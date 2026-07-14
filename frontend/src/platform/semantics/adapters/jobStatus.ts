@@ -11,6 +11,7 @@ const JOB_STATUS_TONE: Record<JobStatus, SemanticTone> = {
   REJECTED: "danger",
   WAITING_FOR_PARTS: "warning",
   REPAIR_IN_PROGRESS: "cyan",
+  OUTSOURCED: "warning",
   READY_FOR_DELIVERY: "success",
   DELIVERED: "primary",
   CANCELLED: "neutral",

@@ -20,6 +20,7 @@ export type JobStatus =
   | "REJECTED"
   | "WAITING_FOR_PARTS"
   | "REPAIR_IN_PROGRESS"
+  | "OUTSOURCED"
   | "READY_FOR_DELIVERY"
   | "DELIVERED"
   | "CANCELLED";
@@ -392,6 +393,49 @@ export interface JobCard extends BaseEntity {
   diagnosis_parts?: DiagnosisPart[];
   invoices?: Invoice[];
   received_date?: string;
+  outsourced_repairs?: OutsourcedRepair[];
+}
+
+export interface OutsourceVendor extends BaseEntity {
+  branch?: string | null;
+  name: string;
+  contact_person?: string;
+  phone: string;
+  alternate_phone?: string;
+  address?: string;
+  city?: string;
+  specialization?: string;
+  notes?: string;
+  is_active?: boolean;
+}
+
+export type OutsourcedRepairStatus = "SENT" | "RETURNED" | "CANCELLED";
+export type RepairOutcome = "REPAIRED" | "PARTIALLY_REPAIRED" | "NOT_REPAIRED";
+
+export interface OutsourcedRepair extends BaseEntity {
+  job: string;
+  branch: string;
+  vendor: string;
+  vendor_name: string;
+  vendor_phone?: string;
+  vendor_city?: string;
+  reason: string;
+  sent_date: string;
+  estimated_cost?: number | null;
+  expected_return_date?: string | null;
+  notes?: string;
+  sent_by: string;
+  sent_by_name: string;
+  status: OutsourcedRepairStatus;
+  status_display: string;
+  return_date?: string | null;
+  actual_cost?: number | null;
+  repair_outcome?: RepairOutcome | null;
+  repair_outcome_display?: string | null;
+  vendor_notes?: string;
+  vendor_invoice_number?: string;
+  received_by?: string | null;
+  received_by_name?: string | null;
 }
 
 export interface CreateJobCardData {
@@ -812,6 +856,12 @@ export const JOB_STATUS_CONFIG: Record<
     color: "#06b6d4",
     bgColor: "#ecfeff",
     textColor: "#0e7490",
+  },
+  OUTSOURCED: {
+    label: "Outsourced for Repair",
+    color: "#ea580c",
+    bgColor: "#fff7ed",
+    textColor: "#c2410c",
   },
   READY_FOR_DELIVERY: {
     label: "Ready for Delivery",

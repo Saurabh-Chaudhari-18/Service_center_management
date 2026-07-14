@@ -19,7 +19,8 @@ from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
     JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType,
     PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
-    DropdownOption, DropdownCategory
+    DropdownOption, DropdownCategory,
+    OutsourceVendor, OutsourcedRepair
 )
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
@@ -32,7 +33,9 @@ from jobs.serializers import (
     JobStatusHistorySerializer,
     PickupRequestSerializer, PickupRequestCreateSerializer,
     PickupRequestListSerializer, PickupRequestStatusUpdateSerializer,
-    DropdownOptionSerializer
+    DropdownOptionSerializer,
+    OutsourceVendorSerializer, OutsourcedRepairSerializer,
+    OutsourcedRepairCreateSerializer, OutsourcedRepairReturnSerializer
 )
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
@@ -920,3 +923,104 @@ class PublicTrackingView(APIView):
             'timeline': timeline,
             'photos': photos
         })
+
+
+# =====================================================
+# Outsource Vendor ViewSet
+# =====================================================
+
+class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
+    """
+    CRUD ViewSet for outsource vendor directory.
+    Vendors are branch-scoped (or shared if branch is null).
+    """
+    serializer_class = OutsourceVendorSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['name', 'contact_person', 'phone', 'city', 'specialization']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        qs = OutsourceVendor.objects.filter(is_active=True)
+        branch = self.get_branch()
+        if branch:
+            # Show vendors for this branch + shared vendors (branch=null)
+            qs = qs.filter(
+                django_models.Q(branch=branch) | django_models.Q(branch__isnull=True)
+            )
+        return qs
+
+    def perform_create(self, serializer):
+        branch = self.get_branch()
+        serializer.save(branch=branch)
+
+
+# =====================================================
+# Outsource Job Actions (on JobCardViewSet)
+# =====================================================
+
+# Monkey-patching is messy; add actions as standalone views
+# that are registered in urls.py with the job ID.
+
+from rest_framework.views import APIView
+
+
+class JobOutsourceView(APIView):
+    """POST /jobs/{job_id}/outsource/ — create outsource record + change status."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, job_id):
+        try:
+            job = JobCard.objects.get(pk=job_id)
+        except JobCard.DoesNotExist:
+            raise NotFound("Job not found.")
+
+        # Check if job can transition to OUTSOURCED
+        from jobs.models import ALLOWED_STATUS_TRANSITIONS
+        allowed = ALLOWED_STATUS_TRANSITIONS.get(job.status, [])
+        if JobStatus.OUTSOURCED not in allowed:
+            raise ValidationError(
+                f"Cannot outsource from status '{job.get_status_display()}'. "
+                f"Allowed transitions: {[s.label for s in allowed]}"
+            )
+
+        serializer = OutsourcedRepairCreateSerializer(
+            data=request.data,
+            context={'request': request, 'job': job}
+        )
+        serializer.is_valid(raise_exception=True)
+        outsource = serializer.save()
+
+        return Response(
+            OutsourcedRepairSerializer(outsource).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+class JobOutsourceReturnView(APIView):
+    """POST /jobs/{job_id}/outsource/{outsource_id}/return/ — mark returned."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, job_id, outsource_id):
+        try:
+            outsource = OutsourcedRepair.objects.select_related('job', 'vendor').get(
+                pk=outsource_id, job_id=job_id
+            )
+        except OutsourcedRepair.DoesNotExist:
+            raise NotFound("Outsource record not found.")
+
+        if outsource.status != 'SENT':
+            raise ValidationError("This outsource record is not in 'Sent' status.")
+
+        serializer = OutsourcedRepairReturnSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        outsource = serializer.update(outsource, serializer.validated_data)
+
+        return Response(
+            OutsourcedRepairSerializer(outsource).data,
+            status=status.HTTP_200_OK
+        )
