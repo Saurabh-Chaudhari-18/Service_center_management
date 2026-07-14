@@ -47,11 +47,13 @@ export function OutsourceRepairModal({
   const [vendorError, setVendorError] = useState("");
 
   // Fetch Vendors
-  const { data: vendors = [], isLoading: isLoadingVendors, refetch: refetchVendors } = useQuery({
+  const { data: vendorsData, isLoading: isLoadingVendors, refetch: refetchVendors } = useQuery({
     queryKey: ["outsourceVendors"],
     queryFn: () => outsourceVendorsApi.list(),
     enabled: isOpen,
   });
+
+  const vendors = vendorsData?.results || [];
 
   // Reset state on open/close
   useEffect(() => {

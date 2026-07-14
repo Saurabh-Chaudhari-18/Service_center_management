@@ -496,10 +496,8 @@ export const jobsApi = {
 // =====================================================
 
 export const outsourceVendorsApi = {
-  list: async (params?: { search?: string }): Promise<OutsourceVendor[]> => {
-    // Backend uses ModelViewSet with simple format, so it might not be paginated if the route returns list
-    // Let's call GET /jobs/outsource-vendors/
-    return apiGet<OutsourceVendor[]>("/jobs/outsource-vendors/", params);
+  list: async (params?: { search?: string }): Promise<PaginatedResponse<OutsourceVendor>> => {
+    return apiGet<PaginatedResponse<OutsourceVendor>>("/jobs/outsource-vendors/", params);
   },
 
   create: async (data: Omit<OutsourceVendor, "id" | "created_at" | "updated_at">): Promise<OutsourceVendor> => {
