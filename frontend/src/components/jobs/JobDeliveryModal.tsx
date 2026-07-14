@@ -53,7 +53,7 @@ export function JobDeliveryModal({
     onError: () => toast.error("Failed to send OTP."),
   });
 
-  const handleClose = () => {
+    const handleClose = () => {
     setOtp("");
     setNotes("");
     onClose();
@@ -72,7 +72,6 @@ export function JobDeliveryModal({
           <Button
             onClick={() => deliver()}
             isLoading={isPending}
-            disabled={otp.trim().length === 0}
           >
             Confirm Delivery
           </Button>
@@ -90,37 +89,15 @@ export function JobDeliveryModal({
         )}
 
         <p className="text-sm text-neutral-600">
-          Delivering device to <strong>{customerName}</strong>. Enter the OTP
-          sent to the customer to confirm handoff.
+          Are you sure you want to deliver the device to <strong>{customerName}</strong>? This will record the handoff and change the job card status to Delivered.
         </p>
-
-        <div className="space-y-1">
-          <Input
-            label="Delivery OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.toUpperCase())}
-            placeholder="Enter 6-character OTP"
-            maxLength={6}
-            required
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={() => resendOtp()}
-            disabled={isResending}
-            className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3 h-3 ${isResending ? "animate-spin" : ""}`} />
-            {isResending ? "Sending…" : "Resend OTP to customer"}
-          </button>
-        </div>
 
         <Textarea
           label="Delivery notes (optional)"
           placeholder="Any notes about the handoff..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={2}
+          rows={3}
         />
       </div>
     </Modal>

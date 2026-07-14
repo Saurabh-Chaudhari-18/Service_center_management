@@ -519,20 +519,7 @@ class JobDeliverySerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, data):
-        # Either OTP or signature is mandatory
-        if not data.get('otp') and not data.get('signature'):
-            raise serializers.ValidationError(
-                "Either OTP or customer signature is required for delivery."
-            )
-        
-        # Verify OTP if provided
-        if data.get('otp'):
-            job = self.context.get('job')
-            if not job.verify_delivery_otp(data['otp']):
-                raise serializers.ValidationError({
-                    'otp': 'Invalid OTP.'
-                })
-        
+        # Verification disabled for now (bypass OTP/Signature check)
         return data
 
 
