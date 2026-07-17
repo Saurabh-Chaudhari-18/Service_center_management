@@ -29,11 +29,12 @@ export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const showDemo = process.env.NODE_ENV !== "production";
+  const showDemo = true; // Enabled for easy access during customer demos
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -130,15 +131,74 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo Credentials Info (dev only) */}
+          {/* Demo Credentials Info */}
           {showDemo && (
-            <div className="mt-6 p-4 bg-neutral-50 rounded-lg">
-              <p className="text-xs text-neutral-500 text-center">
-                Seeded demo login (run{" "}
-                <span className="font-mono">setup_initial_data</span> once):
-                <br />
-                <span className="font-mono">owner@techfix.com / password123</span>
+            <div className="mt-6 p-4 bg-neutral-50/80 rounded-xl border border-neutral-100">
+              <p className="text-xs font-semibold text-neutral-600 mb-2 text-center">
+                Quick Demo Login (Click to autofill)
               </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-owner@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  👑 Owner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-manager@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  💼 Manager
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-tech@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  🔧 Technician
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-reception@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  📞 Receptionist
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-accounts@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  📊 Accountant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("email", "demo-superadmin@scm.local");
+                    setValue("password", "demo12345");
+                  }}
+                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                >
+                  🛡️ Super Admin
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -158,6 +158,15 @@ ROLE_PERMISSION_ROWS = {
 
 DEMO_USERS = [
     {
+        "email": "demo-superadmin@scm.local",
+        "first_name": "Demo",
+        "last_name": "SuperAdmin",
+        "role": Role.SUPER_ADMIN,
+        "is_staff": True,
+        "is_superuser": True,
+        "assign_branch": False,
+    },
+    {
         "email": "demo-owner@scm.local",
         "first_name": "Demo",
         "last_name": "Owner",
@@ -165,6 +174,15 @@ DEMO_USERS = [
         "is_staff": True,
         "is_superuser": False,
         "assign_branch": False,
+    },
+    {
+        "email": "demo-manager@scm.local",
+        "first_name": "Demo",
+        "last_name": "Manager",
+        "role": Role.MANAGER,
+        "is_staff": False,
+        "is_superuser": False,
+        "assign_branch": True,
     },
     {
         "email": "demo-tech@scm.local",
@@ -314,7 +332,9 @@ class Command(BaseCommand):
         mode = "(core-only mode)" if core_only else "(full module seed)"
         self.stdout.write(mode)
         self.stdout.write(self.style.WARNING(f"Demo login password (--password): {password}"))
+        self.stdout.write("  Super Admin:  demo-superadmin@scm.local")
         self.stdout.write("  Owner:        demo-owner@scm.local")
+        self.stdout.write("  Manager:      demo-manager@scm.local")
         self.stdout.write("  Technician:   demo-tech@scm.local")
         self.stdout.write("  Reception:    demo-reception@scm.local")
         self.stdout.write("  Accountant:   demo-accounts@scm.local")
@@ -376,7 +396,7 @@ class Command(BaseCommand):
                 defaults={
                     "first_name": spec["first_name"],
                     "last_name": spec["last_name"],
-                    "organization": org,
+                    "organization": None if spec["role"] == Role.SUPER_ADMIN else org,
                     "role": spec["role"],
                     "is_staff": spec["is_staff"],
                     "is_superuser": spec["is_superuser"],
