@@ -676,7 +676,9 @@ function CreateInvoiceContent() {
               totalTax={totalTax}
               grandTotal={grandTotal}
               customer={job?.customer ?? selectedCustomer}
-              branchDetails={branches.find((b) => b.id === selectedBranchId) || currentBranch || null}
+              branchDetails={
+                (Array.isArray(branches) ? branches : (branches as any)?.results ?? []).find((b: any) => b.id === selectedBranchId) || currentBranch || null
+              }
             />
           )}
         </div>

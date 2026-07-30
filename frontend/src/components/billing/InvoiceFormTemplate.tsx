@@ -62,7 +62,7 @@ export function InvoiceFormTemplate({
   branchDetails,
   customShopName,
 }: InvoiceFormTemplateProps) {
-  const branch = branchDetails || jobDetails?.branch_details;
+  const branch = branchDetails || (jobDetails as any)?.branch_details;
 
   const shopName =
     customShopName ||
