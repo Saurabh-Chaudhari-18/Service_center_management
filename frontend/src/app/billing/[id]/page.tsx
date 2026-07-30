@@ -27,7 +27,10 @@ import {
 } from "lucide-react";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
+import { PrintInvoiceOptionsModal } from "@/components/billing/PrintInvoiceOptionsModal";
+import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import type { Branch } from "@/types";
 
 // =====================================================
 // Print Portal Util
@@ -438,7 +441,11 @@ export default function InvoiceDetailsPage() {
   const { toast } = useToast();
 
   const queryClient = useQueryClient();
+  const { currentBranch, accessibleBranches } = useAuth();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
+  const [selectedPrintBranch, setSelectedPrintBranch] = useState<Branch | null>(null);
+  const [selectedPrintCustomName, setSelectedPrintCustomName] = useState<string | undefined>(undefined);
 
   const {
     data: invoice,
@@ -450,27 +457,27 @@ export default function InvoiceDetailsPage() {
     enabled: !!id,
   });
 
-  const handlePrint = async () => {
+  const handleConfirmPrint = async (selectedBranch: Branch | null, customName?: string) => {
+    setSelectedPrintBranch(selectedBranch);
+    setSelectedPrintCustomName(customName);
     try {
       await billingApi.logDownload(id);
       queryClient.invalidateQueries({ queryKey: ["invoice-edit-history", id] });
     } catch (error) {
       console.error("Failed to log download:", error);
     }
-    window.print();
+    setTimeout(() => window.print(), 300);
   };
 
-  const handleDownload = async () => {
-    try {
-      await billingApi.logDownload(id);
-      queryClient.invalidateQueries({ queryKey: ["invoice-edit-history", id] });
-    } catch (error) {
-      console.error("Failed to log download:", error);
-    }
+  const handlePrint = () => {
+    setShowPrintOptionsModal(true);
+  };
+
+  const handleDownload = () => {
     toast.info(
       "Select 'Save as PDF' as the destination in the print dialog to download.",
     );
-    window.print();
+    setShowPrintOptionsModal(true);
   };
 
   if (isLoading) {
@@ -566,7 +573,11 @@ export default function InvoiceDetailsPage() {
           </div>
 
           <Card padding="none" className="overflow-hidden">
-            <InvoiceTemplate invoice={invoice} />
+            <InvoiceTemplate
+              invoice={invoice}
+              branchDetails={selectedPrintBranch || invoice.branch_details}
+              customShopName={selectedPrintCustomName}
+            />
           </Card>
 
           <EditHistory invoiceId={invoice.id} />
@@ -580,9 +591,22 @@ export default function InvoiceDetailsPage() {
         {/* Print Portal */}
         <PrintPortal>
           <div>
-            <InvoiceTemplate invoice={invoice} />
+            <InvoiceTemplate
+              invoice={invoice}
+              branchDetails={selectedPrintBranch || invoice.branch_details}
+              customShopName={selectedPrintCustomName}
+            />
           </div>
         </PrintPortal>
+
+        {/* Header Options Modal for Print */}
+        <PrintInvoiceOptionsModal
+          isOpen={showPrintOptionsModal}
+          onClose={() => setShowPrintOptionsModal(false)}
+          onConfirm={handleConfirmPrint}
+          branchDetails={invoice.branch_details || currentBranch || null}
+          allBranches={accessibleBranches}
+        />
 
         {/* Payment Modal */}
         <RecordPaymentModal

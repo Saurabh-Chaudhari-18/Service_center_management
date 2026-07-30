@@ -3,8 +3,8 @@
 import React from "react";
 import * as z from "zod";
 import { BrandLogo } from "@/components/billing/InvoiceTemplate";
-import { formatDateLong } from "@/lib/formatters";
-import type { JobCard, Customer } from "@/types";
+import { formatDateLong, formatPhone } from "@/lib/formatters";
+import type { JobCard, Customer, Branch } from "@/types";
 
 // =====================================================
 // Schemas & Types (re-exported for consumers)
@@ -48,6 +48,8 @@ export interface InvoiceFormTemplateProps {
   totalTax: number;
   grandTotal: number;
   customer: Customer | null | undefined;
+  branchDetails?: Branch | null;
+  customShopName?: string;
 }
 
 export function InvoiceFormTemplate({
@@ -57,7 +59,35 @@ export function InvoiceFormTemplate({
   totalTax,
   grandTotal,
   customer,
+  branchDetails,
+  customShopName,
 }: InvoiceFormTemplateProps) {
+  const branch = branchDetails || jobDetails?.branch_details;
+
+  const shopName =
+    customShopName ||
+    branch?.name ||
+    branch?.organization_name ||
+    "SHIVANGI INFOTECH";
+
+  const fullAddress = branch?.address_line1
+    ? [
+        branch.address_line1,
+        branch.address_line2,
+        branch.city,
+        branch.state,
+        branch.pincode,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "Shop No. 3, Ground Floor, Sai Complex, Pune-Nashik Highway, Pune 411039";
+
+  const phone = branch?.phone
+    ? formatPhone(branch.phone)
+    : "+91 99999 88888";
+
+  const gstin = branch?.gstin ?? "27ABCDE1234F1Z5";
+
   return (
     <div className="paper-doc bg-white text-black p-8 max-w-4xl mx-auto">
       {/* Header */}
@@ -71,7 +101,7 @@ export function InvoiceFormTemplate({
           </div>
           <div className="text-right">
             <h1 className="text-2xl font-bold uppercase tracking-wider">
-              SHIVANGI INFOTECH
+              {shopName}
             </h1>
             <p className="text-sm font-semibold">
               HP | DELL | ASUS Authorised Partner
@@ -79,12 +109,9 @@ export function InvoiceFormTemplate({
           </div>
         </div>
         <div className="text-center border-t border-black pt-2 text-xs">
-          <p>
-            Shop No. 3, Ground Floor, Sai Complex, Pune-Nashik Highway, Pune
-            411039
-          </p>
-          <p>Phone: +91 99999 88888 | Email: support@shivangiinfo.com</p>
-          <p className="mt-1 font-bold">GSTIN: 27ABCDE1234F1Z5</p>
+          <p>{fullAddress}</p>
+          <p>Phone: {phone}</p>
+          {gstin && <p className="mt-1 font-bold">GSTIN: {gstin}</p>}
         </div>
       </div>
 

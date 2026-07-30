@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 import { Printer, Save } from "lucide-react";
 import { InvoiceFormTemplate } from "@/components/billing/InvoiceFormTemplate";
 import type { CreateInvoiceFormData } from "@/components/billing/InvoiceFormTemplate";
-import type { JobCard, Customer } from "@/types";
+import type { JobCard, Customer, Branch } from "@/types";
 
 export interface InvoicePreviewModalProps {
   isOpen: boolean;
@@ -19,6 +19,8 @@ export interface InvoicePreviewModalProps {
   totalTax: number;
   grandTotal: number;
   customer: Customer | null | undefined;
+  branchDetails?: Branch | null;
+  customShopName?: string;
 }
 
 /** Portal for print content — must match globals.css #print-portal-root */
@@ -41,6 +43,8 @@ export function InvoicePreviewModal({
   totalTax,
   grandTotal,
   customer,
+  branchDetails,
+  customShopName,
 }: InvoicePreviewModalProps) {
   React.useEffect(() => {
     if (!isOpen) return;
@@ -80,6 +84,8 @@ export function InvoicePreviewModal({
               totalTax={totalTax}
               grandTotal={grandTotal}
               customer={customer}
+              branchDetails={branchDetails}
+              customShopName={customShopName}
             />
           </div>
 

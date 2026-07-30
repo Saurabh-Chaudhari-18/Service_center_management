@@ -53,25 +53,23 @@ class InvoiceService:
             spaceAfter=10
         )
         
-        # Header with organization details
+        # Header with branch details
         branch = invoice.branch
         if branch:
-            org = branch.organization
             header_data = [
-                [Paragraph(f"<b>{org.legal_name}</b>", styles['Heading2'])],
+                [Paragraph(f"<b>{branch.name}</b>", styles['Heading2'])],
                 [f"{branch.address_line1}"],
                 [f"{branch.city}, {branch.state} - {branch.pincode}"],
                 [f"GSTIN: {branch.gstin}"],
                 [f"Phone: {branch.phone}"],
             ]
         else:
-            # Universal invoice — use org info from the creator's branch
+            # Universal invoice — use info from fallback branch
             from core.models import Branch as BranchModel
             fallback_branch = BranchModel.objects.first()
-            org = fallback_branch.organization if fallback_branch else None
-            org_name = org.legal_name if org else "Service Center"
+            branch_name = fallback_branch.name if fallback_branch else "Service Center"
             header_data = [
-                [Paragraph(f"<b>{org_name}</b>", styles['Heading2'])],
+                [Paragraph(f"<b>{branch_name}</b>", styles['Heading2'])],
                 [f"{fallback_branch.address_line1}" if fallback_branch else ""],
                 [f"{fallback_branch.city}, {fallback_branch.state} - {fallback_branch.pincode}" if fallback_branch else ""],
                 [f"GSTIN: {fallback_branch.gstin}" if fallback_branch and fallback_branch.gstin else ""],

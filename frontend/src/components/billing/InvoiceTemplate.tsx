@@ -1,6 +1,7 @@
 import React from "react";
 import { format } from "date-fns";
-import type { Invoice } from "@/types";
+import type { Invoice, Branch } from "@/types";
+import { formatPhone } from "@/lib/formatters";
 import converter from "number-to-words";
 
 // =====================================================
@@ -97,7 +98,47 @@ export function BrandLogo({ brand }: { brand: "HP" | "DELL" | "ASUS" | "LENOVO" 
 // Invoice View Component (Shared Layout)
 // =====================================================
 
-export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
+export interface InvoiceTemplateProps {
+  invoice: Invoice;
+  branchDetails?: Branch | null;
+  customShopName?: string;
+}
+
+export function InvoiceTemplate({
+  invoice,
+  branchDetails,
+  customShopName,
+}: InvoiceTemplateProps) {
+  const branch = branchDetails || invoice.branch_details;
+
+  // Shop name: custom override → branch name → organization name → fallback
+  const shopName =
+    customShopName ||
+    branch?.name ||
+    branch?.organization_name ||
+    "SHIVANGI INFOTECH";
+
+  // Address: fully from the selected branch; blank lines are filtered out
+  const fullAddress = branch?.address_line1
+    ? [
+        branch.address_line1,
+        branch.address_line2,
+        branch.city,
+        branch.state,
+        branch.pincode,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom, Pune-411038";
+
+  // Phone from branch
+  const phone = branch?.phone
+    ? formatPhone(branch.phone)
+    : "9890888295, 9850292673";
+
+  // GSTIN from branch
+  const gstin = branch?.gstin ?? "";
+
   return (
     <>
       <style type="text/css">
@@ -128,7 +169,7 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
             </div>
             <div className="text-right">
               <h1 className="text-2xl font-bold uppercase tracking-wider">
-                SHIVANGI INFOTECH
+                {shopName}
               </h1>
               <p className="text-sm font-semibold">
                 HP | DELL | ASUS Authorised Partner
@@ -136,12 +177,11 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
             </div>
           </div>
           <div className="text-center border-t border-black pt-2 text-xs print:text-xs print:pt-1">
-            <p>
-              Shop No.1&2, Krupalu Hsg. Soc, Paud Road, Near Vespa Showroom,
-              Pune-411038
-            </p>
-            <p>Mobile: 9890888295, 9850292673</p>
-            <p className="mt-1 font-bold print:mt-0">GSTIN: 27ABCDE1234F1Z5</p>
+            <p>{fullAddress}</p>
+            <p>Mobile: {phone}</p>
+            {gstin && (
+              <p className="mt-1 font-bold print:mt-0">GSTIN: {gstin}</p>
+            )}
           </div>
         </div>
 
@@ -441,10 +481,10 @@ export function InvoiceTemplate({ invoice }: { invoice: Invoice }) {
               </div>
               <div className="p-4 print:p-2 flex flex-col justify-between text-right w-1/2 border-l-2 border-dashed border-neutral-400 print:border-neutral-400">
                 <p className="font-bold text-sm print:text-sm text-black">
-                  For {invoice.branch_details?.name?.toUpperCase() || "SHIVANGI INFOTECH"}
+                  For {shopName.toUpperCase()}
                 </p>
                 <p className="text-xs print:text-xs text-black">
-                  {invoice.branch_details?.effective_authorized_signatory || "Authorized Signatory"}
+                  {branch?.effective_authorized_signatory || branch?.authorized_signatory || "Authorized Signatory"}
                 </p>
               </div>
             </div>
