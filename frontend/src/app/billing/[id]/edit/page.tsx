@@ -20,7 +20,7 @@ import {
   Save,
   Package,
 } from "lucide-react";
-import { formatDateLong } from "@/lib/formatters";
+import { formatDateLong, formatPhone } from "@/lib/formatters";
 import type { Invoice } from "@/types";
 import { useToast } from "@/context/ToastContext";
 
