@@ -122,6 +122,8 @@ export function InvoicePreviewModal({
           totalTax={totalTax}
           grandTotal={grandTotal}
           customer={customer}
+          branchDetails={branchDetails}
+          customShopName={customShopName}
         />
       </PrintPortal>
     </>
