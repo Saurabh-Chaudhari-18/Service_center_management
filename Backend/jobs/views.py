@@ -943,6 +943,32 @@ class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering = ['name']
 
 
+class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for listing and viewing outsourced repair records across all jobs.
+    Branch-scoped.
+    """
+    queryset = OutsourcedRepair.objects.select_related(
+        'job', 'job__customer', 'vendor', 'branch', 'sent_by', 'received_by'
+    ).all()
+    serializer_class = OutsourcedRepairSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'repair_outcome', 'vendor', 'job']
+    search_fields = [
+        'job__job_number',
+        'job__customer__first_name',
+        'job__customer__last_name',
+        'job__customer__mobile',
+        'vendor__name',
+        'vendor_invoice_number',
+        'reason',
+        'notes'
+    ]
+    ordering_fields = ['sent_date', 'created_at', 'expected_return_date', 'return_date', 'status']
+    ordering = ['-sent_date', '-created_at']
+
+
 # =====================================================
 # Outsource Job Actions (on JobCardViewSet)
 # =====================================================

@@ -7,7 +7,7 @@ from rest_framework.routers import SimpleRouter
 from jobs.views import (
     JobCardViewSet, PartRequestViewSet, JobEnumsView,
     PickupRequestViewSet, DropdownOptionViewSet, PublicTrackingView,
-    OutsourceVendorViewSet, JobOutsourceView, JobOutsourceReturnView
+    OutsourceVendorViewSet, OutsourcedRepairViewSet, JobOutsourceView, JobOutsourceReturnView
 )
 
 app_name = 'jobs'
@@ -20,6 +20,7 @@ router.register(r'enums', JobEnumsView, basename='job-enum')
 router.register(r'pickups', PickupRequestViewSet, basename='pickup')
 router.register(r'dropdown-options', DropdownOptionViewSet, basename='dropdown-option')
 router.register(r'outsource-vendors', OutsourceVendorViewSet, basename='outsource-vendor')
+router.register(r'outsourced-repairs', OutsourcedRepairViewSet, basename='outsourced-repair')
 router.register(r'', JobCardViewSet, basename='job')
 
 urlpatterns = [

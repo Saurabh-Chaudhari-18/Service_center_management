@@ -414,6 +414,10 @@ export type RepairOutcome = "REPAIRED" | "PARTIALLY_REPAIRED" | "NOT_REPAIRED";
 
 export interface OutsourcedRepair extends BaseEntity {
   job: string;
+  job_number?: string;
+  customer_name?: string;
+  customer_mobile?: string;
+  device_summary?: string;
   branch: string;
   vendor: string;
   vendor_name: string;

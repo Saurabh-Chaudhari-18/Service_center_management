@@ -35,6 +35,7 @@ import {
   Contact,
   BookOpen,
   BadgePercent,
+  ExternalLink,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -58,6 +59,7 @@ const navigationItems: NavItem[] = [
   { name: "Dashboard",     href: "/dashboard",     icon: LayoutDashboard, permission: "canViewDashboard" },
   { name: "Organizations", href: "/organizations", icon: Building2,       roles: ["SUPER_ADMIN"] },
   { name: "Job Cards",     href: "/jobs",          icon: FileText,        permission: "canViewJobCards" },
+  { name: "Outsourcing",    href: "/outsourcing",   icon: ExternalLink,    permission: "canViewJobCards" },
   { name: "My Jobs",       href: "/my-jobs",       icon: Wrench,          roles: ["TECHNICIAN"] },
   { name: "Customers",     href: "/customers",     icon: Users,           roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Enquiries",     href: "/enquiries",     icon: UserSearch,      roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },

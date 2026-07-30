@@ -506,6 +506,28 @@ export const outsourceVendorsApi = {
 };
 
 // =====================================================
+// Outsourced Repairs List API
+// =====================================================
+
+export const outsourcedRepairsApi = {
+  list: async (params?: {
+    search?: string;
+    status?: string;
+    repair_outcome?: string;
+    vendor?: string;
+    ordering?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<OutsourcedRepair>> => {
+    return apiGet<PaginatedResponse<OutsourcedRepair>>("/jobs/outsourced-repairs/", params);
+  },
+
+  get: async (id: string): Promise<OutsourcedRepair> => {
+    return apiGet<OutsourcedRepair>(`/jobs/outsourced-repairs/${id}/`);
+  },
+};
+
+// =====================================================
 // Dropdown Options API
 // =====================================================
 

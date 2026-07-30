@@ -675,6 +675,10 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.name', read_only=True)
     vendor_phone = serializers.CharField(source='vendor.phone', read_only=True)
     vendor_city = serializers.CharField(source='vendor.city', read_only=True)
+    job_number = serializers.CharField(source='job.job_number', read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    customer_mobile = serializers.SerializerMethodField()
+    device_summary = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     repair_outcome_display = serializers.CharField(source='get_repair_outcome_display', read_only=True)
     sent_by_name = serializers.CharField(source='sent_by.get_full_name', read_only=True)
@@ -683,7 +687,8 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
     class Meta:
         model = OutsourcedRepair
         fields = [
-            'id', 'job', 'branch', 'vendor', 'vendor_name', 'vendor_phone', 'vendor_city',
+            'id', 'job', 'job_number', 'customer_name', 'customer_mobile', 'device_summary',
+            'branch', 'vendor', 'vendor_name', 'vendor_phone', 'vendor_city',
             'reason', 'sent_date', 'estimated_cost', 'expected_return_date',
             'notes', 'sent_by', 'sent_by_name',
             'status', 'status_display',
@@ -693,6 +698,21 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'job', 'branch', 'sent_by', 'created_at', 'updated_at']
+
+    def get_customer_name(self, obj):
+        if obj.job and obj.job.customer:
+            return obj.job.customer.get_full_name()
+        return None
+
+    def get_customer_mobile(self, obj):
+        if obj.job and obj.job.customer:
+            return obj.job.customer.mobile
+        return None
+
+    def get_device_summary(self, obj):
+        if not obj.job:
+            return ""
+        return f"{obj.job.get_device_type_display()} {obj.job.brand or ''} {obj.job.model or ''}".strip()
 
     def get_received_by_name(self, obj):
         return obj.received_by.get_full_name() if obj.received_by else None
