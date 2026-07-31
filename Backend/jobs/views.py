@@ -1014,11 +1014,43 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        branch = getattr(user, 'current_branch', None) or (
-            user.accessible_branches.first() if hasattr(user, 'accessible_branches') and user.accessible_branches.exists() else None
+        branch_id = (
+            self.request.data.get('branch') or
+            self.request.data.get('branch_id') or
+            self.request.headers.get('X-Branch-ID') or
+            self.request.META.get('HTTP_X_BRANCH_ID')
         )
+
+        branch = None
+        from core.models import Branch
+        if branch_id:
+            try:
+                branch = Branch.objects.filter(pk=branch_id).first()
+            except Exception:
+                pass
+
+        if not branch:
+            inventory_item_id = self.request.data.get('inventory_item')
+            if inventory_item_id:
+                from inventory.models import InventoryItem
+                item = InventoryItem.objects.filter(pk=inventory_item_id).first()
+                if item:
+                    branch = item.branch
+
+        if not branch:
+            job_id = self.request.data.get('job')
+            if job_id:
+                from jobs.models import JobCard
+                job = JobCard.objects.filter(pk=job_id).first()
+                if job:
+                    branch = job.branch
+
         if not branch and hasattr(user, 'branches') and user.branches.exists():
             branch = user.branches.first()
+
+        if not branch:
+            raise ValidationError({'branch': 'Could not determine branch for this repair. Please specify a valid branch.'})
+
         serializer.save(sent_by=user, branch=branch)
 
     @action(detail=True, methods=['post'], url_path='return')

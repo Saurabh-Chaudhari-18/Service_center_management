@@ -528,6 +528,7 @@ export const outsourcedRepairsApi = {
   },
 
   createWarrantyOutsource: async (data: {
+    branch?: string;
     inventory_item?: string;
     item_name?: string;
     serial_number?: string;

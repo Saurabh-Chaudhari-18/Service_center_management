@@ -7,6 +7,8 @@ import { inventoryApi, outsourceVendorsApi, outsourcedRepairsApi } from "@/lib/a
 import { Package, Building2, Wrench, ShieldCheck } from "lucide-react";
 import type { InventoryItem, OutsourceVendor } from "@/types";
 
+import { useAuth } from "@/context/AuthContext";
+
 export interface OutsourceWarrantyRepairModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,6 +19,7 @@ export function OutsourceWarrantyRepairModal({
   onClose,
 }: OutsourceWarrantyRepairModalProps) {
   const queryClient = useQueryClient();
+  const { currentBranch } = useAuth();
 
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
   const [itemName, setItemName] = useState("");
@@ -84,6 +87,7 @@ export function OutsourceWarrantyRepairModal({
   const createMutation = useMutation({
     mutationFn: () =>
       outsourcedRepairsApi.createWarrantyOutsource({
+        branch: currentBranch?.id || undefined,
         inventory_item: selectedInventoryId || undefined,
         item_name: itemName.trim(),
         serial_number: serialNumber.trim() || undefined,
