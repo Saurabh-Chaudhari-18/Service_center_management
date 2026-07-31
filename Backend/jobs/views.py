@@ -102,6 +102,11 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if (is_pending is not None and is_pending.lower() in ['true', '1']) or status_param == 'PENDING':
             queryset = queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
 
+        # Technician filter (support 'unassigned' / 'null' for jobs without an assigned technician)
+        assigned_tech = self.request.query_params.get('assigned_technician')
+        if assigned_tech in ['unassigned', 'null', 'none']:
+            queryset = queryset.filter(assigned_technician__isnull=True)
+
         return queryset
 
     def get_serializer_class(self):

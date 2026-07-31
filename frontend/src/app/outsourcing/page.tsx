@@ -335,7 +335,7 @@ export default function OutsourcingPage() {
           subtitle="Track and manage all repair jobs sent to external third-party service vendors"
           breadcrumbs={[
             { label: "Job Cards", href: "/jobs" },
-            { label: "Outsourcing" },
+            { label: "Outsourcing " },
           ]}
           actions={
             <div className="flex items-center gap-2">
@@ -473,7 +473,7 @@ export default function OutsourcingPage() {
               </span>
               {[
                 { id: "ALL", label: "All Records", count: metrics.total },
-                { id: "SENT", label: "Out at Vendor", count: metrics.sentCount },
+                { id: "SENT", label: "Pending", count: metrics.sentCount },
                 { id: "RETURNED", label: "Returned", count: metrics.returnedCount },
                 { id: "CANCELLED", label: "Cancelled", count: metrics.cancelledCount },
               ].map((pill) => (
@@ -668,7 +668,7 @@ export default function OutsourcingPage() {
                             <div>
                               {item.status === "SENT" ? (
                                 <Badge variant="warning" size="sm">
-                                  Out at Vendor
+                                  Pending
                                 </Badge>
                               ) : item.status === "RETURNED" ? (
                                 <Badge variant="success" size="sm">

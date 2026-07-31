@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -14,6 +14,7 @@ import {
   LoadingState,
   EmptyState,
   Badge,
+  Select,
 } from "@/components/ui";
 import {
   PageShell,
@@ -21,7 +22,7 @@ import {
   RegisterToolbar,
   WorkspaceSurface,
 } from "@/components/shell";
-import { jobsApi } from "@/lib/api";
+import { jobsApi, usersApi } from "@/lib/api";
 import {
   Plus,
   Search,
@@ -361,8 +362,30 @@ export default function JobsPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [selectedTechnician, setSelectedTechnician] = useState<string>("ALL");
   const [page, setPage] = useState(1);
   const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
+
+  // Fetch technicians for branch filter (Managers, Owners, Admins, Receptionists)
+  const isManagerOrOwner = isRole("OWNER", "MANAGER", "SUPER_ADMIN", "RECEPTIONIST") || user?.role !== "TECHNICIAN";
+  const { data: techniciansData } = useQuery({
+    queryKey: ["technicians", currentBranch?.id],
+    queryFn: () =>
+      usersApi.list({
+        role: "TECHNICIAN",
+        ...(currentBranch?.id ? { branch: currentBranch.id } : {}),
+      }),
+    enabled: !!currentBranch && isManagerOrOwner,
+  });
+
+  const technicians = useMemo(() => {
+    if (!techniciansData) return [];
+    const list = Array.isArray(techniciansData) ? techniciansData : techniciansData.results || [];
+    return list.map((u: { id: string; first_name: string; last_name: string }) => ({
+      value: u.id,
+      label: `${u.first_name || ""} ${u.last_name || ""}`.trim() || "Unnamed Tech",
+    }));
+  }, [techniciansData]);
 
   const { mutate: quickUpdateStatus } = useMutation({
     mutationFn: ({ jobId, toStatus }: { jobId: string; toStatus: string }) =>
@@ -372,7 +395,7 @@ export default function JobsPage() {
       // Cancel in-flight refetches so they don't overwrite optimistic data
       await queryClient.cancelQueries({ queryKey: ["jobs"] });
       // Snapshot current data for rollback on error and undo
-      const activeKey = ["jobs", currentBranch?.id, statusFilter, search, page];
+      const activeKey = ["jobs", currentBranch?.id, statusFilter, search, selectedTechnician, page];
       const previousData = queryClient.getQueryData(activeKey);
       // Capture the previous status of this specific job for undo
       const prevJob = (previousData as { results?: JobCard[] } | undefined)?.results?.find(
@@ -412,7 +435,7 @@ export default function JobsPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["jobs", currentBranch?.id, statusFilter, search, page],
+    queryKey: ["jobs", currentBranch?.id, statusFilter, search, selectedTechnician, page],
     queryFn: () => {
       const params: Parameters<typeof jobsApi.list>[0] & { assigned_technician?: string } = {
         branch: currentBranch?.id,
@@ -429,6 +452,13 @@ export default function JobsPage() {
       } else if (statusFilter) {
         params.status = statusFilter;
       }
+
+      if (isManagerOrOwner && statusFilter !== MY_JOBS_TAB) {
+        if (selectedTechnician !== "ALL") {
+          params.assigned_technician = selectedTechnician;
+        }
+      }
+
       return jobsApi.list(params as Parameters<typeof jobsApi.list>[0]);
     },
     enabled: !!currentBranch,
@@ -480,17 +510,37 @@ export default function JobsPage() {
         <PageShell width="fluid">
           <RegisterToolbar
             search={
-              <Input
-                placeholder="Search by job number, customer name, or device..."
-                leftIcon={<Search className="h-5 w-5" />}
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Search job cards"
-                className="py-3 text-sm"
-              />
+              <div className="flex flex-col sm:flex-row gap-3 w-full items-center">
+                <div className="relative flex-1 w-full">
+                  <Input
+                    placeholder="Search by job number, customer name, or device..."
+                    leftIcon={<Search className="h-5 w-5" />}
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(1);
+                    }}
+                    aria-label="Search job cards"
+                    className="py-3 text-sm w-full"
+                  />
+                </div>
+                {isManagerOrOwner && (
+                  <div className="w-full sm:w-64 shrink-0">
+                    <Select
+                      value={selectedTechnician}
+                      onChange={(e) => {
+                        setSelectedTechnician(e.target.value);
+                        setPage(1);
+                      }}
+                      options={[
+                        { value: "ALL", label: "All Technicians" },
+                        { value: "unassigned", label: "⚠️ Unassigned Jobs" },
+                        ...technicians,
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
             }
           />
 
