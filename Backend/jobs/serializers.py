@@ -423,7 +423,8 @@ class JobCardListSerializer(serializers.ModelSerializer):
         model = JobCard
         fields = [
             'id', 'job_number', 'branch_name', 'customer_name', 'customer_mobile',
-            'device_type', 'brand', 'model', 'status', 'status_display',
+            'device_type', 'brand', 'model', 'customer_complaint', 'additional_comments',
+            'status', 'status_display',
             'is_urgent', 'assigned_technician_name',
             'estimated_completion_date', 'received_date', 'created_at'
         ]
