@@ -157,7 +157,7 @@ export function JobDiagnosisModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Add Diagnosis"
-      size="lg"
+      size="2xl"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>

@@ -413,8 +413,12 @@ export type OutsourcedRepairStatus = "SENT" | "RETURNED" | "CANCELLED";
 export type RepairOutcome = "REPAIRED" | "PARTIALLY_REPAIRED" | "NOT_REPAIRED";
 
 export interface OutsourcedRepair extends BaseEntity {
-  job: string;
+  job?: string | null;
   job_number?: string;
+  inventory_item?: string | null;
+  item_name?: string;
+  serial_number?: string;
+  is_warranty_repair?: boolean;
   customer_name?: string;
   customer_mobile?: string;
   device_summary?: string;

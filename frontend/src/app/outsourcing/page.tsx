@@ -33,10 +33,13 @@ import {
   Calendar,
   XCircle,
   Truck,
+  ShieldCheck,
+  Wrench,
 } from "lucide-react";
 import { formatDateLong } from "@/lib/formatters";
 import type { OutsourcedRepair, OutsourceVendor } from "@/types";
 import { OutsourceReturnModal } from "@/components/jobs/OutsourceReturnModal";
+import { OutsourceWarrantyRepairModal } from "@/components/jobs/OutsourceWarrantyRepairModal";
 
 // =====================================================
 // Vendor Directory Modal (View & Add Vendors)
@@ -258,6 +261,7 @@ export default function OutsourcingPage() {
 
   // Modal controls
   const [showVendorModal, setShowVendorModal] = useState(false);
+  const [showWarrantyModal, setShowWarrantyModal] = useState(false);
   const [returnModalJobId, setReturnModalJobId] = useState<string | null>(null);
   const [returnModalOutsourceId, setReturnModalOutsourceId] = useState<string | null>(null);
 
@@ -345,6 +349,13 @@ export default function OutsourcingPage() {
                 leftIcon={<Building2 className="w-4 h-4" />}
               >
                 Vendor Directory
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setShowWarrantyModal(true)}
+                leftIcon={<Wrench className="w-4 h-4" />}
+              >
+                Outsource Warranty Repair
               </Button>
             </div>
           }
@@ -548,13 +559,22 @@ export default function OutsourcingPage() {
                         >
                           {/* Job & Device */}
                           <td className="py-3 px-4 align-top">
-                            <Link
-                              href={`/jobs/${item.job}`}
-                              className="font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 inline-flex items-center gap-1"
-                            >
-                              {item.job_number || "View Job"}
-                              <ArrowRight className="w-3 h-3" />
-                            </Link>
+                            {item.job ? (
+                              <Link
+                                href={`/jobs/${item.job}`}
+                                className="font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 inline-flex items-center gap-1"
+                              >
+                                {item.job_number || "View Job"}
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 text-xs bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  {item.job_number || "WARRANTY"}
+                                </span>
+                              </div>
+                            )}
                             {item.customer_name && (
                               <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5">
                                 {item.customer_name}
@@ -708,18 +728,20 @@ export default function OutsourcingPage() {
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => handleOpenReturn(item.job, item.id)}
+                                onClick={() => handleOpenReturn(item.job || null, item.id)}
                                 leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
                               >
                                 Mark Returned
                               </Button>
-                            ) : (
+                            ) : item.job ? (
                               <Link
                                 href={`/jobs/${item.job}`}
                                 className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
                               >
                                 View Job Card
                               </Link>
+                            ) : (
+                              <span className="text-xs text-neutral-400 font-medium">Warranty Item</span>
                             )}
                           </td>
                         </tr>
@@ -738,10 +760,16 @@ export default function OutsourcingPage() {
           onClose={() => setShowVendorModal(false)}
         />
 
+        {/* Outsource Warranty Repair Modal */}
+        <OutsourceWarrantyRepairModal
+          isOpen={showWarrantyModal}
+          onClose={() => setShowWarrantyModal(false)}
+        />
+
         {/* Return Outsource Modal */}
-        {returnModalJobId && returnModalOutsourceId && (
+        {returnModalOutsourceId && (
           <OutsourceReturnModal
-            isOpen={!!returnModalJobId}
+            isOpen={!!returnModalOutsourceId}
             onClose={() => {
               setReturnModalJobId(null);
               setReturnModalOutsourceId(null);

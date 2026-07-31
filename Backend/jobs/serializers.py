@@ -672,11 +672,11 @@ class OutsourceVendorSerializer(serializers.ModelSerializer):
 
 
 class OutsourcedRepairSerializer(serializers.ModelSerializer):
-    """Read serializer for outsourced repair records."""
+    """Serializer for outsourced repair records (job-based or inventory warranty repairs)."""
     vendor_name = serializers.CharField(source='vendor.name', read_only=True)
     vendor_phone = serializers.CharField(source='vendor.phone', read_only=True)
     vendor_city = serializers.CharField(source='vendor.city', read_only=True)
-    job_number = serializers.CharField(source='job.job_number', read_only=True)
+    job_number = serializers.SerializerMethodField()
     customer_name = serializers.SerializerMethodField()
     customer_mobile = serializers.SerializerMethodField()
     device_summary = serializers.SerializerMethodField()
@@ -688,7 +688,8 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
     class Meta:
         model = OutsourcedRepair
         fields = [
-            'id', 'job', 'job_number', 'customer_name', 'customer_mobile', 'device_summary',
+            'id', 'job', 'job_number', 'inventory_item', 'item_name', 'serial_number',
+            'is_warranty_repair', 'customer_name', 'customer_mobile', 'device_summary',
             'branch', 'vendor', 'vendor_name', 'vendor_phone', 'vendor_city',
             'reason', 'sent_date', 'estimated_cost', 'expected_return_date',
             'notes', 'sent_by', 'sent_by_name',
@@ -698,22 +699,35 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
             'received_by', 'received_by_name',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'job', 'branch', 'sent_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'branch', 'sent_by', 'created_at', 'updated_at']
+
+    def get_job_number(self, obj):
+        if obj.job:
+            return obj.job.job_number
+        if obj.serial_number:
+            return f"SN:{obj.serial_number}"
+        return "INVENTORY-WARRANTY"
 
     def get_customer_name(self, obj):
         if obj.job and obj.job.customer:
             return obj.job.customer.get_full_name()
-        return None
+        if obj.customer_name:
+            return obj.customer_name
+        return "Inventory Customer"
 
     def get_customer_mobile(self, obj):
         if obj.job and obj.job.customer:
             return obj.job.customer.mobile
-        return None
+        return obj.customer_phone or ""
 
     def get_device_summary(self, obj):
-        if not obj.job:
-            return ""
-        return f"{obj.job.get_device_type_display()} {obj.job.brand or ''} {obj.job.model or ''}".strip()
+        if obj.job:
+            return f"{obj.job.get_device_type_display()} {obj.job.brand or ''} {obj.job.model or ''}".strip()
+        if obj.item_name:
+            return obj.item_name
+        if obj.inventory_item:
+            return obj.inventory_item.name
+        return "Inventory Warranty Item"
 
     def get_received_by_name(self, obj):
         return obj.received_by.get_full_name() if obj.received_by else None

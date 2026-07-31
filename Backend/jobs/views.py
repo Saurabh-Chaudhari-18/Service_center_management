@@ -984,23 +984,26 @@ class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     ordering = ['name']
 
 
-class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
+class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
-    ViewSet for listing and viewing outsourced repair records across all jobs.
-    Branch-scoped.
+    ViewSet for listing, creating, and managing outsourced repair records (jobs or inventory warranty repairs).
     """
     queryset = OutsourcedRepair.objects.select_related(
-        'job', 'job__customer', 'vendor', 'branch', 'sent_by', 'received_by'
+        'job', 'job__customer', 'inventory_item', 'vendor', 'branch', 'sent_by', 'received_by'
     ).all()
     serializer_class = OutsourcedRepairSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'repair_outcome', 'vendor', 'job']
+    filterset_fields = ['status', 'repair_outcome', 'vendor', 'job', 'is_warranty_repair']
     search_fields = [
         'job__job_number',
         'job__customer__first_name',
         'job__customer__last_name',
         'job__customer__mobile',
+        'item_name',
+        'serial_number',
+        'customer_name',
+        'customer_phone',
         'vendor__name',
         'vendor_invoice_number',
         'reason',
@@ -1008,6 +1011,53 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
     ]
     ordering_fields = ['sent_date', 'created_at', 'expected_return_date', 'return_date', 'status']
     ordering = ['-sent_date', '-created_at']
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        branch = getattr(user, 'current_branch', None) or (
+            user.accessible_branches.first() if hasattr(user, 'accessible_branches') and user.accessible_branches.exists() else None
+        )
+        if not branch and hasattr(user, 'branches') and user.branches.exists():
+            branch = user.branches.first()
+        serializer.save(sent_by=user, branch=branch)
+
+    @action(detail=True, methods=['post'], url_path='return')
+    def mark_returned(self, request, pk=None):
+        """Mark an outsourced repair as returned from vendor."""
+        outsource = self.get_object()
+        if outsource.status != OutsourcedRepairStatus.SENT:
+            raise ValidationError("Record is not in SENT status.")
+
+        return_date = request.data.get('return_date')
+        if not return_date:
+            raise ValidationError("return_date is required.")
+
+        outsource.status = OutsourcedRepairStatus.RETURNED
+        outsource.return_date = return_date
+        outsource.actual_cost = request.data.get('actual_cost')
+        outsource.repair_outcome = request.data.get('repair_outcome', RepairOutcome.REPAIRED)
+        outsource.vendor_notes = request.data.get('vendor_notes', '')
+        outsource.vendor_invoice_number = request.data.get('vendor_invoice_number', '')
+        outsource.received_by = request.user
+        outsource.save()
+
+        # If linked to a job, optionally update job status
+        if outsource.job:
+            new_job_status = request.data.get('new_job_status')
+            if new_job_status:
+                old_status = outsource.job.status
+                outsource.job.status = new_job_status
+                outsource.job.save(update_fields=['status'])
+
+                JobStatusHistory.objects.create(
+                    job=outsource.job,
+                    from_status=old_status,
+                    to_status=new_job_status,
+                    changed_by=request.user,
+                    notes=f"Returned from outsource ({outsource.vendor.name}): {outsource.vendor_notes}"
+                )
+
+        return Response(OutsourcedRepairSerializer(outsource).data)
 
 
 # =====================================================

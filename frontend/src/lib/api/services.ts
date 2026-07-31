@@ -518,12 +518,47 @@ export const outsourcedRepairsApi = {
     ordering?: string;
     page?: number;
     page_size?: number;
+    is_warranty_repair?: boolean;
   }): Promise<PaginatedResponse<OutsourcedRepair>> => {
     return apiGet<PaginatedResponse<OutsourcedRepair>>("/jobs/outsourced-repairs/", params);
   },
 
   get: async (id: string): Promise<OutsourcedRepair> => {
     return apiGet<OutsourcedRepair>(`/jobs/outsourced-repairs/${id}/`);
+  },
+
+  createWarrantyOutsource: async (data: {
+    inventory_item?: string;
+    item_name?: string;
+    serial_number?: string;
+    customer_name?: string;
+    customer_phone?: string;
+    is_warranty_repair?: boolean;
+    vendor: string;
+    reason: string;
+    sent_date: string;
+    estimated_cost?: number | null;
+    expected_return_date?: string | null;
+    notes?: string;
+  }): Promise<OutsourcedRepair> => {
+    return apiPost<OutsourcedRepair>("/jobs/outsourced-repairs/", data);
+  },
+
+  markReturned: async (
+    outsourceId: string,
+    data: {
+      return_date: string;
+      actual_cost?: number | null;
+      repair_outcome: string;
+      vendor_notes?: string;
+      vendor_invoice_number?: string;
+      new_job_status?: string;
+    },
+  ): Promise<OutsourcedRepair> => {
+    return apiPost<OutsourcedRepair>(
+      `/jobs/outsourced-repairs/${outsourceId}/return/`,
+      data,
+    );
   },
 };
 

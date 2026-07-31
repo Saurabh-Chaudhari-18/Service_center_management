@@ -2,19 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Modal,
-  Button,
-  Select,
-  Input,
-  Textarea,
-} from "@/components/ui";
-import { jobsApi } from "@/lib/api";
+import { Modal, Button, Select, Input, Textarea } from "@/components/ui";
+import { jobsApi, outsourcedRepairsApi } from "@/lib/api";
 
 export interface OutsourceReturnModalProps {
   isOpen: boolean;
   onClose: () => void;
-  jobId: string;
+  jobId?: string | null;
   outsourceId: string;
 }
 
@@ -33,7 +27,6 @@ export function OutsourceReturnModal({
   const [vendorInvoiceNumber, setVendorInvoiceNumber] = useState("");
   const [newJobStatus, setNewJobStatus] = useState("READY_FOR_DELIVERY");
 
-  // Sync newJobStatus with repairOutcome when it changes
   useEffect(() => {
     if (repairOutcome === "REPAIRED") {
       setNewJobStatus("READY_FOR_DELIVERY");
@@ -42,7 +35,6 @@ export function OutsourceReturnModal({
     }
   }, [repairOutcome]);
 
-  // Reset fields on open
   useEffect(() => {
     if (isOpen) {
       setReturnDate(new Date().toISOString().split("T")[0]);
@@ -56,16 +48,27 @@ export function OutsourceReturnModal({
 
   const returnMutation = useMutation({
     mutationFn: () =>
-      jobsApi.markOutsourceReturned(jobId, outsourceId, {
-        return_date: returnDate,
-        actual_cost: actualCost ? parseFloat(actualCost) : null,
-        repair_outcome: repairOutcome,
-        vendor_notes: vendorNotes,
-        vendor_invoice_number: vendorInvoiceNumber,
-        new_job_status: newJobStatus,
-      }),
+      jobId
+        ? jobsApi.markOutsourceReturned(jobId, outsourceId, {
+            return_date: returnDate,
+            actual_cost: actualCost ? parseFloat(actualCost) : null,
+            repair_outcome: repairOutcome,
+            vendor_notes: vendorNotes,
+            vendor_invoice_number: vendorInvoiceNumber,
+            new_job_status: newJobStatus,
+          })
+        : outsourcedRepairsApi.markReturned(outsourceId, {
+            return_date: returnDate,
+            actual_cost: actualCost ? parseFloat(actualCost) : null,
+            repair_outcome: repairOutcome,
+            vendor_notes: vendorNotes,
+            vendor_invoice_number: vendorInvoiceNumber,
+          }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      if (jobId) {
+        queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["outsourcedRepairs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       onClose();
     },
@@ -82,13 +85,13 @@ export function OutsourceReturnModal({
     { value: "REPAIR_IN_PROGRESS", label: "Repair in Progress" },
   ];
 
-  const isFormValid = returnDate && repairOutcome && newJobStatus;
+  const isFormValid = returnDate && repairOutcome && (!jobId || newJobStatus);
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Mark Device Returned"
+      title="Mark Device / Item Returned"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -123,7 +126,7 @@ export function OutsourceReturnModal({
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 ${jobId ? "sm:grid-cols-2" : ""} gap-4`}>
           <Select
             label="Repair Outcome"
             options={outcomeOptions}
@@ -131,13 +134,15 @@ export function OutsourceReturnModal({
             onChange={(e) => setRepairOutcome(e.target.value)}
             required
           />
-          <Select
-            label="Transition Job Status To"
-            options={jobStatusOptions}
-            value={newJobStatus}
-            onChange={(e) => setNewJobStatus(e.target.value)}
-            required
-          />
+          {jobId && (
+            <Select
+              label="Transition Job Status To"
+              options={jobStatusOptions}
+              value={newJobStatus}
+              onChange={(e) => setNewJobStatus(e.target.value)}
+              required
+            />
+          )}
         </div>
 
         <Input
