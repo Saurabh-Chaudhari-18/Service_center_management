@@ -95,7 +95,13 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         # Technicians only see their assigned jobs
         if user.role == Role.TECHNICIAN:
             queryset = queryset.filter(assigned_technician=user)
-            
+
+        # Pending jobs filter (exclude terminal states: DELIVERED, CANCELLED, REJECTED)
+        is_pending = self.request.query_params.get('is_pending')
+        status_param = self.request.query_params.get('status')
+        if (is_pending is not None and is_pending.lower() in ['true', '1']) or status_param == 'PENDING':
+            queryset = queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+
         return queryset
 
     def get_serializer_class(self):
@@ -548,10 +554,12 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         result = {item['status']: item['count'] for item in counts}
         total = sum(result.values())
         urgent = qs.filter(is_urgent=True).count()
+        pending = qs.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]).count()
         return Response({
             'total': total,
             'by_status': result,
             'urgent': urgent,
+            'pending': pending,
         })
 
     @action(detail=False, methods=['get'], url_path='next-number')

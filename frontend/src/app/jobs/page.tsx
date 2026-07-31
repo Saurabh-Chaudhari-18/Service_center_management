@@ -198,6 +198,7 @@ function QuickStatusButton({
 // Status Filter Tabs
 // =====================================================
 
+const PENDING_TAB = "PENDING";
 const URGENT_TAB = "URGENT";
 
 interface StatusTabsProps {
@@ -206,6 +207,7 @@ interface StatusTabsProps {
   jobCounts: Record<string, number>;
   totalJobs: number;
   urgentCount: number;
+  pendingCount: number;
   showMyJobs?: boolean;
 }
 
@@ -215,6 +217,7 @@ function StatusTabs({
   jobCounts,
   totalJobs,
   urgentCount,
+  pendingCount,
   showMyJobs,
 }: StatusTabsProps) {
   const statusTabs = [
@@ -271,6 +274,28 @@ function StatusTabs({
           </button>
         );
       })}
+      <button
+        key="pending"
+        type="button"
+        onClick={() => onStatusChange(PENDING_TAB)}
+        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+          selectedStatus === PENDING_TAB
+            ? "bg-amber-500 text-white shadow-md"
+            : "text-neutral-600 hover:text-amber-600 dark:text-neutral-300 dark:hover:text-amber-400"
+        }`}
+      >
+        <Clock className="w-3.5 h-3.5" />
+        Pending
+        <span
+          className={`text-xs rounded-full px-2 py-0.5 ml-0.5 ${
+            selectedStatus === PENDING_TAB
+              ? "bg-white/20 text-white"
+              : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-semibold"
+          }`}
+        >
+          {pendingCount}
+        </span>
+      </button>
       <button
         key="urgent"
         type="button"
@@ -399,6 +424,8 @@ export default function JobsPage() {
         if (user?.id) params.assigned_technician = user.id;
       } else if (statusFilter === URGENT_TAB) {
         params.is_urgent = true;
+      } else if (statusFilter === PENDING_TAB) {
+        (params as any).is_pending = true;
       } else if (statusFilter) {
         params.status = statusFilter;
       }
@@ -418,6 +445,13 @@ export default function JobsPage() {
 
   const jobCounts: Record<string, number> = statsData?.by_status ?? {};
   const urgentCount = statsData?.urgent ?? 0;
+  const pendingCount =
+    (statsData as any)?.pending ??
+    Object.entries(jobCounts).reduce(
+      (acc, [st, c]) =>
+        ["DELIVERED", "CANCELLED", "REJECTED"].includes(st) ? acc : acc + c,
+      0
+    );
   const totalJobsStat = statsData?.total ?? 0;
 
   const jobs = data?.results || [];
@@ -469,6 +503,7 @@ export default function JobsPage() {
             jobCounts={jobCounts}
             totalJobs={totalJobsStat}
             urgentCount={urgentCount}
+            pendingCount={pendingCount}
             showMyJobs={isRole("TECHNICIAN", "MANAGER", "OWNER")}
           />
 
