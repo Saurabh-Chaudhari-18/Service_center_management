@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
 from rest_framework.permissions import IsAuthenticated
+from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction
@@ -47,6 +48,44 @@ from core.exceptions import JobReadOnlyError, InvalidStatusTransition, Protected
 from core.pagination import OptionalPageSizePagination
 
 
+class JobCardFilter(filters.FilterSet):
+    """
+    Custom FilterSet for Job Cards to support string filters like
+    assigned_technician='unassigned', status='PENDING', and boolean is_pending.
+    """
+    assigned_technician = filters.CharFilter(method='filter_assigned_technician')
+    is_pending = filters.BooleanFilter(method='filter_is_pending')
+    status = filters.CharFilter(method='filter_status')
+    device_type = filters.CharFilter(field_name='device_type')
+    is_urgent = filters.BooleanFilter(field_name='is_urgent')
+
+    class Meta:
+        model = JobCard
+        fields = ['status', 'device_type', 'is_urgent', 'assigned_technician', 'is_pending']
+
+    def filter_assigned_technician(self, queryset, name, value):
+        if not value or value.upper() == 'ALL':
+            return queryset
+        if value.lower() in ['unassigned', 'null', 'none', 'is_null']:
+            return queryset.filter(assigned_technician__isnull=True)
+        try:
+            return queryset.filter(assigned_technician_id=value)
+        except Exception:
+            return queryset.none()
+
+    def filter_is_pending(self, queryset, name, value):
+        if value:
+            return queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+        return queryset
+
+    def filter_status(self, queryset, name, value):
+        if not value or value.upper() == 'ALL':
+            return queryset
+        if value.upper() == 'PENDING':
+            return queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+        return queryset.filter(status=value)
+
+
 class JobCardPagination(PageNumberPagination):
     """Explicit page size for job lists (my_jobs, pending, etc.)."""
 
@@ -68,7 +107,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     serializer_class = JobCardSerializer
     permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'device_type', 'is_urgent', 'assigned_technician']
+    filterset_class = JobCardFilter
     search_fields = [
         'job_number', 'customer__mobile', 'customer__first_name',
         'customer__last_name', 'brand', 'model', 'serial_number'
@@ -95,17 +134,6 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         # Technicians only see their assigned jobs
         if user.role == Role.TECHNICIAN:
             queryset = queryset.filter(assigned_technician=user)
-
-        # Pending jobs filter (exclude terminal states: DELIVERED, CANCELLED, REJECTED)
-        is_pending = self.request.query_params.get('is_pending')
-        status_param = self.request.query_params.get('status')
-        if (is_pending is not None and is_pending.lower() in ['true', '1']) or status_param == 'PENDING':
-            queryset = queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
-
-        # Technician filter (support 'unassigned' / 'null' for jobs without an assigned technician)
-        assigned_tech = self.request.query_params.get('assigned_technician')
-        if assigned_tech in ['unassigned', 'null', 'none']:
-            queryset = queryset.filter(assigned_technician__isnull=True)
 
         return queryset
 

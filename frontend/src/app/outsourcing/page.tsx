@@ -373,7 +373,7 @@ export default function OutsourcingPage() {
               </div>
               <div>
                 <p className="text-xs text-neutral-500 uppercase tracking-wider font-semibold flex items-center gap-1">
-                  Out at Vendor
+                  Pending Jobs
                   {metrics.overdueCount > 0 && (
                     <span className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 px-1.5 py-0.2 rounded font-bold">
                       {metrics.overdueCount} Overdue
