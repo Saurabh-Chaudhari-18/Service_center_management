@@ -351,6 +351,28 @@ function StatusTabs({
   );
 }
 
+function formatComplaintText(complaint?: string | null, additionalComments?: string | null): string {
+  if (!complaint && !additionalComments) return "—";
+  const raw = (complaint || additionalComments || "").trim();
+  if (!raw) return "—";
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null) {
+        const parts: string[] = [];
+        if (Array.isArray(parsed.selected) && parsed.selected.length > 0) {
+          parts.push(parsed.selected.join(", "));
+        }
+        if (parsed.other_text) parts.push(parsed.other_text);
+        if (parts.length > 0) return parts.join(" · ");
+      }
+    } catch {
+      // fallback to raw
+    }
+  }
+  return raw;
+}
+
 // =====================================================
 // Jobs List Page
 // =====================================================
@@ -664,7 +686,7 @@ export default function JobsPage() {
                           </td>
                           <td className="max-w-[200px] px-4 py-2.5 align-middle">
                             <span className="line-clamp-1 text-neutral-600 dark:text-slate-400">
-                              {job.customer_complaint}
+                              {formatComplaintText(job.customer_complaint, job.additional_comments)}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 align-middle tabular-nums text-neutral-500 dark:text-slate-500">
