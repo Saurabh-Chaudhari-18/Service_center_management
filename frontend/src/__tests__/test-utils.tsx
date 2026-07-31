@@ -57,6 +57,7 @@ export const mockBranch: Branch = {
   sms_enabled: false,
   whatsapp_enabled: false,
   default_gst_rate: 18,
+  gst_enabled: true,
   is_active: true,
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
@@ -116,5 +117,6 @@ export function mockAuthValue(role: UserRole, overrides?: { permissions?: Partia
       return rolePerms?.[permission] ?? false;
     },
     isRole: (...roles: UserRole[]) => roles.includes(role),
+    gstEnabled: true,
   };
 }

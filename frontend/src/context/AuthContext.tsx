@@ -39,6 +39,8 @@ interface AuthContextValue extends AuthState {
   refreshUser: () => Promise<void>;
   hasPermission: (permission: keyof UserPermissions) => boolean;
   isRole: (...roles: UserRole[]) => boolean;
+  /** True if the current branch has GST enabled (default: true if no branch set) */
+  gstEnabled: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -282,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser,
     hasPermission,
     isRole,
+    gstEnabled: state.currentBranch?.gst_enabled ?? true,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -129,7 +129,7 @@ class BranchSerializer(serializers.ModelSerializer):
             'effective_upi_id', 'effective_authorized_signatory',
             
             'sms_enabled', 'whatsapp_enabled', 'default_gst_rate',
-            'is_active', 'users_count', 'created_at', 'updated_at'
+            'gst_enabled', 'is_active', 'users_count', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'organization', 'invoice_current_number',
@@ -176,7 +176,7 @@ class BranchMinimalSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Branch
-        fields = ['id', 'name', 'code', 'city']
+        fields = ['id', 'name', 'code', 'city', 'gst_enabled']
 
 
 class UserSerializer(serializers.ModelSerializer):

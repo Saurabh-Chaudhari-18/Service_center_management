@@ -221,6 +221,10 @@ class Branch(TimeStampedModel):
     )
     
     # Status
+    gst_enabled = models.BooleanField(
+        default=True,
+        help_text="If False, GST fields will be hidden in the UI and GST will not be applied on invoices for this branch."
+    )
     is_active = models.BooleanField(default=True)
     
     class Meta:

@@ -751,7 +751,7 @@ function LowStockList() {
 // =====================================================
 
 export default function ReportsContent() {
-  const { currentBranch } = useAuth();
+  const { currentBranch, gstEnabled } = useAuth();
   const [datePreset, setDatePreset] = useState<DatePreset>("month");
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
@@ -793,13 +793,15 @@ export default function ReportsContent() {
           subtitle="Business insights and performance metrics"
           actions={
             <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                leftIcon={<FileSpreadsheet className="w-4 h-4" />}
-                onClick={handleGstr1Export}
-              >
-                GSTR-1 Export
-              </Button>
+              {gstEnabled && (
+                <Button
+                  variant="secondary"
+                  leftIcon={<FileSpreadsheet className="w-4 h-4" />}
+                  onClick={handleGstr1Export}
+                >
+                  GSTR-1 Export
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 leftIcon={<Download className="w-4 h-4" />}
@@ -913,9 +915,11 @@ export default function ReportsContent() {
 
           {/* GST Summary + Low Stock */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div id="rpt-gst" className="scroll-mt-4">
-              <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
-            </div>
+            {gstEnabled && (
+              <div id="rpt-gst" className="scroll-mt-4">
+                <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />
+              </div>
+            )}
             <div id="rpt-lowstock" className="scroll-mt-4">
               <LowStockList />
             </div>

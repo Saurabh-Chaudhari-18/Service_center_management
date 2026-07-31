@@ -36,6 +36,7 @@ const branchSchema = z.object({
   default_gst_rate: z.coerce.number().min(0).max(100),
   sms_enabled: z.boolean().default(false),
   whatsapp_enabled: z.boolean().default(false),
+  gst_enabled: z.boolean().default(true),
   is_active: z.boolean().default(true),
   // Bank & Billing Details (optional — falls back to organization defaults if blank)
   bank_name: z.string().optional().or(z.literal("")),
@@ -84,6 +85,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
           default_gst_rate: 18,
           sms_enabled: false,
           whatsapp_enabled: false,
+          gst_enabled: true,
           is_active: true,
           invoice_prefix: "INV",
           jobcard_prefix: "JC",
@@ -148,6 +150,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               default_gst_rate: 18,
               sms_enabled: false,
               whatsapp_enabled: false,
+              gst_enabled: true,
               is_active: true,
               invoice_prefix: "INV",
               jobcard_prefix: "JC",
@@ -329,7 +332,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
           />
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -345,6 +348,14 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="text-sm text-neutral-700">Enable WhatsApp</span>
+          </label>
+          <label className="flex items-center gap-2 border border-amber-200 bg-amber-50 rounded-lg px-3 py-2">
+            <input
+              type="checkbox"
+              {...register("gst_enabled")}
+              className="rounded border-neutral-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span className="text-sm font-medium text-amber-800">GST Registered Branch</span>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -380,6 +391,9 @@ function BranchRow({
             <h3 className="font-semibold text-neutral-900">{branch.name}</h3>
             <Badge variant={branch.is_active ? "success" : "default"}>
               {branch.is_active ? "Active" : "Inactive"}
+            </Badge>
+            <Badge variant={branch.gst_enabled ? "warning" : "default"}>
+              {branch.gst_enabled ? "GST" : "Non-GST"}
             </Badge>
           </div>
           <p className="text-sm text-neutral-500 flex items-center gap-1">

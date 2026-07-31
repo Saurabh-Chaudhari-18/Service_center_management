@@ -148,6 +148,7 @@ export interface Branch extends BaseEntity {
   sms_enabled: boolean;
   whatsapp_enabled: boolean;
   default_gst_rate: number;
+  gst_enabled: boolean;
   is_active: boolean;
   bank_name?: string;
   bank_account_number?: string;

@@ -53,6 +53,8 @@ interface NavItem {
   permission?: keyof (typeof ROLE_PERMISSIONS)[UserRole];
   roles?: UserRole[];
   children?: NavItem[];
+  /** If true, this item is hidden when the current branch has GST disabled */
+  gstOnly?: boolean;
 }
 
 const navigationItems: NavItem[] = [
@@ -85,7 +87,7 @@ const navigationItems: NavItem[] = [
       { name: "Purchase Register", href: "/purchases", icon: FileText },
       { name: "Receipts", href: "/receipts", icon: IndianRupee },
       { name: "Ledger", href: "/ledger", icon: BookOpen },
-      { name: "GST Dashboard", href: "/gst", icon: BadgePercent },
+      { name: "GST Dashboard", href: "/gst", icon: BadgePercent, gstOnly: true },
     ],
   },
   { name: "Business Reports", href: "/reports",    icon: BarChart3,       permission: "canViewReports" },
@@ -119,7 +121,7 @@ export function Sidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole } = useAuth();
+  const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole, gstEnabled } = useAuth();
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
   const { close: closeMobile } = useMobileSidebar();
 
@@ -145,6 +147,12 @@ export function Sidebar() {
     if (item.permission) return hasPermission(item.permission);
     if (item.roles)      return isRole(...item.roles);
     return true;
+  }).map((item) => {
+    // Filter out gstOnly children when GST is disabled
+    if (!gstEnabled && item.children) {
+      return { ...item, children: item.children.filter((c) => !c.gstOnly) };
+    }
+    return item;
   });
 
   const handleBranchSwitch = async (branchId: string) => {
