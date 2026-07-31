@@ -326,8 +326,8 @@ export default function OutsourcingPage() {
     };
   }, [repairs]);
 
-  const handleOpenReturn = (jobId: string, outsourceId: string) => {
-    setReturnModalJobId(jobId);
+  const handleOpenReturn = (jobId: string | null | undefined, outsourceId: string) => {
+    setReturnModalJobId(jobId || null);
     setReturnModalOutsourceId(outsourceId);
   };
 
