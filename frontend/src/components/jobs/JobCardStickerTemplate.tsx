@@ -18,17 +18,22 @@ interface JobCardStickerTemplateProps {
 }
 
 export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTemplateProps) {
-  // Shop name
+  // Shop name (consistent with job card print name resolution)
   const shopName = branchDetails?.name || branchDetails?.organization_name || "SHIVANGI INFOTECH";
   
-  // Format clean shortened address to fit on a tiny sticker
-  const addressParts = [
-    branchDetails?.address_line1 || "Shop No.1, Krupalu Soc",
-    branchDetails?.city || "Pune"
-  ];
+  // Skip address_line1 (society name, shop numbers) to prevent clutter,
+  // prioritize address_line2 (street/area) and city.
+  const addressParts = [];
+  if (branchDetails?.address_line2) {
+    addressParts.push(branchDetails.address_line2);
+  } else if (branchDetails?.address_line1) {
+    // If address_line2 is empty, fall back to line 1 but keep it clean
+    addressParts.push(branchDetails.address_line1.split(",")[0]);
+  }
+  addressParts.push(branchDetails?.city || "Pune");
   const shortAddress = addressParts.filter(Boolean).join(", ");
 
-  // Shop Phone
+  // Shop/Branch Phone
   const shopPhone = branchDetails?.phone 
     ? formatPhone(branchDetails.phone) 
     : "9890888295";
@@ -40,7 +45,7 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
         dangerouslySetInnerHTML={{
           __html: `
             @media print {
-              /* Override page size to match exactly the 50mm x 25mm dimensions */
+              /* Force exactly 50mm x 25mm label dimensions */
               @page {
                 size: 50mm 25mm !important;
                 margin: 0 !important;
@@ -51,7 +56,7 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
                 margin: 0 !important;
                 padding: 0 !important;
               }
-              /* Hide all other application elements */
+              /* Hide standard web app elements */
               #app-root, header, aside, main, footer, .no-print {
                 display: none !important;
                 visibility: hidden !important;
@@ -68,9 +73,9 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
         }}
       />
       
-      {/* Sticker Layout container */}
+      {/* Sticker main frame */}
       <div 
-        className="bg-white text-black p-[1.2mm] box-border overflow-hidden select-none"
+        className="bg-white text-black box-border overflow-hidden select-none"
         style={{
           width: "50mm",
           height: "25mm",
@@ -78,60 +83,123 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
+          border: "1px solid #e5e7eb", /* Screen-only boundary indicator, prints transparently */
         }}
       >
-        {/* Branch Name - Top Centered */}
+        {/* TOP BAND: Navy/Indigo gradient */}
         <div 
-          className="text-center font-bold uppercase truncate"
           style={{
-            fontSize: "8.5pt",
-            lineHeight: "1.1",
-            borderBottom: "0.5px solid #000",
-            paddingBottom: "0.4mm",
-            letterSpacing: "0.1px",
+            background: "linear-gradient(to right, #1e1b4b, #312e81)",
+            padding: "1.2mm 1.5mm 1mm 1.5mm",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            color: "white",
+            minHeight: "8.5mm",
           }}
         >
-          {shopName}
+          <div 
+            className="font-extrabold uppercase truncate w-full"
+            style={{
+              fontSize: "8.5pt",
+              lineHeight: "1.1",
+              letterSpacing: "0.2px",
+            }}
+          >
+            💻 {shopName}
+          </div>
+          <div 
+            className="uppercase truncate w-full font-semibold"
+            style={{
+              fontSize: "4.5pt",
+              lineHeight: "1.1",
+              color: "#fbbf24",
+              marginTop: "0.2mm",
+              letterSpacing: "0.3px",
+            }}
+          >
+            HP | DELL | ASUS Authorised Service Partner
+          </div>
         </div>
 
-        {/* Center Section: Address Left, Job Card No Right */}
+        {/* MIDDLE SECTION: White background */}
         <div 
-          className="flex justify-between items-start gap-1"
           style={{
             flex: 1,
-            paddingTop: "0.8mm",
-            paddingBottom: "0.4mm",
+            backgroundColor: "white",
+            padding: "0.8mm 1.5mm 0.8mm 1.5mm",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "stretch",
+            gap: "1.5mm",
           }}
         >
-          {/* Short Address (Left) */}
+          {/* Address (Left Column) */}
           <div 
             style={{
-              fontSize: "6.5pt",
-              lineHeight: "1.15",
-              color: "#374151",
-              maxWidth: "29mm",
-              wordBreak: "break-word",
-              maxHeight: "11mm",
-              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              flex: 1,
+              maxWidth: "28mm",
             }}
           >
-            {shortAddress}
+            <span 
+              style={{ 
+                fontSize: "4.5pt", 
+                fontWeight: "bold", 
+                color: "#6b7280", 
+                letterSpacing: "0.2px",
+                marginBottom: "0.3mm" 
+              }}
+            >
+              ADDRESS
+            </span>
+            <span 
+              className="truncate"
+              style={{
+                fontSize: "6.5pt",
+                fontWeight: "600",
+                lineHeight: "1.1",
+                color: "#374151",
+              }}
+            >
+              {shortAddress}
+            </span>
           </div>
 
-          {/* Job Number (Right) */}
+          {/* Job Number (Right Column) */}
           <div 
-            className="text-right flex flex-col justify-center items-end shrink-0"
             style={{
-              maxWidth: "16mm",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "flex-end",
+              textAlign: "right",
+              borderLeft: "0.5px solid #e5e7eb",
+              paddingLeft: "1.5mm",
+              flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: "5pt", color: "#6b7280", fontWeight: "bold" }}>JOB NO</span>
+            <span 
+              style={{ 
+                fontSize: "4.5pt", 
+                fontWeight: "bold", 
+                color: "#ef4444", 
+                letterSpacing: "0.2px",
+                marginBottom: "0.3mm" 
+              }}
+            >
+              JOB CARD
+            </span>
             <span 
               className="font-mono font-bold"
               style={{ 
-                fontSize: "8.5pt", 
+                fontSize: "7.5pt", 
                 lineHeight: "1", 
-                color: "#000",
+                color: "#111827",
               }}
             >
               {job.job_number}
@@ -139,17 +207,29 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
           </div>
         </div>
 
-        {/* Mobile Number - Bottom Centered */}
+        {/* BOTTOM STRIP: Vibrant red gradient */}
         <div 
-          className="text-center font-semibold"
           style={{
-            fontSize: "7pt",
-            lineHeight: "1",
-            paddingTop: "0.4mm",
-            borderTop: "0.5px dashed #ccc",
+            background: "linear-gradient(to right, #dc2626, #991b1b)",
+            padding: "0.8mm 1.5mm",
+            textAlign: "center",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            color: "white",
+            minHeight: "5.5mm",
           }}
         >
-          Mob: {shopPhone}
+          <span 
+            style={{
+              fontSize: "7.5pt",
+              fontWeight: "bold",
+              letterSpacing: "0.5px",
+              lineHeight: "1",
+            }}
+          >
+            📞 {shopPhone}
+          </span>
         </div>
       </div>
     </PrintPortal>
