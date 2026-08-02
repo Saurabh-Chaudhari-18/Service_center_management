@@ -42,6 +42,7 @@ import { JobUpdateStatusModal } from "@/components/jobs/JobUpdateStatusModal";
 import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
 import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
 import { JobCardPrintTemplate } from "@/components/jobs/JobCardPrintTemplate";
+import { JobCardStickerTemplate } from "@/components/jobs/JobCardStickerTemplate";
 import { PrintJobCardOptionsModal } from "@/components/jobs/PrintJobCardOptionsModal";
 import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
 import { OutsourceRepairModal } from "@/components/jobs/OutsourceRepairModal";
@@ -173,12 +174,16 @@ export default function JobDetailPage() {
   const [showOutsourceReturnModal, setShowOutsourceReturnModal] = useState(false);
   const [activeOutsourceId, setActiveOutsourceId] = useState("");
   const [showPrintView, setShowPrintView] = useState(false);
+  const [showStickerPrintView, setShowStickerPrintView] = useState(false);
   const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
   const [selectedPrintBranch, setSelectedPrintBranch] = useState<Branch | null>(null);
   const [selectedPrintCustomName, setSelectedPrintCustomName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const handleAfterPrint = () => setShowPrintView(false);
+    const handleAfterPrint = () => {
+      setShowPrintView(false);
+      setShowStickerPrintView(false);
+    };
     window.addEventListener("afterprint", handleAfterPrint);
     return () => window.removeEventListener("afterprint", handleAfterPrint);
   }, []);
@@ -264,6 +269,12 @@ export default function JobDetailPage() {
     setTimeout(() => window.print(), 500);
   };
 
+  const handlePrintSticker = (selectedBranch: Branch | null) => {
+    setSelectedPrintBranch(selectedBranch);
+    setShowStickerPrintView(true);
+    setTimeout(() => window.print(), 500);
+  };
+
   const handleCopyPin = () => {
     if (job.tracking_pin) {
       navigator.clipboard.writeText(job.tracking_pin);
@@ -286,6 +297,14 @@ export default function JobDetailPage() {
     onClick: () => {
       const activeBranch = currentBranch || accessibleBranches.find((b) => b.id === job.branch) || null;
       handlePrint(activeBranch);
+    },
+  });
+  moreMenuActions.push({
+    label: "Print Sticker (50x25mm)",
+    icon: <Printer className="w-4 h-4 text-emerald-600" />,
+    onClick: () => {
+      const activeBranch = currentBranch || accessibleBranches.find((b) => b.id === job.branch) || null;
+      handlePrintSticker(activeBranch);
     },
   });
 
@@ -808,6 +827,14 @@ export default function JobDetailPage() {
             job={job}
             branchDetails={selectedPrintBranch}
             customShopName={selectedPrintCustomName}
+          />
+        )}
+
+        {/* PRINT-ONLY: Shop Branding Sticker Template */}
+        {showStickerPrintView && (
+          <JobCardStickerTemplate
+            job={job}
+            branchDetails={selectedPrintBranch}
           />
         )}
       </AppLayout>
