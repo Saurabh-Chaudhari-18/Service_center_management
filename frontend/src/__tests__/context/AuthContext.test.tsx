@@ -89,6 +89,10 @@ function IsRoleProbe({ roles }: { roles: UserRole[] }) {
 
 // ── hasPermission ─────────────────────────────────────────────────────────────
 
+beforeEach(() => {
+  vi.mocked(tokenManager.getAccessToken).mockReturnValue("fake-access-token");
+});
+
 describe("hasPermission", () => {
   beforeEach(() => {
     vi.mocked(authApi.getMyBranches).mockResolvedValue([mockBranch]);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal, Button, Input, Select, Textarea } from "@/components/ui";
 import { inventoryApi, outsourceVendorsApi, outsourcedRepairsApi } from "@/lib/api";
@@ -34,7 +34,7 @@ export function OutsourceWarrantyRepairModal({
   const [notes, setNotes] = useState("");
 
   // Fetch Inventory Items
-  const { data: inventoryData, isLoading: isLoadingInventory } = useQuery({
+  const { data: inventoryData } = useQuery({
     queryKey: ["inventory-items-outsourced-repair"],
     queryFn: () => inventoryApi.list({ limit: 200 }),
     enabled: isOpen,
@@ -57,22 +57,24 @@ export function OutsourceWarrantyRepairModal({
     return Array.isArray(vendorsData) ? vendorsData : vendorsData.results || [];
   }, [vendorsData]);
 
-  // Reset state when opening modal
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedInventoryId("");
-      setItemName("");
-      setSerialNumber("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setVendorId("");
-      setReason("");
-      setSentDate(new Date().toISOString().split("T")[0]);
-      setExpectedReturnDate("");
-      setEstimatedCost("0");
-      setNotes("");
-    }
-  }, [isOpen]);
+  const resetForm = () => {
+    setSelectedInventoryId("");
+    setItemName("");
+    setSerialNumber("");
+    setCustomerName("");
+    setCustomerPhone("");
+    setVendorId("");
+    setReason("");
+    setSentDate(new Date().toISOString().split("T")[0]);
+    setExpectedReturnDate("");
+    setEstimatedCost("0");
+    setNotes("");
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   // Handle inventory selection
   const handleInventorySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -104,7 +106,7 @@ export function OutsourceWarrantyRepairModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outsourcedRepairs"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
-      onClose();
+      handleClose();
     },
   });
 
@@ -123,12 +125,12 @@ export function OutsourceWarrantyRepairModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Outsource Inventory / Warranty Repair"
       size="2xl"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           <Button

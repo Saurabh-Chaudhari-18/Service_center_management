@@ -13,7 +13,7 @@ import pytest
 from customers.models import Customer
 from tests.conftest import bh
 
-CUSTOMERS_URL = '/api/customers/customers/'
+CUSTOMERS_URL = '/api/customers/'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ class TestSearchByMobile:
     ):
         cust = make_customer(mobile='9200000001')
         resp = auth_client.get(
-            f'{CUSTOMERS_URL}search_by_mobile/',
+            f'{CUSTOMERS_URL}search-by-mobile/',
             {'mobile': '9200000001'},
             **bh(branch),
         )
@@ -105,7 +105,7 @@ class TestSearchByMobile:
 
     def test_search_returns_nothing_for_unknown_mobile(self, auth_client, branch):
         resp = auth_client.get(
-            f'{CUSTOMERS_URL}search_by_mobile/',
+            f'{CUSTOMERS_URL}search-by-mobile/',
             {'mobile': '0000000000'},
             **bh(branch),
         )
@@ -127,7 +127,7 @@ class TestSearchByMobile:
         )
         cust = make_customer(mobile='9200000002', b=other)
         resp = auth_client.get(
-            f'{CUSTOMERS_URL}search_by_mobile/',
+            f'{CUSTOMERS_URL}search-by-mobile/',
             {'mobile': '9200000002'},
             **bh(branch),
         )
@@ -151,7 +151,7 @@ class TestServiceHistory:
         j1 = make_job(cust)
         j2 = make_job(cust)
         resp = auth_client.get(
-            f'{CUSTOMERS_URL}{cust.id}/service_history/',
+            f'{CUSTOMERS_URL}{cust.id}/service-history/',
             **bh(branch),
         )
         assert resp.status_code == 200
@@ -166,7 +166,7 @@ class TestServiceHistory:
         cust2 = make_customer(mobile='9300000002')
         j_for_cust2 = make_job(cust2)
         resp = auth_client.get(
-            f'{CUSTOMERS_URL}{cust1.id}/service_history/',
+            f'{CUSTOMERS_URL}{cust1.id}/service-history/',
             **bh(branch),
         )
         assert resp.status_code == 200
@@ -213,7 +213,7 @@ class TestCustomerAnonymisation:
     ):
         cust = make_customer(mobile='9500000001')
         resp = auth_client.post(
-            f'{CUSTOMERS_URL}{cust.id}/request_deletion/',
+            f'{CUSTOMERS_URL}{cust.id}/request-deletion/',
             {},
             format='json', **bh(branch),
         )
@@ -224,7 +224,7 @@ class TestCustomerAnonymisation:
     ):
         cust = make_customer(mobile='9500000002')
         auth_client.post(
-            f'{CUSTOMERS_URL}{cust.id}/request_deletion/',
+            f'{CUSTOMERS_URL}{cust.id}/request-deletion/',
             {},
             format='json', **bh(branch),
         )
@@ -239,7 +239,7 @@ class TestCustomerAnonymisation:
         cust = make_customer(mobile='9500000003')
         make_job(cust, status=JobStatus.REPAIR_IN_PROGRESS)
         resp = auth_client.post(
-            f'{CUSTOMERS_URL}{cust.id}/request_deletion/',
+            f'{CUSTOMERS_URL}{cust.id}/request-deletion/',
             {},
             format='json', **bh(branch),
         )

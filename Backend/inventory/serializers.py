@@ -19,7 +19,7 @@ class InventoryCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'branch', 'name', 'description', 'items_count', 'created_at']
         read_only_fields = ['id', 'created_at']
 
-    def get_items_count(self, obj):
+    def get_items_count(self, obj) -> int:
         return obj.items.filter(is_active=True).count()
 
 
@@ -43,7 +43,7 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'quantity', 'created_at', 'updated_at']
 
-    def get_price_with_gst(self, obj):
+    def get_price_with_gst(self, obj) -> Decimal:
         gst_calc = obj.get_price_with_gst(is_interstate=False)
         return {
             'base_price': str(obj.selling_price),
@@ -74,7 +74,7 @@ class InventoryItemListSerializer(serializers.ModelSerializer):
             'quantity', 'low_stock_threshold', 'is_low_stock', 'unit'
         ]
 
-    def get_is_low_stock(self, obj):
+    def get_is_low_stock(self, obj) -> bool:
         return obj.is_low_stock
 
 
@@ -155,6 +155,21 @@ class StockTransferSerializer(serializers.ModelSerializer):
     )
     items = StockTransferItemSerializer(many=True, read_only=True)
     
+    def validate(self, attrs):
+        from_branch = attrs.get('from_branch', getattr(self.instance, 'from_branch', None))
+        to_branch = attrs.get('to_branch', getattr(self.instance, 'to_branch', None))
+        if not from_branch or not to_branch:
+            raise serializers.ValidationError('Both transfer branches are required.')
+        if from_branch == to_branch:
+            raise serializers.ValidationError('Source and destination branches must differ.')
+        request = self.context.get('request')
+        if request and (
+            not request.user.has_branch_access(from_branch)
+            or not request.user.has_branch_access(to_branch)
+        ):
+            raise serializers.ValidationError('Both transfer branches must be accessible.')
+        return attrs
+
     class Meta:
         model = StockTransfer
         fields = [

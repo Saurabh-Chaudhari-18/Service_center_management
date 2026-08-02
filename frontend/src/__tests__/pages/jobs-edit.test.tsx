@@ -48,7 +48,7 @@ vi.mock("@/components/layout/Layout", () => ({
   ),
 }));
 
-const mockGetJob = vi.fn(() =>
+const mockGetJob = vi.fn((_id?: string) =>
   Promise.resolve<JobCard>({
     id: "job-1",
     branch: "branch-1",
@@ -109,6 +109,7 @@ const mockGetJob = vi.fn(() =>
 vi.mock("@/lib/api", () => ({
   jobsApi: {
     get: (id: string) => mockGetJob(id),
+    getDeviceTypes: vi.fn(() => Promise.resolve([])),
     update: vi.fn(() => Promise.resolve({})),
     list: vi.fn(() => Promise.resolve({ count: 0, results: [] })),
   },

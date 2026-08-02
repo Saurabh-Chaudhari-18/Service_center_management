@@ -12,7 +12,6 @@ import {
   MapPin,
   Star,
   Trash2,
-  ChevronRight,
 } from "lucide-react";
 import type { Supplier } from "@/types";
 import {

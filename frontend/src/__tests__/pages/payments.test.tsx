@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -44,21 +45,21 @@ describe("Payments (Accounts Payable) page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<PaymentsPage />)).not.toThrow();
+    expect(() => renderWithQuery(<PaymentsPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<PaymentsPage />);
+    renderWithQuery(<PaymentsPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Accounts Payable heading", () => {
-    render(<PaymentsPage />);
+    renderWithQuery(<PaymentsPage />);
     expect(screen.getByRole("heading", { name: "Accounts Payable" })).toBeInTheDocument();
   });
 
   it("shows Pending and History tabs", () => {
-    render(<PaymentsPage />);
+    renderWithQuery(<PaymentsPage />);
     // Actual tab button labels in the payments page
     expect(screen.getByText("Pending Payables")).toBeInTheDocument();
     expect(screen.getByText("All History")).toBeInTheDocument();

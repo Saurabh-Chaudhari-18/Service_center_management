@@ -10,6 +10,34 @@ from rest_framework import permissions
 from core.models import Role, RolePermission
 
 
+def get_requested_branch_id(request, view=None):
+    """Return the branch explicitly selected for this request, if any."""
+    view_kwargs = getattr(view, 'kwargs', {}) if view else {}
+    body_branch = None
+    if request.method not in permissions.SAFE_METHODS and hasattr(request, 'data'):
+        body_branch = request.data.get('branch') or request.data.get('branch_id')
+    return (
+        view_kwargs.get('branch_id')
+        or body_branch
+        or request.query_params.get('branch')
+        or request.headers.get('X-Branch-ID')
+    )
+
+
+def require_accessible_branch(user, branch_id):
+    """Resolve a branch only when it belongs to the authenticated user's scope."""
+    from core.models import Branch
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    try:
+        branch = Branch.objects.get(pk=branch_id)
+    except (Branch.DoesNotExist, ValueError, TypeError):
+        raise ValidationError({'branch': 'Invalid branch.'})
+    if not user.has_branch_access(branch):
+        raise PermissionDenied('You do not have access to this branch.')
+    return branch
+
+
 def _has_perm(user, perm_key):
     """Check if a user has a specific permission via DB lookup (cached)."""
     if not user or not user.is_authenticated:
@@ -32,21 +60,16 @@ class IsBranchMember(permissions.BasePermission):
         # Get branch from view kwargs, then query params, then the X-Branch-ID header.
         # BranchScopedMixin uses the header as its primary source, so checking it here
         # ensures we return 403 Forbidden (not a misleading 404) for invalid branch access.
-        branch_id = (
-            view.kwargs.get('branch_id')
-            or request.query_params.get('branch')
-            or request.headers.get('X-Branch-ID')
-        )
+        branch_id = get_requested_branch_id(request, view)
 
         if not branch_id:
             # If no specific branch requested, allow access (queryset will be filtered)
             return True
 
-        from core.models import Branch
         try:
-            branch = Branch.objects.get(pk=branch_id)
-            return request.user.has_branch_access(branch)
-        except Branch.DoesNotExist:
+            require_accessible_branch(request.user, branch_id)
+            return True
+        except Exception:
             return False
 
     def has_object_permission(self, request, view, obj):
@@ -329,47 +352,61 @@ class BranchScopedMixin:
         q_null = Q(**{f'{branch_field}__isnull': True})
         return queryset.filter(q_accessible | q_null)
 
+    def _audit_create(self, obj):
+        from audit.services import AuditLogService
+        AuditLogService.log_create(self.request.user, obj, request=self.request)
+
+    def _audit_update(self, obj, old_values):
+        from audit.services import AuditLogService
+        AuditLogService.log_update(
+            self.request.user, obj, old_values, request=self.request,
+        )
+
     def perform_create(self, serializer):
-        """Set branch on create if not already set, supporting universal logic."""
-        branch_id = self.request.data.get('branch')
-        
-        if not branch_id:
-            branch_id = self.request.headers.get('X-Branch-ID')
-            
-        if branch_id and str(branch_id).lower() == 'universal':
-            branch_id = None
-            
-        if not branch_id:
-            # Try to get branch from session/context as final fallback
+        """Set a validated branch and record the creation in the audit trail."""
+        branch_id = get_requested_branch_id(self.request, self)
+        explicit_universal = branch_id and str(branch_id).lower() == 'universal'
+
+        if explicit_universal and self.request.user.role != Role.SUPER_ADMIN:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Only platform administrators can create universal records.')
+
+        if explicit_universal:
+            branch = None
+        elif branch_id:
+            branch = require_accessible_branch(self.request.user, branch_id)
+        else:
             branch = getattr(self.request, 'current_branch', None)
-            if branch:
-                serializer.save(branch=branch)
-                return
-            
-            # Universal Branch logic
-            if self.request.user.role in ['OWNER', 'MANAGER']:
-                # Owners/Managers can create Universal items
-                serializer.save(branch=None)
-                return
-            else:
-                # Regular staff must have a branch, pick their first accessible branch
-                primary_branch = self.request.user.get_accessible_branches().first()
-                if primary_branch:
-                    serializer.save(branch=primary_branch)
-                    return
-                else:
-                    from rest_framework.exceptions import PermissionDenied
-                    raise PermissionDenied("You do not have a branch assigned.")
-        
-        # Validate branch access before saving specific branch
-        if branch_id:
-            from core.models import Branch
-            try:
-                branch = Branch.objects.get(pk=branch_id)
-                if not self.request.user.has_branch_access(branch):
-                    from rest_framework.exceptions import PermissionDenied
-                    raise PermissionDenied("You do not have access to this branch.")
-                serializer.save(branch=branch)
-            except Branch.DoesNotExist:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError({"branch": "Invalid branch."})
+            if not branch:
+                branch = self.request.user.get_accessible_branches().first()
+            if not branch and self.request.user.role != Role.SUPER_ADMIN:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('You do not have a branch assigned.')
+
+        serializer.save(branch=branch)
+        self._audit_create(serializer.instance)
+
+    def perform_update(self, serializer):
+        """Prevent cross-branch moves and record old/new values."""
+        from audit.services import AuditLogService
+        old_values = AuditLogService._get_model_dict(serializer.instance)
+
+        if 'branch' in serializer.validated_data:
+            branch = serializer.validated_data.get('branch')
+            if branch is None and self.request.user.role != Role.SUPER_ADMIN:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('Only platform administrators can create universal records.')
+            if branch is not None and not self.request.user.has_branch_access(branch):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('You do not have access to this branch.')
+
+        serializer.save()
+        self._audit_update(serializer.instance, old_values)
+
+    def perform_destroy(self, instance):
+        """Record destructive changes before deleting the object."""
+        from audit.services import AuditLogService
+        AuditLogService.log_delete(
+            self.request.user, instance, request=self.request,
+        )
+        instance.delete()

@@ -76,7 +76,11 @@ class InternalAlertSerializer(serializers.ModelSerializer):
 
 class SendNotificationSerializer(serializers.Serializer):
     """Serializer for sending custom notifications."""
-    channel = serializers.ChoiceField(choices=NotificationChannel.choices)
+    channel = serializers.ChoiceField(choices=[
+        (NotificationChannel.SMS, NotificationChannel.SMS.label),
+        (NotificationChannel.WHATSAPP, NotificationChannel.WHATSAPP.label),
+        (NotificationChannel.EMAIL, NotificationChannel.EMAIL.label),
+    ])
     recipient_mobile = serializers.CharField(required=False, allow_blank=True)
     recipient_email = serializers.EmailField(required=False, allow_blank=True)
     recipient_name = serializers.CharField(required=False, allow_blank=True)

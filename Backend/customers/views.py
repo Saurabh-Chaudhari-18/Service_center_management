@@ -9,6 +9,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied, NotFoun
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from drf_spectacular.utils import extend_schema
 
 from customers.models import Customer, CustomerDocument
 from customers.serializers import (
@@ -16,7 +17,10 @@ from customers.serializers import (
     CustomerMinimalSerializer, CustomerDocumentSerializer,
     CustomerServiceHistorySerializer
 )
-from core.permissions import IsBranchMember, CanManageCustomers, BranchScopedMixin
+from core.permissions import (
+    IsBranchMember, CanManageCustomers, BranchScopedMixin,
+    get_requested_branch_id, require_accessible_branch,
+)
 
 
 class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -51,6 +55,15 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if self.action == 'list':
             return CustomerMinimalSerializer
         return CustomerSerializer
+
+    def perform_create(self, serializer):
+        """Customer records require an explicit branch."""
+        branch_id = get_requested_branch_id(self.request, self)
+        if not branch_id or str(branch_id).lower() == 'universal':
+            raise ValidationError({'branch': 'A branch is required.'})
+        branch = require_accessible_branch(self.request.user, branch_id)
+        serializer.save(branch=branch)
+        self._audit_create(serializer.instance)
 
     @action(detail=False, methods=['get'], url_path='search-by-mobile')
     def search_by_mobile(self, request):
@@ -145,6 +158,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(operation_id='customers_customer_documents_list')
     @action(detail=True, methods=['get'])
     def documents(self, request, pk=None):
         """Get all documents for a customer."""
@@ -237,6 +251,7 @@ class CustomerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
 class CustomerDocumentViewSet(viewsets.ModelViewSet):
     """ViewSet for customer documents."""
+    queryset = CustomerDocument.objects.none()
     serializer_class = CustomerDocumentSerializer
     permission_classes = [IsAuthenticated, CanManageCustomers]
 

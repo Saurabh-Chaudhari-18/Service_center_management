@@ -83,7 +83,7 @@ class TestCustomerBranchConstraint:
 
 @pytest.mark.django_db
 class TestCustomerAPI:
-    LIST_URL = "/api/customers/customers/"
+    LIST_URL = "/api/customers/"
 
     def test_list_requires_auth(self, api_client):
         resp = api_client.get(self.LIST_URL)
@@ -138,7 +138,7 @@ class TestCustomerAPI:
 
     def test_search_by_mobile(self, auth_client, branch, seed_permissions):
         _make_customer(branch, mobile="9820000001")
-        resp = auth_client.get(f"{self.LIST_URL}search_by_mobile/?mobile=9820000001")
+        resp = auth_client.get(f"{self.LIST_URL}search-by-mobile/?mobile=9820000001")
         assert resp.status_code == 200
         results = resp.json()
         assert any("9820000001" in r["mobile"] for r in results)
@@ -151,7 +151,7 @@ class TestCustomerAPI:
 class TestCustomerRequestDeletion:
     def test_anonymises_pii(self, auth_client, branch, seed_permissions):
         c = _make_customer(branch, mobile="9830000001", first_name="Vivek", last_name="Shah")
-        resp = auth_client.post(f"/api/customers/customers/{c.id}/request_deletion/")
+        resp = auth_client.post(f"/api/customers/{c.id}/request-deletion/")
         assert resp.status_code == 200
         c.refresh_from_db()
         # PII should be replaced; original name no longer stored
@@ -171,5 +171,5 @@ class TestCustomerRequestDeletion:
             status=JobStatus.RECEIVED,
             received_by=owner,
         )
-        resp = auth_client.post(f"/api/customers/customers/{c.id}/request_deletion/")
+        resp = auth_client.post(f"/api/customers/{c.id}/request-deletion/")
         assert resp.status_code == 409

@@ -18,7 +18,10 @@ from enquiries.serializers import (
     EnquirySerializer, EnquiryListSerializer,
     EnquiryCreateSerializer, EnquiryNoteSerializer
 )
-from core.permissions import IsBranchMember, BranchScopedMixin, CanManageEnquiries
+from core.permissions import (
+    IsBranchMember, BranchScopedMixin, CanManageEnquiries,
+    get_requested_branch_id, require_accessible_branch,
+)
 
 
 class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -81,17 +84,12 @@ class EnquiryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Set created_by and handle branch."""
-        branch_id = self.request.data.get('branch') or self.request.headers.get('X-Branch-ID')
-        
-        if branch_id and str(branch_id).lower() != 'universal':
-            from core.models import Branch
-            try:
-                branch = Branch.objects.get(pk=branch_id)
-                serializer.save(created_by=self.request.user, branch=branch)
-            except Branch.DoesNotExist:
-                serializer.save(created_by=self.request.user)
-        else:
-            serializer.save(created_by=self.request.user)
+        branch_id = get_requested_branch_id(self.request, self)
+        if not branch_id or str(branch_id).lower() == 'universal':
+            raise ValidationError({'branch': 'A branch is required for an enquiry.'})
+        branch = require_accessible_branch(self.request.user, branch_id)
+        serializer.save(created_by=self.request.user, branch=branch)
+        self._audit_create(serializer.instance)
 
     @action(detail=True, methods=['post'], url_path='add-note')
     def add_note(self, request, pk=None):

@@ -1,7 +1,7 @@
 "use client";
 
-import { Calendar, Phone, DollarSign, User, ShieldCheck, AlertTriangle, ArrowRight, FileText } from "lucide-react";
-import { Card, Button } from "@/components/ui";
+import { Calendar, Phone, User, ShieldCheck, AlertTriangle, FileText } from "lucide-react";
+import { Button } from "@/components/ui";
 import type { OutsourcedRepair } from "@/types";
 
 export interface OutsourceDetailsCardProps {
@@ -44,7 +44,7 @@ export function OutsourceDetailsCard({
       </h3>
 
       <div className="space-y-4">
-        {repairs.map((item, index) => {
+        {repairs.map((item) => {
           const isSent = item.status === "SENT";
           const isReturned = item.status === "RETURNED";
           

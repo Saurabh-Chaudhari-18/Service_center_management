@@ -46,7 +46,7 @@ vi.mock("@/components/layout/Layout", () => ({
 }));
 
 // purchases/[id]/page.tsx imports purchasesApi directly from @/lib/api/services
-const mockGetPurchase = vi.fn(() =>
+const mockGetPurchase = vi.fn((..._args: unknown[]) =>
   Promise.resolve<Purchase>({
     id: "pur-1",
     branch: "branch-1",

@@ -17,7 +17,7 @@ import pytest
 from jobs.models import JobCard, JobStatus, PartRequest
 from tests.conftest import bh
 
-JOBS_URL = '/api/jobs/jobs/'
+JOBS_URL = '/api/jobs/'
 
 
 def _client_for(api_client, user):
@@ -56,7 +56,7 @@ class TestAccountantJobAccess:
     ):
         _client_for(api_client, accountant)
         resp = api_client.post(
-            f'{JOBS_URL}{job.id}/update_status/',
+            f'{JOBS_URL}{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS},
             format='json', **bh(branch),
         )
@@ -67,7 +67,7 @@ class TestAccountantJobAccess:
     ):
         _client_for(api_client, accountant)
         resp = api_client.post(
-            f'{JOBS_URL}{job.id}/add_diagnosis/',
+            f'{JOBS_URL}{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Sneaky', 'estimated_cost': '100'},
             format='json', **bh(branch),
         )
@@ -178,7 +178,7 @@ class TestOwnerJobAccess:
         j = make_job(customer, status=JobStatus.DELIVERED)
         # Owner can move terminal status with is_override=True
         resp = auth_client.post(
-            f'{JOBS_URL}{j.id}/update_status/',
+            f'{JOBS_URL}{j.id}/update-status/',
             {'new_status': JobStatus.REPAIR_IN_PROGRESS, 'is_override': True, 'notes': 'Customer return'},
             format='json', **bh(branch),
         )

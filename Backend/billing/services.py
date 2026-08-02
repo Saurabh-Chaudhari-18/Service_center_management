@@ -94,6 +94,14 @@ class InvoiceService:
             ["Invoice Number:", invoice.invoice_number, "Invoice Date:", str(invoice.invoice_date)],
             ["Job Number:", job_number, "Due Date:", str(invoice.due_date or 'N/A')],
         ]
+        if invoice.is_interstate:
+            from core.utils import format_place_of_supply
+            invoice_details.append([
+                "Place of Supply:",
+                format_place_of_supply(invoice.customer_state_code),
+                "",
+                "",
+            ])
         
         details_table = Table(invoice_details, colWidths=[doc.width/4]*4)
         details_table.setStyle(TableStyle([

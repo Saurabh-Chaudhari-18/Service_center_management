@@ -186,7 +186,6 @@ export interface User extends BaseEntity {
 
 export interface AuthTokens {
   access: string;
-  refresh: string;
 }
 
 export interface UserPermissions {
@@ -600,6 +599,7 @@ export interface Invoice extends BaseEntity {
   customer_address: string;
   customer_gstin: string;
   customer_state_code: string;
+  place_of_supply?: string;
   invoice_date: string;
   due_date: string | null;
   is_interstate: boolean;

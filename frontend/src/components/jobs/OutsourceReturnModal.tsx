@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Modal, Button, Select, Input, Textarea } from "@/components/ui";
 import { jobsApi, outsourcedRepairsApi } from "@/lib/api";
@@ -27,24 +27,26 @@ export function OutsourceReturnModal({
   const [vendorInvoiceNumber, setVendorInvoiceNumber] = useState("");
   const [newJobStatus, setNewJobStatus] = useState("READY_FOR_DELIVERY");
 
-  useEffect(() => {
-    if (repairOutcome === "REPAIRED") {
-      setNewJobStatus("READY_FOR_DELIVERY");
-    } else {
-      setNewJobStatus("REPAIR_IN_PROGRESS");
-    }
-  }, [repairOutcome]);
+  const resetForm = () => {
+    setReturnDate(new Date().toISOString().split("T")[0]);
+    setActualCost("");
+    setRepairOutcome("REPAIRED");
+    setVendorNotes("");
+    setVendorInvoiceNumber("");
+    setNewJobStatus("READY_FOR_DELIVERY");
+  };
 
-  useEffect(() => {
-    if (isOpen) {
-      setReturnDate(new Date().toISOString().split("T")[0]);
-      setActualCost("");
-      setRepairOutcome("REPAIRED");
-      setVendorNotes("");
-      setVendorInvoiceNumber("");
-      setNewJobStatus("READY_FOR_DELIVERY");
-    }
-  }, [isOpen]);
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleOutcomeChange = (value: string) => {
+    setRepairOutcome(value);
+    setNewJobStatus(
+      value === "REPAIRED" ? "READY_FOR_DELIVERY" : "REPAIR_IN_PROGRESS",
+    );
+  };
 
   const returnMutation = useMutation({
     mutationFn: () =>
@@ -70,7 +72,7 @@ export function OutsourceReturnModal({
       }
       queryClient.invalidateQueries({ queryKey: ["outsourcedRepairs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      onClose();
+      handleClose();
     },
   });
 
@@ -90,11 +92,11 @@ export function OutsourceReturnModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Mark Device / Item Returned"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           <Button
@@ -131,7 +133,7 @@ export function OutsourceReturnModal({
             label="Repair Outcome"
             options={outcomeOptions}
             value={repairOutcome}
-            onChange={(e) => setRepairOutcome(e.target.value)}
+            onChange={(e) => handleOutcomeChange(e.target.value)}
             required
           />
           {jobId && (

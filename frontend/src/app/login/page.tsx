@@ -45,7 +45,12 @@ export default function LoginPage() {
 
     try {
       await login(data.email, data.password);
-      router.push("/dashboard");
+      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const destination =
+        requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
+          ? requestedPath
+          : "/dashboard";
+      router.replace(destination);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Login failed. Please try again."
@@ -77,7 +82,7 @@ export default function LoginPage() {
 
           {/* Error Alert */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-700">{error}</p>
             </div>
@@ -104,7 +109,9 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-neutral-400 hover:text-neutral-600"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-600"
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -144,7 +151,7 @@ export default function LoginPage() {
                     setValue("email", "demo-owner@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   👑 Owner
                 </button>
@@ -154,7 +161,7 @@ export default function LoginPage() {
                     setValue("email", "demo-manager@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   💼 Manager
                 </button>
@@ -164,7 +171,7 @@ export default function LoginPage() {
                     setValue("email", "demo-tech@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   🔧 Technician
                 </button>
@@ -174,7 +181,7 @@ export default function LoginPage() {
                     setValue("email", "demo-reception@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   📞 Receptionist
                 </button>
@@ -184,7 +191,7 @@ export default function LoginPage() {
                     setValue("email", "demo-accounts@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   📊 Accountant
                 </button>
@@ -194,7 +201,7 @@ export default function LoginPage() {
                     setValue("email", "demo-superadmin@scm.local");
                     setValue("password", "demo12345");
                   }}
-                  className="px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
+                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
                 >
                   🛡️ Super Admin
                 </button>

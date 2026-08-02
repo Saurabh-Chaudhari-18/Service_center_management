@@ -112,7 +112,7 @@ class JobCard(TimeStampedModel):
         help_text="Customer-facing PIN for public job tracking (digits only)",
     )
     received_date = models.DateField(
-        default=timezone.now,
+        default=timezone.localdate,
         help_text="The date the device was actually received from the customer"
     )
 
@@ -834,11 +834,7 @@ class PickupRequest(TimeStampedModel):
 
     def _generate_pickup_number(self):
         """Generate a unique pickup number for this branch."""
-        from django.db.models import Count
-        fy = self.branch.get_current_financial_year()
-        count = PickupRequest.objects.filter(branch=self.branch).count() + 1
-        seq = str(count).zfill(5)
-        return f"PU/{fy}/{self.branch.code}/{seq}"
+        return self.branch.get_next_pickup_number()
 
 
 class DropdownCategory(models.TextChoices):

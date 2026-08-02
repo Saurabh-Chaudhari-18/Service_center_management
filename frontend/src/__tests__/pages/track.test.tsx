@@ -74,9 +74,11 @@ describe("Track Job page (track/[job_number]) — regression tests", () => {
   it("shows error when submitting with a short phone number", async () => {
     renderPage();
     const input = screen.getByPlaceholderText(/enter last 10 digits/i);
+    const pinInput = screen.getByPlaceholderText(/pin from your sms/i);
     const button = screen.getByRole("button", { name: /view status/i });
 
     await userEvent.type(input, "123");
+    await userEvent.type(pinInput, "1234");
     await userEvent.click(button);
 
     await waitFor(() => {

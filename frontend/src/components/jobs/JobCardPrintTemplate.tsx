@@ -47,7 +47,6 @@ export function JobCardPrintTemplate({ job, branchDetails, customShopName }: Job
 
   return (
     <PrintPortal>
-      {/* eslint-disable-next-line react/no-danger */}
       <style
         dangerouslySetInnerHTML={{
           __html: `

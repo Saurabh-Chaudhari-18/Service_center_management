@@ -16,7 +16,6 @@ import {
 } from "@/components/ui";
 import { outsourcedRepairsApi, outsourceVendorsApi } from "@/lib/api";
 import {
-  ExternalLink,
   Search,
   Building2,
   Clock,
@@ -24,13 +23,10 @@ import {
   AlertTriangle,
   IndianRupee,
   Plus,
-  RefreshCw,
   ArrowRight,
-  FileText,
   Phone,
   User,
   MapPin,
-  Calendar,
   XCircle,
   Truck,
   ShieldCheck,
@@ -193,7 +189,7 @@ function VendorDirectoryModal({
             <div className="text-center py-8 text-neutral-500">
               <Building2 className="w-10 h-10 mx-auto text-neutral-300 mb-2" />
               <p>No outsource vendors found.</p>
-              <p className="text-xs mt-1">Click "Add Vendor" to register your first partner.</p>
+              <p className="text-xs mt-1">Click “Add Vendor” to register your first partner.</p>
             </div>
           ) : (
             <div className="space-y-3">

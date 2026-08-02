@@ -248,6 +248,12 @@ export function InvoiceTemplate({
                   {invoice.job_number}
                 </p>
               )}
+              {invoice.is_interstate && invoice.place_of_supply && (
+                <p>
+                  <span className="font-semibold text-black">Place of Supply:</span>{" "}
+                  {invoice.place_of_supply}
+                </p>
+              )}
             </div>
           </div>
         </div>

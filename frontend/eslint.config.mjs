@@ -16,6 +16,12 @@ const eslintConfig = defineConfig([
     "replace_colors.js",
   ]),
   {
+    files: ["src/__tests__/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    },
+  },
+  {
     files: ["src/lib/api/services.ts"],
     rules: {
       // Large generated-style API surface; tighten types incrementally.

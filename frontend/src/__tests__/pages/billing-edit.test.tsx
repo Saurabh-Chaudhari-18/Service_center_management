@@ -76,7 +76,7 @@ vi.mock("@/components/ui", async (importOriginal) => {
   };
 });
 
-const mockGetInvoice = vi.fn(() =>
+const mockGetInvoice = vi.fn((..._args: unknown[]) =>
   Promise.resolve<Invoice>({
     id: "inv-1",
     branch: "branch-1",

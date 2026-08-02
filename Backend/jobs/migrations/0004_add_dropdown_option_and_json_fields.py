@@ -5,28 +5,30 @@ from django.db import migrations, models
 
 
 def convert_physical_condition_to_json(apps, schema_editor):
-    """Convert existing text physical_condition values to JSON format."""
-    from django.db import connection
-    with connection.cursor() as cursor:
-        # Update any existing text values to JSON format
-        cursor.execute("""
-            UPDATE jobs_jobcard
-            SET physical_condition = '{}'
-            WHERE physical_condition IS NULL
-               OR physical_condition = ''
-               OR physical_condition::text = 'null'
-        """)
-        # For rows with actual text values, wrap them in a JSON object
-        cursor.execute("""
-            UPDATE jobs_jobcard
-            SET physical_condition = jsonb_build_object('legacy_text', physical_condition::text)
-            WHERE physical_condition IS NOT NULL
-              AND physical_condition != ''
-              AND physical_condition::text != '{}'
-              AND physical_condition::text != 'null'
-              AND NOT (physical_condition::text LIKE '{%')
-        """)
+    """Convert legacy text into valid JSON using portable DB-API operations."""
+    import json
 
+    table = schema_editor.quote_name('jobs_jobcard')
+    id_column = schema_editor.quote_name('id')
+    value_column = schema_editor.quote_name('physical_condition')
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(f"SELECT {id_column}, {value_column} FROM {table}")
+        rows = cursor.fetchall()
+        for row_id, raw_value in rows:
+            if raw_value in (None, '', 'null'):
+                converted = {}
+            elif isinstance(raw_value, dict):
+                converted = raw_value
+            else:
+                try:
+                    parsed = json.loads(raw_value)
+                    converted = parsed if isinstance(parsed, dict) else {'legacy_text': str(raw_value)}
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    converted = {'legacy_text': str(raw_value)}
+            cursor.execute(
+                f"UPDATE {table} SET {value_column} = %s WHERE {id_column} = %s",
+                [json.dumps(converted), row_id],
+            )
 
 def reverse_convert(apps, schema_editor):
     pass

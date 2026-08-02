@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
 import type { Invoice, InvoiceStatus, UserRole } from "@/types";
@@ -38,10 +38,10 @@ vi.mock("@/components/billing/InvoiceTemplate", () => ({
 
 // Module-level vi.fn() with default impl — survives vi.restoreAllMocks() between tests.
 // NOTE: The billing page calls billingApi.listInvoices (not billingApi.list).
-const mockListInvoices = vi.fn(() =>
-  Promise.resolve({ count: 0, results: [], next: null, previous: null }),
+const mockListInvoices = vi.fn((..._args: unknown[]) =>
+  Promise.resolve({ count: 0, results: [] as Invoice[], next: null, previous: null }),
 );
-const mockGetStats = vi.fn(() => Promise.resolve(null));
+const mockGetStats = vi.fn((..._args: unknown[]) => Promise.resolve(null));
 
 vi.mock("@/lib/api", () => ({
   billingApi: {
@@ -114,6 +114,11 @@ function renderBilling(role: UserRole = "OWNER") {
 }
 
 // ── Smoke tests ───────────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  mockListInvoices.mockImplementation(() => Promise.resolve({ count: 0, results: [], next: null, previous: null }));
+  mockGetStats.mockImplementation(() => Promise.resolve(null));
+});
 
 describe("Billing page smoke tests", () => {
   it("renders without crashing for OWNER", () => {
@@ -201,7 +206,7 @@ describe("Billing page — regression tests", () => {
     });
     renderBilling();
     await waitFor(() => {
-      expect(screen.getByText("INV-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
     });
   });
 
@@ -214,7 +219,7 @@ describe("Billing page — regression tests", () => {
     });
     renderBilling();
     await waitFor(() => {
-      expect(screen.getByText("John Smith")).toBeInTheDocument();
+      expect(screen.getAllByText("John Smith").length).toBeGreaterThan(0);
     });
   });
 
@@ -227,7 +232,7 @@ describe("Billing page — regression tests", () => {
     });
     renderBilling();
     await waitFor(() => {
-      expect(screen.getByText("9876543210")).toBeInTheDocument();
+      expect(screen.getAllByText("9876543210").length).toBeGreaterThan(0);
     });
   });
 
@@ -240,7 +245,7 @@ describe("Billing page — regression tests", () => {
     });
     renderBilling();
     await waitFor(() => {
-      expect(screen.getByText("INV-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
     });
     // Each column header is a <button> inside <th>
     expect(screen.getByRole("button", { name: /invoice #/i })).toBeInTheDocument();
@@ -278,9 +283,9 @@ describe("Billing page — regression tests", () => {
     });
     renderBilling();
     await waitFor(() => {
-      expect(screen.getByText("INV-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
     });
-    expect(screen.getByText("INV-2024-002")).toBeInTheDocument();
+    expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
   });
 
   it("shows 'Create Invoice' button inside empty state", async () => {

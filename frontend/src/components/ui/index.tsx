@@ -76,35 +76,42 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, leftIcon, rightIcon, className = "", ...props }, ref) => {
+  ({ label, error, helperText, leftIcon, rightIcon, className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = id || `input-${generatedId}`;
+    const messageId = `${inputId}-message`;
+
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+          <label htmlFor={inputId} className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
           </label>
         )}
         <div className="relative">
           {leftIcon && (
-            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400">{leftIcon}</div>
+            <div aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400">{leftIcon}</div>
           )}
           <input
             ref={ref}
+            id={inputId}
+            aria-invalid={error ? "true" : undefined}
+            aria-describedby={error || helperText ? messageId : undefined}
             className={`input ${leftIcon ? "pl-10" : ""} ${rightIcon ? "pr-10" : ""} ${error ? "input-error" : ""} ${className}`}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400">{rightIcon}</div>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400">{rightIcon}</div>
           )}
         </div>
         {error && (
-          <p className="text-xs text-red-500 flex items-center gap-1 font-medium">
-            <AlertCircle className="w-3 h-3" />{error}
+          <p id={messageId} role="alert" className="text-xs text-red-500 flex items-center gap-1 font-medium">
+            <AlertCircle className="w-3 h-3" aria-hidden="true" />{error}
           </p>
         )}
         {helperText && !error && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">{helperText}</p>
+          <p id={messageId} className="text-xs text-neutral-500 dark:text-neutral-400">{helperText}</p>
         )}
       </div>
     );
@@ -124,206 +131,41 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, options, placeholder, className = "", ...props }, ref) => {
-    const internalRef = React.useRef<HTMLSelectElement | null>(null);
-    const triggerRef = React.useRef<HTMLButtonElement>(null);
-    const dropdownRef = React.useRef<HTMLDivElement>(null);
-    const [isOpen, setIsOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
-    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-
-    // Track local value for immediate UI update
-    const [localValue, setLocalValue] = useState(props.value || props.defaultValue || "");
-
-    useEffect(() => { setMounted(true); }, []);
-
-    // Manage refs for react-hook-form compatibility
-    const handleRef = React.useCallback((node: HTMLSelectElement | null) => {
-      internalRef.current = node;
-      if (typeof ref === "function") ref(node);
-      else if (ref) (ref as React.MutableRefObject<HTMLSelectElement | null>).current = node;
-      if (node && node.value) setLocalValue(node.value);
-    }, [ref]);
-
-    // Resync when controlled value changes
-    useEffect(() => {
-      if (props.value !== undefined) setLocalValue(props.value as string);
-    }, [props.value]);
-
-    // Poll for react-hook-form async resets
-    useEffect(() => {
-      const interval = setInterval(() => {
-        if (internalRef.current && internalRef.current.value !== localValue && props.value === undefined) {
-          setLocalValue(internalRef.current.value);
-        }
-      }, 500);
-      return () => clearInterval(interval);
-    }, [localValue, props.value]);
-
-    // Calculate position and open
-    const openDropdown = () => {
-      if (props.disabled) return;
-      if (triggerRef.current) {
-        const rect = triggerRef.current.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const maxDropH = 280;
-        // If not enough space below, open upward
-        if (spaceBelow < maxDropH && rect.top > spaceBelow) {
-          setDropdownPos({ top: rect.top - Math.min(maxDropH, rect.top - 8), left: rect.left, width: Math.max(rect.width, 200) });
-        } else {
-          setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 200) });
-        }
-      }
-      setIsOpen(prev => !prev);
-    };
-
-    // Close on click outside
-    useEffect(() => {
-      if (!isOpen) return;
-      const handler = (e: MouseEvent) => {
-        if (
-          triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
-          dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
-        ) {
-          setIsOpen(false);
-        }
-      };
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
-    }, [isOpen]);
-
-    // Close on outside scroll (but NOT when scrolling inside dropdown) + resize
-    useEffect(() => {
-      if (!isOpen) return;
-
-      const handleScroll = (e: Event) => {
-        // If the scroll is happening inside the dropdown panel, ignore it
-        if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) {
-          return;
-        }
-        setIsOpen(false);
-      };
-
-      const handleResize = () => setIsOpen(false);
-
-      window.addEventListener("scroll", handleScroll, true);
-      window.addEventListener("resize", handleResize);
-      return () => {
-        window.removeEventListener("scroll", handleScroll, true);
-        window.removeEventListener("resize", handleResize);
-      };
-    }, [isOpen]);
-
-    const handleSelect = (val: string) => {
-      setLocalValue(val);
-      setIsOpen(false);
-      if (internalRef.current) {
-        internalRef.current.value = val;
-        internalRef.current.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      if (props.onChange) {
-        props.onChange({ target: { name: props.name, value: val }, currentTarget: { name: props.name, value: val } } as any);
-      }
-    };
-
-    const selectedOption = options.find((o) => String(o.value) === String(localValue));
-    const displayLabel = selectedOption ? selectedOption.label : (placeholder || "Select…");
+  ({ label, error, options, placeholder, className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const selectId = id || `select-${generatedId}`;
+    const errorId = `${selectId}-error`;
 
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+          <label htmlFor={selectId} className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
           </label>
         )}
-
-        {/* Hidden native select for form integration */}
-        <select
-          ref={handleRef}
-          className="hidden"
-          {...props}
-          value={localValue}
-          onChange={(e) => { setLocalValue(e.target.value); props.onChange?.(e); }}
-        >
-          {placeholder && <option value="">{placeholder}</option>}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-
-        {/* Custom trigger button */}
-        <button
-          ref={triggerRef}
-          type="button"
-          className={`w-full flex items-center justify-between text-left input cursor-pointer ${error ? "input-error" : ""} ${className}`}
-          onClick={openDropdown}
-          disabled={props.disabled}
-        >
-          <span
-            className={`block truncate ${
-              !selectedOption && placeholder
-                ? "text-neutral-400 dark:text-neutral-500"
-                : "font-medium text-neutral-900 dark:text-neutral-100"
-            }`}
+        <div className="relative">
+          <select
+            ref={ref}
+            id={selectId}
+            aria-invalid={error ? "true" : undefined}
+            aria-describedby={error ? errorId : undefined}
+            className={`input appearance-none pr-10 ${error ? "input-error" : ""} ${className}`}
+            {...props}
           >
-            {displayLabel}
-          </span>
+            {placeholder && <option value="">{placeholder}</option>}
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           <ChevronDown
-            className={`ml-2 h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-200 dark:text-neutral-500 ${
-              isOpen ? "rotate-180" : ""
-            }`}
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
           />
-        </button>
-
-        {/* Portal-based dropdown */}
-        {isOpen && mounted && createPortal(
-          <div
-            ref={dropdownRef}
-            className="fixed max-h-[280px] overflow-y-auto rounded-xl border border-neutral-200 bg-white shadow-2xl ring-1 ring-black/5 dark:border-slate-600 dark:bg-slate-900 dark:ring-white/10"
-            style={{
-              top: dropdownPos.top,
-              left: dropdownPos.left,
-              width: dropdownPos.width,
-              zIndex: "var(--z-dropdown)",
-            }}
-          >
-            <div className="space-y-0.5 p-1.5">
-              {placeholder && (
-                <button
-                  type="button"
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-400 transition-colors hover:bg-neutral-50 dark:text-neutral-500 dark:hover:bg-slate-800"
-                  onClick={() => handleSelect("")}
-                >
-                  {placeholder}
-                </button>
-              )}
-              {options.map((opt) => {
-                const isSelected = String(localValue) === String(opt.value);
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      isSelected
-                        ? "bg-primary-50 font-bold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300"
-                        : "text-neutral-700 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-slate-800"
-                    }`}
-                    onClick={() => handleSelect(opt.value)}
-                  >
-                    <span className="truncate">{opt.label}</span>
-                    {isSelected && <Check className="w-4 h-4 text-primary-500 shrink-0 ml-2" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>,
-          document.body
-        )}
-
+        </div>
         {error && (
-          <p className="text-xs text-red-500 flex items-center gap-1 font-medium">
-            <AlertCircle className="w-3 h-3" />{error}
+          <p id={errorId} role="alert" className="text-xs text-red-500 flex items-center gap-1 font-medium">
+            <AlertCircle className="w-3 h-3" aria-hidden="true" />{error}
           </p>
         )}
       </div>
@@ -342,23 +184,30 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, error, className = "", ...props }, ref) => {
+  ({ label, error, className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const textareaId = id || `textarea-${generatedId}`;
+    const errorId = `${textareaId}-error`;
+
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+          <label htmlFor={textareaId} className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
           </label>
         )}
         <textarea
           ref={ref}
+          id={textareaId}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={`input min-h-[100px] resize-y ${error ? "input-error" : ""} ${className}`}
           {...props}
         />
         {error && (
-          <p className="text-xs text-red-500 flex items-center gap-1 font-medium">
-            <AlertCircle className="w-3 h-3" />{error}
+          <p id={errorId} role="alert" className="text-xs text-red-500 flex items-center gap-1 font-medium">
+            <AlertCircle className="w-3 h-3" aria-hidden="true" />{error}
           </p>
         )}
       </div>
@@ -645,6 +494,7 @@ interface ModalProps {
 export function Modal({ isOpen, onClose, title, children, size = "md", footer }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
+  const dialogRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -653,14 +503,45 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
   useEffect(() => {
     if (!isOpen || !mounted) return;
     const prevOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     document.body.style.overflow = "hidden";
+
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    requestAnimationFrame(() => {
+      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(focusableSelector);
+      (firstFocusable || dialogRef.current)?.focus();
+    });
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector),
+      );
+      if (!focusable.length) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      previouslyFocused?.focus();
     };
   }, [isOpen, mounted, onClose]);
 
@@ -671,6 +552,8 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
   return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -53,26 +54,26 @@ describe("Receipts (Accounts Receivable) page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<ReceiptsPage />)).not.toThrow();
+    expect(() => renderWithQuery(<ReceiptsPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<ReceiptsPage />);
+    renderWithQuery(<ReceiptsPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Receipts heading", () => {
-    render(<ReceiptsPage />);
+    renderWithQuery(<ReceiptsPage />);
     expect(screen.getByRole("heading", { name: /receipts/i })).toBeInTheDocument();
   });
 
   it("shows Receive Payment button", () => {
-    render(<ReceiptsPage />);
+    renderWithQuery(<ReceiptsPage />);
     expect(screen.getByText(/receive payment/i)).toBeInTheDocument();
   });
 
   it("shows Total Receivables section", async () => {
-    render(<ReceiptsPage />);
+    renderWithQuery(<ReceiptsPage />);
     await waitFor(() => {
       expect(screen.getByText(/total receivables/i)).toBeInTheDocument();
     });

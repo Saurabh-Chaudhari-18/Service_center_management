@@ -9,6 +9,27 @@ from billing.models import (
     InvoiceStatus, PaymentMethod, InvoiceEditHistory, InvoiceEditType
 )
 from decimal import Decimal
+from core.permissions import get_requested_branch_id, require_accessible_branch
+
+
+def _related_branch_id(obj):
+    """Resolve the branch for inventory and job-part relationships."""
+    if not obj:
+        return None
+    if hasattr(obj, 'branch_id'):
+        return obj.branch_id
+    job = getattr(obj, 'job', None)
+    return getattr(job, 'branch_id', None)
+
+
+def _validate_line_item_branch(item_data, branch_id):
+    for field in ('inventory_item', 'job_part_usage'):
+        related = item_data.get(field)
+        related_branch_id = _related_branch_id(related)
+        if related and related_branch_id != branch_id:
+            raise serializers.ValidationError({
+                field: 'Line item does not belong to the invoice branch.'
+            })
 
 
 class InvoiceLineItemSerializer(serializers.ModelSerializer):
@@ -31,7 +52,7 @@ class InvoiceLineItemSerializer(serializers.ModelSerializer):
             'created_at'
         ]
 
-    def get_total_with_tax(self, obj):
+    def get_total_with_tax(self, obj) -> Decimal:
         return str(obj.amount + obj.cgst_amount + obj.sgst_amount + obj.igst_amount)
 
 
@@ -71,6 +92,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(
         source='created_by.get_full_name', read_only=True
     )
+    place_of_supply = serializers.SerializerMethodField()
     
     class Meta:
         model = Invoice
@@ -79,7 +101,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'job', 'job_number',
             'customer_name', 'customer_mobile', 'customer_email',
             'customer_address', 'customer_gstin', 'customer_state_code',
-            'invoice_date', 'due_date', 'is_interstate',
+            'place_of_supply', 'invoice_date', 'due_date', 'is_interstate',
             'subtotal', 'cgst_total', 'sgst_total', 'igst_total',
             'discount_amount', 'total_tax', 'total_amount',
             'status', 'status_display', 'paid_amount', 'balance_due',
@@ -95,7 +117,11 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'created_by', 'created_at', 'updated_at'
         ]
 
-    def get_branch_details(self, obj):
+    def get_place_of_supply(self, obj) -> str:
+        from core.utils import format_place_of_supply
+        return format_place_of_supply(obj.customer_state_code)
+
+    def get_branch_details(self, obj) -> dict:
         if not obj.branch:
             return None
         from core.serializers import BranchSerializer
@@ -118,7 +144,13 @@ class InvoiceListSerializer(serializers.ModelSerializer):
         ]
 class AddLineItemSerializer(serializers.ModelSerializer):
     """Serializer for adding line items to invoice."""
-    
+
+    def validate(self, data):
+        invoice = self.context.get('invoice')
+        if invoice:
+            _validate_line_item_branch(data, invoice.branch_id)
+        return data
+
     class Meta:
         model = InvoiceLineItem
         fields = [
@@ -162,14 +194,43 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Provide job_id, customer_id, or customer_name to identify the customer."
             )
+
+        branch = data.get('branch')
+        request = self.context.get('request')
+        if not branch and request:
+            branch_id = get_requested_branch_id(request)
+            if branch_id and str(branch_id).lower() != 'universal':
+                branch = require_accessible_branch(request.user, branch_id)
+                data['branch'] = branch
+        if not branch:
+            raise serializers.ValidationError({'branch': 'A branch is required.'})
+        if request and not request.user.has_branch_access(branch):
+            raise serializers.ValidationError({'branch': 'You do not have access to this branch.'})
+
+        if job_id:
+            from jobs.models import JobCard
+            job = JobCard.objects.filter(pk=job_id).first()
+            if not job or job.branch_id != branch.id:
+                raise serializers.ValidationError({'job_id': 'Job does not belong to this branch.'})
+        if customer_id:
+            from customers.models import Customer
+            customer = Customer.objects.filter(pk=customer_id).first()
+            if not customer or customer.branch_id != branch.id:
+                raise serializers.ValidationError({'customer_id': 'Customer does not belong to this branch.'})
+        for item_data in data.get('line_items', []):
+            _validate_line_item_branch(item_data, branch.id)
         return data
 
     def validate_job_id(self, value):
         if not value:
             return value
         from jobs.models import JobCard
+        request = self.context.get('request')
         try:
-            JobCard.objects.get(pk=value)
+            queryset = JobCard.objects.filter(pk=value)
+            if request:
+                queryset = queryset.filter(branch__in=request.user.get_accessible_branches())
+            queryset.get()
         except JobCard.DoesNotExist:
             raise serializers.ValidationError("Job not found.")
         return value
@@ -178,8 +239,12 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         if not value:
             return value
         from customers.models import Customer
+        request = self.context.get('request')
         try:
-            Customer.objects.get(pk=value)
+            queryset = Customer.objects.filter(pk=value)
+            if request:
+                queryset = queryset.filter(branch__in=request.user.get_accessible_branches())
+            queryset.get()
         except Customer.DoesNotExist:
             raise serializers.ValidationError("Customer not found.")
         return value
@@ -269,6 +334,12 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
 class LineItemUpdateSerializer(serializers.ModelSerializer):
     """Serializer for validating line item updates."""
+
+    def validate(self, data):
+        invoice = self.context.get('invoice')
+        if invoice:
+            _validate_line_item_branch(data, invoice.branch_id)
+        return data
     id = serializers.UUIDField(required=False)
     inventory_item = serializers.PrimaryKeyRelatedField(
         queryset=InvoiceLineItem._meta.get_field('inventory_item').related_model.objects.all(),
@@ -297,9 +368,14 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'branch', 'invoice_date', 'due_date', 'discount_amount', 
+            'invoice_date', 'due_date', 'discount_amount',
             'notes', 'terms_and_conditions', 'line_items'
         ]
+
+    def validate(self, data):
+        for item_data in data.get('line_items', []):
+            _validate_line_item_branch(item_data, self.instance.branch_id)
+        return data
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -469,6 +545,21 @@ class CreditNoteSerializer(serializers.ModelSerializer):
     invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     
+    def validate(self, attrs):
+        invoice = attrs.get('invoice', getattr(self.instance, 'invoice', None))
+        branch = attrs.get('branch', getattr(self.instance, 'branch', None))
+        if invoice and not branch:
+            branch = invoice.branch
+            attrs['branch'] = branch
+        request = self.context.get('request')
+        if not branch:
+            raise serializers.ValidationError({'branch': 'A branch is required.'})
+        if request and not request.user.has_branch_access(branch):
+            raise serializers.ValidationError({'branch': 'You do not have access to this branch.'})
+        if invoice and invoice.branch_id != branch.id:
+            raise serializers.ValidationError({'invoice': 'Credit note and invoice must belong to the same branch.'})
+        return attrs
+
     class Meta:
         model = CreditNote
         fields = [

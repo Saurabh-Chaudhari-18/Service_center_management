@@ -19,6 +19,7 @@ from core.simplejwt_serializers import (
     TokenObtainPairSerializer,
     TokenRefreshSerializer,
 )
+from core.serializers import EmptySerializer
 
 
 def _set_refresh_cookie(response, refresh_token: str) -> None:
@@ -72,8 +73,9 @@ class ThrottledTokenObtainPairView(TokenObtainPairView):
             request=request,
         )
 
-        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
-        refresh = serializer.validated_data.get('refresh')
+        response_data = dict(serializer.validated_data)
+        refresh = response_data.pop('refresh', None)
+        response = Response(response_data, status=status.HTTP_200_OK)
         if refresh:
             _set_refresh_cookie(response, refresh)
         return response
@@ -93,6 +95,7 @@ class ThrottledTokenRefreshView(TokenRefreshView):
             new_refresh = response.data.get('refresh')
             if new_refresh:
                 _set_refresh_cookie(response, new_refresh)
+                response.data.pop('refresh', None)
         return response
 
 
@@ -104,6 +107,7 @@ class ThrottledTokenVerifyView(TokenVerifyView):
 class LogoutView(APIView):
     """Blacklist refresh token and clear auth cookie."""
     permission_classes = [IsAuthenticated]
+    serializer_class = EmptySerializer
 
     def post(self, request):
         refresh = (

@@ -41,7 +41,7 @@ vi.mock("@/components/billing/InvoiceTemplate", () => ({
   InvoiceTemplate: () => null,
 }));
 
-const mockGetInvoice = vi.fn(() =>
+const mockGetInvoice = vi.fn((..._args: unknown[]) =>
   Promise.resolve<Invoice>({
     id: "inv-1",
     branch: "branch-1",
@@ -136,15 +136,15 @@ describe("Invoice detail page (billing/[id]) — regression tests", () => {
         screen.getByRole("heading", { name: "Invoice INV-TEST-001" }),
       ).toBeInTheDocument();
       // Header subtitle shows formatted invoice date
-      expect(screen.getByText(/June 15, 2024/i)).toBeInTheDocument();
+      expect(screen.getByText(/15 June 2024/i)).toBeInTheDocument();
     });
   });
 
-  it("shows 'Edit Invoice' action button", async () => {
+  it("shows the overflow actions menu", async () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /edit invoice/i }),
+        screen.getByRole("button", { name: /more actions/i }),
       ).toBeInTheDocument();
     });
   });

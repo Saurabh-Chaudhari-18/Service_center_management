@@ -36,19 +36,19 @@ def _advance_to(api_client, job, target_status, branch, user, owner_client=None)
 
     if target_idx >= 0:  # → DIAGNOSIS
         api_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Automated advance', 'estimated_cost': '1000.00'},
             format='json', **bh(branch),
         )
         job.refresh_from_db()
 
     if target_idx >= 1:  # → ESTIMATE_SHARED
-        api_client.post(f'/api/jobs/jobs/{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        api_client.post(f'/api/jobs/{job.id}/share-estimate/', {}, format='json', **bh(branch))
         job.refresh_from_db()
 
     if target_idx >= 2:  # → APPROVED
         api_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': True},
             format='json', **bh(branch),
         )
@@ -56,7 +56,7 @@ def _advance_to(api_client, job, target_status, branch, user, owner_client=None)
 
     if target_idx >= 3:  # → REPAIR_IN_PROGRESS
         api_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.REPAIR_IN_PROGRESS, 'notes': 'Starting repair'},
             format='json', **bh(branch),
         )
@@ -64,7 +64,7 @@ def _advance_to(api_client, job, target_status, branch, user, owner_client=None)
 
     if target_idx >= 4:  # → READY_FOR_DELIVERY
         api_client.post(
-            f'/api/jobs/jobs/{job.id}/mark_ready/',
+            f'/api/jobs/{job.id}/mark-ready/',
             {'completion_notes': 'Device repaired'},
             format='json', **bh(branch),
         )
@@ -79,7 +79,7 @@ def _advance_to(api_client, job, target_status, branch, user, owner_client=None)
 class TestCreateJob:
 
     def test_create_job_returns_201_with_job_number(self, auth_client, customer, branch):
-        resp = auth_client.post('/api/jobs/jobs/', {
+        resp = auth_client.post('/api/jobs/', {
             'customer_id': str(customer.id),
             'brand': 'Apple',
             'model': 'MacBook Pro',
@@ -89,7 +89,7 @@ class TestCreateJob:
         assert resp.data['job_number'] not in ('', None)
 
     def test_created_job_status_is_received(self, auth_client, customer, branch):
-        resp = auth_client.post('/api/jobs/jobs/', {
+        resp = auth_client.post('/api/jobs/', {
             'customer_id': str(customer.id),
             'brand': 'Dell',
             'model': 'Latitude',
@@ -99,7 +99,7 @@ class TestCreateJob:
         assert resp.data['status'] == JobStatus.RECEIVED
 
     def test_create_job_creates_status_history_row(self, auth_client, customer, branch):
-        resp = auth_client.post('/api/jobs/jobs/', {
+        resp = auth_client.post('/api/jobs/', {
             'customer_id': str(customer.id),
             'brand': 'HP',
             'model': 'Pavilion',
@@ -110,7 +110,7 @@ class TestCreateJob:
         assert JobStatusHistory.objects.filter(job_id=job_id).exists()
 
     def test_create_job_missing_customer_id_returns_400(self, auth_client, branch):
-        resp = auth_client.post('/api/jobs/jobs/', {
+        resp = auth_client.post('/api/jobs/', {
             'brand': 'Lenovo',
             'model': 'ThinkPad',
             'customer_complaint': 'Overheating',
@@ -118,7 +118,7 @@ class TestCreateJob:
         assert resp.status_code == 400
 
     def test_create_job_missing_complaint_returns_400(self, auth_client, customer, branch):
-        resp = auth_client.post('/api/jobs/jobs/', {
+        resp = auth_client.post('/api/jobs/', {
             'customer_id': str(customer.id),
             'brand': 'Asus',
             'model': 'ZenBook',
@@ -127,7 +127,7 @@ class TestCreateJob:
 
     def test_job_numbers_are_unique_across_two_jobs(self, auth_client, customer, branch):
         def _create():
-            return auth_client.post('/api/jobs/jobs/', {
+            return auth_client.post('/api/jobs/', {
                 'customer_id': str(customer.id),
                 'brand': 'Sony',
                 'model': 'Vaio',
@@ -149,7 +149,7 @@ class TestStatusTransitionValid:
 
     def test_update_status_received_to_diagnosis(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS, 'notes': 'Starting diagnosis'},
             format='json', **bh(branch),
         )
@@ -160,7 +160,7 @@ class TestStatusTransitionValid:
     def test_each_valid_transition_creates_history_row(self, auth_client, job, branch):
         before = JobStatusHistory.objects.filter(job=job).count()
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS, 'notes': ''},
             format='json', **bh(branch),
         )
@@ -169,7 +169,7 @@ class TestStatusTransitionValid:
 
     def test_history_row_records_from_and_to_status(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS, 'notes': 'check'},
             format='json', **bh(branch),
         )
@@ -187,7 +187,7 @@ class TestStatusTransitionInvalid:
 
     def test_skip_to_repair_from_received_returns_400(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.REPAIR_IN_PROGRESS},
             format='json', **bh(branch),
         )
@@ -197,7 +197,7 @@ class TestStatusTransitionInvalid:
 
     def test_skip_to_delivered_from_received_returns_400(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DELIVERED},
             format='json', **bh(branch),
         )
@@ -206,7 +206,7 @@ class TestStatusTransitionInvalid:
     def test_delivered_job_blocks_further_transitions(self, auth_client, make_job, customer, branch):
         j = make_job(customer, status=JobStatus.DELIVERED)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{j.id}/update_status/',
+            f'/api/jobs/{j.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS},
             format='json', **bh(branch),
         )
@@ -215,7 +215,7 @@ class TestStatusTransitionInvalid:
     def test_rejected_job_blocks_further_transitions(self, auth_client, make_job, customer, branch):
         j = make_job(customer, status=JobStatus.REJECTED)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{j.id}/update_status/',
+            f'/api/jobs/{j.id}/update-status/',
             {'new_status': JobStatus.APPROVED},
             format='json', **bh(branch),
         )
@@ -224,7 +224,7 @@ class TestStatusTransitionInvalid:
     def test_cancelled_job_blocks_further_transitions(self, auth_client, make_job, customer, branch):
         j = make_job(customer, status=JobStatus.CANCELLED)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{j.id}/update_status/',
+            f'/api/jobs/{j.id}/update-status/',
             {'new_status': JobStatus.RECEIVED},
             format='json', **bh(branch),
         )
@@ -240,7 +240,7 @@ class TestAssignTechnician:
 
     def test_assign_technician_updates_job(self, auth_client, job, technician, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/assign_technician/',
+            f'/api/jobs/{job.id}/assign-technician/',
             {'technician_id': str(technician.id)},
             format='json', **bh(branch),
         )
@@ -251,7 +251,7 @@ class TestAssignTechnician:
     def test_assign_technician_creates_internal_note(self, auth_client, job, technician, branch):
         from jobs.models import JobNote
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/assign_technician/',
+            f'/api/jobs/{job.id}/assign-technician/',
             {'technician_id': str(technician.id)},
             format='json', **bh(branch),
         )
@@ -260,7 +260,7 @@ class TestAssignTechnician:
     def test_assign_nonexistent_technician_returns_404_or_400(self, auth_client, job, branch):
         import uuid
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/assign_technician/',
+            f'/api/jobs/{job.id}/assign-technician/',
             {'technician_id': str(uuid.uuid4())},
             format='json', **bh(branch),
         )
@@ -276,7 +276,7 @@ class TestAddDiagnosis:
 
     def test_add_diagnosis_auto_transitions_to_diagnosis(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Screen LCD failure', 'estimated_cost': '3500.00'},
             format='json', **bh(branch),
         )
@@ -285,7 +285,7 @@ class TestAddDiagnosis:
 
     def test_add_diagnosis_sets_notes_and_cost(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Motherboard issue', 'estimated_cost': '5000.00'},
             format='json', **bh(branch),
         )
@@ -295,7 +295,7 @@ class TestAddDiagnosis:
 
     def test_add_diagnosis_with_parts_creates_diagnosis_parts(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {
                 'diagnosis_notes': 'Screen cracked',
                 'estimated_cost': '4000.00',
@@ -311,7 +311,7 @@ class TestAddDiagnosis:
     def test_re_adding_diagnosis_replaces_parts(self, auth_client, job, branch):
         for _ in range(2):
             auth_client.post(
-                f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+                f'/api/jobs/{job.id}/add-diagnosis/',
                 {
                     'diagnosis_notes': 'Updated',
                     'estimated_cost': '1000.00',
@@ -323,7 +323,7 @@ class TestAddDiagnosis:
 
     def test_add_diagnosis_without_notes_returns_400(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'estimated_cost': '1000.00'},
             format='json', **bh(branch),
         )
@@ -339,7 +339,7 @@ class TestShareEstimate:
 
     def _diagnose(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Fixed', 'estimated_cost': '2000.00'},
             format='json', **bh(branch),
         )
@@ -347,25 +347,25 @@ class TestShareEstimate:
 
     def test_share_estimate_transitions_to_estimate_shared(self, auth_client, job, branch):
         self._diagnose(auth_client, job, branch)
-        resp = auth_client.post(f'/api/jobs/jobs/{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        resp = auth_client.post(f'/api/jobs/{job.id}/share-estimate/', {}, format='json', **bh(branch))
         assert resp.status_code == 200
         job.refresh_from_db()
         assert job.status == JobStatus.ESTIMATE_SHARED
 
     def test_share_estimate_without_diagnosis_returns_400(self, auth_client, job, branch):
         # job is still RECEIVED
-        resp = auth_client.post(f'/api/jobs/jobs/{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        resp = auth_client.post(f'/api/jobs/{job.id}/share-estimate/', {}, format='json', **bh(branch))
         assert resp.status_code == 400
 
     def test_share_estimate_without_cost_returns_400(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS},
             format='json', **bh(branch),
         )
         job.refresh_from_db()
         # No estimated_cost set on job
-        resp = auth_client.post(f'/api/jobs/jobs/{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        resp = auth_client.post(f'/api/jobs/{job.id}/share-estimate/', {}, format='json', **bh(branch))
         assert resp.status_code == 400
 
 
@@ -378,17 +378,17 @@ class TestCustomerResponse:
 
     def _to_estimate_shared(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_diagnosis/',
+            f'/api/jobs/{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Done', 'estimated_cost': '1500.00'},
             format='json', **bh(branch),
         )
-        auth_client.post(f'/api/jobs/jobs/{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        auth_client.post(f'/api/jobs/{job.id}/share-estimate/', {}, format='json', **bh(branch))
         job.refresh_from_db()
 
     def test_customer_approval_transitions_to_approved(self, auth_client, job, branch):
         self._to_estimate_shared(auth_client, job, branch)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': True},
             format='json', **bh(branch),
         )
@@ -399,7 +399,7 @@ class TestCustomerResponse:
     def test_customer_approval_sets_approval_date(self, auth_client, job, branch):
         self._to_estimate_shared(auth_client, job, branch)
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': True},
             format='json', **bh(branch),
         )
@@ -409,7 +409,7 @@ class TestCustomerResponse:
     def test_customer_rejection_transitions_to_rejected(self, auth_client, job, branch):
         self._to_estimate_shared(auth_client, job, branch)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': False, 'rejection_reason': 'Too expensive'},
             format='json', **bh(branch),
         )
@@ -420,13 +420,13 @@ class TestCustomerResponse:
     def test_rejected_status_is_terminal(self, auth_client, job, branch):
         self._to_estimate_shared(auth_client, job, branch)
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': False, 'rejection_reason': 'Price'},
             format='json', **bh(branch),
         )
         job.refresh_from_db()
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.APPROVED},
             format='json', **bh(branch),
         )
@@ -435,7 +435,7 @@ class TestCustomerResponse:
     def test_response_without_estimate_shared_returns_400(self, auth_client, job, branch):
         # job is still RECEIVED
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/record_customer_response/',
+            f'/api/jobs/{job.id}/record-customer-response/',
             {'approved': True},
             format='json', **bh(branch),
         )
@@ -456,7 +456,7 @@ class TestMarkReadyAndDeliver:
     def test_mark_ready_transitions_to_ready_for_delivery(self, auth_client, job, branch):
         self._to_repair_in_progress(auth_client, job, branch)
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/mark_ready/',
+            f'/api/jobs/{job.id}/mark-ready/',
             {'completion_notes': 'Device fixed and tested'},
             format='json', **bh(branch),
         )
@@ -467,7 +467,7 @@ class TestMarkReadyAndDeliver:
     def test_mark_ready_from_wrong_status_returns_400(self, auth_client, job, branch):
         # job is RECEIVED — not allowed
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/mark_ready/',
+            f'/api/jobs/{job.id}/mark-ready/',
             {'completion_notes': 'Skip everything'},
             format='json', **bh(branch),
         )
@@ -475,7 +475,7 @@ class TestMarkReadyAndDeliver:
 
     def test_deliver_without_ready_status_returns_400(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/deliver/',
+            f'/api/jobs/{job.id}/deliver/',
             {'otp': '123456'},
             format='json', **bh(branch),
         )
@@ -484,14 +484,14 @@ class TestMarkReadyAndDeliver:
     def test_deliver_with_correct_otp_transitions_to_delivered(self, auth_client, job, branch):
         self._to_repair_in_progress(auth_client, job, branch)
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/mark_ready/',
+            f'/api/jobs/{job.id}/mark-ready/',
             {'completion_notes': 'Done'},
             format='json', **bh(branch),
         )
         job.refresh_from_db()
         otp = job.delivery_otp  # read OTP set by mark_ready
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/deliver/',
+            f'/api/jobs/{job.id}/deliver/',
             {'otp': otp},
             format='json', **bh(branch),
         )
@@ -501,13 +501,13 @@ class TestMarkReadyAndDeliver:
 
     def test_delivered_status_is_terminal(self, auth_client, job, branch):
         self._to_repair_in_progress(auth_client, job, branch)
-        auth_client.post(f'/api/jobs/jobs/{job.id}/mark_ready/', {'completion_notes': ''}, format='json', **bh(branch))
+        auth_client.post(f'/api/jobs/{job.id}/mark-ready/', {'completion_notes': ''}, format='json', **bh(branch))
         job.refresh_from_db()
         otp = job.delivery_otp
-        auth_client.post(f'/api/jobs/jobs/{job.id}/deliver/', {'otp': otp}, format='json', **bh(branch))
+        auth_client.post(f'/api/jobs/{job.id}/deliver/', {'otp': otp}, format='json', **bh(branch))
         # Now try to re-transition
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS},
             format='json', **bh(branch),
         )
@@ -523,7 +523,7 @@ class TestJobNotesAndTimeline:
 
     def test_add_note_returns_201(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_note/',
+            f'/api/jobs/{job.id}/add-note/',
             {'note': 'Customer called to follow up.', 'is_internal': False},
             format='json', **bh(branch),
         )
@@ -532,7 +532,7 @@ class TestJobNotesAndTimeline:
     def test_internal_note_is_flagged(self, auth_client, job, branch):
         from jobs.models import JobNote
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/add_note/',
+            f'/api/jobs/{job.id}/add-note/',
             {'note': 'Awaiting spare parts.', 'is_internal': True},
             format='json', **bh(branch),
         )
@@ -541,11 +541,11 @@ class TestJobNotesAndTimeline:
 
     def test_timeline_returns_status_history(self, auth_client, job, branch):
         auth_client.post(
-            f'/api/jobs/jobs/{job.id}/update_status/',
+            f'/api/jobs/{job.id}/update-status/',
             {'new_status': JobStatus.DIAGNOSIS},
             format='json', **bh(branch),
         )
-        resp = auth_client.get(f'/api/jobs/jobs/{job.id}/timeline/', **bh(branch))
+        resp = auth_client.get(f'/api/jobs/{job.id}/timeline/', **bh(branch))
         assert resp.status_code == 200
         types = [item['type'] for item in resp.data]
         assert 'status_change' in types
@@ -566,7 +566,7 @@ class TestMyJobs:
         j1.assigned_technician = technician
         j1.save()
 
-        resp = api_client.get('/api/jobs/jobs/my_jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/my-jobs/', **bh(branch))
         assert resp.status_code == 200
         ids = [str(j['id']) for j in resp.data.get('results', resp.data)]
         assert str(j1.id) in ids
@@ -577,7 +577,7 @@ class TestMyJobs:
         api_client.force_authenticate(user=technician)
         unassigned = make_job(customer)  # no assigned technician
 
-        resp = api_client.get('/api/jobs/jobs/my_jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/my-jobs/', **bh(branch))
         assert resp.status_code == 200
         ids = [str(j['id']) for j in resp.data.get('results', resp.data)]
         assert str(unassigned.id) not in ids
@@ -586,7 +586,7 @@ class TestMyJobs:
         self, api_client, owner, branch, seed_permissions
     ):
         api_client.force_authenticate(user=owner)
-        resp = api_client.get('/api/jobs/jobs/my_jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/my-jobs/', **bh(branch))
         assert resp.status_code == 403
 
     def test_my_jobs_excludes_delivered_jobs(
@@ -597,13 +597,13 @@ class TestMyJobs:
         delivered.assigned_technician = technician
         delivered.save()
 
-        resp = api_client.get('/api/jobs/jobs/my_jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/my-jobs/', **bh(branch))
         ids = [str(j['id']) for j in resp.data.get('results', resp.data)]
         assert str(delivered.id) not in ids
 
     def test_my_jobs_is_paginated(self, api_client, technician, branch, seed_permissions):
         api_client.force_authenticate(user=technician)
-        resp = api_client.get('/api/jobs/jobs/my_jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/my-jobs/', **bh(branch))
         assert resp.status_code == 200
         # Paginated response has count + results keys
         assert 'count' in resp.data or isinstance(resp.data, list)
@@ -630,7 +630,7 @@ class TestJobBranchIsolation:
         j.save()
 
         api_client.force_authenticate(user=owner)
-        resp = api_client.get('/api/jobs/jobs/', **bh(branch))
+        resp = api_client.get('/api/jobs/', **bh(branch))
         ids = [str(item['id']) for item in resp.data.get('results', resp.data)]
         assert str(j.id) not in ids
 
@@ -644,7 +644,7 @@ class TestPartRequests:
 
     def test_request_part_creates_part_request(self, auth_client, job, branch):
         resp = auth_client.post(
-            f'/api/jobs/jobs/{job.id}/request_part/',
+            f'/api/jobs/{job.id}/request-part/',
             {'part_name': 'Battery', 'quantity': 1, 'notes': 'Standard replacement'},
             format='json', **bh(branch),
         )

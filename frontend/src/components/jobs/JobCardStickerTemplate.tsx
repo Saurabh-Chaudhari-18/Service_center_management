@@ -40,7 +40,6 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
 
   return (
     <PrintPortal>
-      {/* eslint-disable-next-line react/no-danger */}
       <style
         dangerouslySetInnerHTML={{
           __html: `

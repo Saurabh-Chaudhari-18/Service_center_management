@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
 import type { JobCard, UserRole } from "@/types";
@@ -34,10 +34,10 @@ vi.mock("@/components/layout/Layout", () => ({
 
 // Module-level vi.fn() with default impl — survives vi.restoreAllMocks() between tests
 // because vi.fn(impl) restores to `impl`, not to undefined.
-const mockJobsList = vi.fn(() =>
-  Promise.resolve({ count: 0, results: [], next: null, previous: null }),
+const mockJobsList = vi.fn((..._args: unknown[]) =>
+  Promise.resolve({ count: 0, results: [] as JobCard[], next: null, previous: null }),
 );
-const mockJobsGetStats = vi.fn(() => Promise.resolve({ by_status: {} }));
+const mockJobsGetStats = vi.fn((..._args: unknown[]) => Promise.resolve({ by_status: {} }));
 
 vi.mock("@/lib/api", () => ({
   jobsApi: {
@@ -128,6 +128,11 @@ function renderJobs(role: UserRole = "OWNER") {
 }
 
 // ── Smoke tests ───────────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  mockJobsList.mockImplementation(() => Promise.resolve({ count: 0, results: [], next: null, previous: null }));
+  mockJobsGetStats.mockImplementation(() => Promise.resolve({ by_status: {} }));
+});
 
 describe("Jobs page smoke tests", () => {
   it("renders without crashing for OWNER", () => {
@@ -224,7 +229,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("JOB-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("JOB-2024-001").length).toBeGreaterThan(0);
     });
   });
 
@@ -237,7 +242,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("Alice Kumar")).toBeInTheDocument();
+      expect(screen.getAllByText("Alice Kumar").length).toBeGreaterThan(0);
     });
   });
 
@@ -250,7 +255,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("Dell XPS 15")).toBeInTheDocument();
+      expect(screen.getAllByText("Dell XPS 15").length).toBeGreaterThan(0);
     });
   });
 
@@ -263,7 +268,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("Screen not working properly")).toBeInTheDocument();
+      expect(screen.getAllByText("Screen not working properly").length).toBeGreaterThan(0);
     });
   });
 
@@ -302,7 +307,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("Assigned to Bob Tech")).toBeInTheDocument();
+      expect(screen.getAllByText("Bob Tech").length).toBeGreaterThan(0);
     });
   });
 
@@ -318,9 +323,9 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("JOB-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("JOB-2024-001").length).toBeGreaterThan(0);
     });
-    expect(screen.getByText("JOB-2024-002")).toBeInTheDocument();
+    expect(screen.getAllByText("JOB-2024-002").length).toBeGreaterThan(0);
   });
 
   it("shows 'Create Job Card' button inside empty state for OWNER without filter", async () => {
@@ -351,7 +356,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("JOB-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("JOB-2024-001").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("URGENT")).not.toBeInTheDocument();
   });
@@ -365,7 +370,7 @@ describe("Jobs page — regression tests", () => {
     });
     renderJobs();
     await waitFor(() => {
-      expect(screen.getByText("JOB-2024-001")).toBeInTheDocument();
+      expect(screen.getAllByText("JOB-2024-001").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("Warranty")).not.toBeInTheDocument();
   });

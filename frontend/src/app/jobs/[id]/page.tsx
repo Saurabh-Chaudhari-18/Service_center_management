@@ -43,7 +43,7 @@ import { JobDiagnosisModal } from "@/components/jobs/JobDiagnosisModal";
 import { JobDeliveryModal } from "@/components/jobs/JobDeliveryModal";
 import { JobCardPrintTemplate } from "@/components/jobs/JobCardPrintTemplate";
 import { JobCardStickerTemplate } from "@/components/jobs/JobCardStickerTemplate";
-import { PrintJobCardOptionsModal } from "@/components/jobs/PrintJobCardOptionsModal";
+
 import { JobStatusHistoryCard } from "@/components/jobs/JobStatusHistoryCard";
 import { OutsourceRepairModal } from "@/components/jobs/OutsourceRepairModal";
 import { OutsourceReturnModal } from "@/components/jobs/OutsourceReturnModal";
@@ -175,7 +175,6 @@ export default function JobDetailPage() {
   const [activeOutsourceId, setActiveOutsourceId] = useState("");
   const [showPrintView, setShowPrintView] = useState(false);
   const [showStickerPrintView, setShowStickerPrintView] = useState(false);
-  const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
   const [selectedPrintBranch, setSelectedPrintBranch] = useState<Branch | null>(null);
   const [selectedPrintCustomName, setSelectedPrintCustomName] = useState<string | undefined>(undefined);
 

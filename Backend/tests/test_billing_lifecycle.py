@@ -32,7 +32,7 @@ def _add_line(auth_client, invoice, branch, **kwargs):
     }
     defaults.update(kwargs)
     return auth_client.post(
-        f'{INVOICES_URL}{invoice.id}/add_line_item/',
+        f'{INVOICES_URL}{invoice.id}/add-line-item/',
         defaults,
         format='json', **bh(branch),
     )
@@ -224,7 +224,7 @@ class TestPayments:
     def test_full_payment_sets_status_to_paid(self, auth_client, make_invoice, branch):
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         resp = auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(inv.total_amount), 'payment_method': 'CASH'},
             format='json', **bh(branch),
         )
@@ -236,7 +236,7 @@ class TestPayments:
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         partial = str(inv.total_amount / 2)
         resp = auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': partial, 'payment_method': 'UPI'},
             format='json', **bh(branch),
         )
@@ -248,12 +248,12 @@ class TestPayments:
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         half = inv.total_amount / 2
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(half), 'payment_method': 'CASH'},
             format='json', **bh(branch),
         )
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(half), 'payment_method': 'CASH'},
             format='json', **bh(branch),
         )
@@ -263,7 +263,7 @@ class TestPayments:
     def test_payment_creates_payment_row(self, auth_client, make_invoice, branch):
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(inv.total_amount), 'payment_method': 'CARD'},
             format='json', **bh(branch),
         )
@@ -273,7 +273,7 @@ class TestPayments:
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         amount = Decimal('500.00')
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(amount), 'payment_method': 'NEFT'},
             format='json', **bh(branch),
         )
@@ -283,7 +283,7 @@ class TestPayments:
     def test_payments_endpoint_lists_payments(self, auth_client, make_invoice, branch):
         inv = self._finalized_invoice(auth_client, make_invoice, branch)
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(inv.total_amount), 'payment_method': 'CASH'},
             format='json', **bh(branch),
         )
@@ -323,7 +323,7 @@ class TestCancelInvoice:
         auth_client.post(f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch))
         inv.refresh_from_db()
         auth_client.post(
-            f'{INVOICES_URL}{inv.id}/record_payment/',
+            f'{INVOICES_URL}{inv.id}/record-payment/',
             {'amount': str(inv.total_amount), 'payment_method': 'CASH'},
             format='json', **bh(branch),
         )
@@ -359,6 +359,6 @@ class TestEditHistory:
 
     def test_edit_history_endpoint_returns_list(self, auth_client, invoice, branch):
         _add_line(auth_client, invoice, branch)
-        resp = auth_client.get(f'{INVOICES_URL}{invoice.id}/edit_history/', **bh(branch))
+        resp = auth_client.get(f'{INVOICES_URL}{invoice.id}/edit-history/', **bh(branch))
         assert resp.status_code == 200
         assert isinstance(resp.data, list)

@@ -381,6 +381,8 @@ class StockTransferViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(initiated_by=self.request.user)
+        from audit.services import AuditLogService
+        AuditLogService.log_create(self.request.user, serializer.instance, request=self.request)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):

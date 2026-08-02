@@ -13,6 +13,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction
 from django.db import models as django_models
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 
 from rest_framework.pagination import PageNumberPagination
 
@@ -21,7 +22,7 @@ from jobs.models import (
     JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType,
     PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
     DropdownOption, DropdownCategory,
-    OutsourceVendor, OutsourcedRepair
+    OutsourceVendor, OutsourcedRepair, OutsourcedRepairStatus
 )
 from jobs.serializers import (
     JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
@@ -38,14 +39,16 @@ from jobs.serializers import (
     OutsourceVendorSerializer, OutsourcedRepairSerializer,
     OutsourcedRepairCreateSerializer, OutsourcedRepairReturnSerializer
 )
+from audit.services import AuditLogService
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
     CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin,
-    IsOwnerOrManager,
+    IsOwnerOrManager, require_accessible_branch, get_requested_branch_id,
 )
 from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
 from core.pagination import OptionalPageSizePagination
+from core.serializers import GenericResponseSerializer, KeyValueSerializer
 
 
 class JobCardFilter(filters.FilterSet):
@@ -147,14 +150,10 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return JobCardSerializer
 
     def perform_destroy(self, instance):
-        from django.db.models.deletion import ProtectedError
-        try:
-            instance.delete()
-        except ProtectedError:
-            raise ProtectedResourceError(
-                "Cannot delete job: it has parts usage or other linked records. "
-                "Cancel the job instead."
-            )
+        raise ProtectedResourceError(
+            "Job cards are permanent service records and cannot be deleted. "
+            "Cancel the job instead."
+        )
 
     @action(detail=True, methods=['post'], url_path='update-status')
     def update_status(self, request, pk=None):
@@ -190,7 +189,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         except (JobReadOnlyError, InvalidStatusTransition) as e:
             raise ValidationError(str(e)) from e
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember], url_path='assign-technician')
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageJobs], url_path='assign-technician')
     def assign_technician(self, request, pk=None):
         """Assign or reassign technician to job."""
         job = self.get_object()
@@ -438,6 +437,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(operation_id='jobs_job_part_requests_list')
     @action(detail=True, methods=['get'], url_path='part-requests')
     def part_requests(self, request, pk=None):
         """Get all part requests for this job."""
@@ -628,6 +628,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
 class PartRequestViewSet(viewsets.ModelViewSet):
     """ViewSet for part requests."""
+    queryset = PartRequest.objects.none()
     serializer_class = PartRequestSerializer
     permission_classes = [IsAuthenticated, IsBranchMember]
 
@@ -672,6 +673,7 @@ class PartRequestViewSet(viewsets.ModelViewSet):
 class JobEnumsView(viewsets.ViewSet):
     """ViewSet for job-related enums."""
     permission_classes = [IsAuthenticated]
+    serializer_class = KeyValueSerializer
 
     @action(detail=False, methods=['get'], url_path='device-types')
     def device_types(self, request):
@@ -801,6 +803,8 @@ class PickupRequestViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             )
         except User.DoesNotExist:
             raise NotFound('Technician not found or inactive.')
+        if not technician.has_branch_access(pickup.branch):
+            raise ValidationError('Technician does not have access to this branch.')
 
         pickup.assigned_technician = technician
         if pickup.status == PickupRequestStatus.REQUESTED:
@@ -910,6 +914,7 @@ class PublicTrackingView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'public_track'
+    serializer_class = GenericResponseSerializer
 
     TRACKING_ERROR = 'Could not find job with provided details. Please check your phone number and PIN.'
 
@@ -977,7 +982,7 @@ class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
     queryset = OutsourceVendor.objects.filter(is_active=True)
     serializer_class = OutsourceVendorSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'contact_person', 'phone', 'city', 'specialization']
     ordering_fields = ['name', 'created_at']
@@ -992,7 +997,7 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         'job', 'job__customer', 'inventory_item', 'vendor', 'branch', 'sent_by', 'received_by'
     ).all()
     serializer_class = OutsourcedRepairSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'repair_outcome', 'vendor', 'job', 'is_warranty_repair']
     search_fields = [
@@ -1014,44 +1019,30 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        branch_id = (
-            self.request.data.get('branch') or
-            self.request.data.get('branch_id') or
-            self.request.headers.get('X-Branch-ID') or
-            self.request.META.get('HTTP_X_BRANCH_ID')
-        )
+        job = serializer.validated_data.get('job')
+        inventory_item = serializer.validated_data.get('inventory_item')
+        vendor = serializer.validated_data.get('vendor')
+        branch_id = get_requested_branch_id(self.request, self)
 
-        branch = None
-        from core.models import Branch
-        if branch_id:
-            try:
-                branch = Branch.objects.filter(pk=branch_id).first()
-            except Exception:
-                pass
+        if branch_id and str(branch_id).lower() != 'universal':
+            branch = require_accessible_branch(user, branch_id)
+        elif job:
+            branch = job.branch
+        elif inventory_item:
+            branch = inventory_item.branch
+        else:
+            branch = user.get_accessible_branches().first()
 
-        if not branch:
-            inventory_item_id = self.request.data.get('inventory_item')
-            if inventory_item_id:
-                from inventory.models import InventoryItem
-                item = InventoryItem.objects.filter(pk=inventory_item_id).first()
-                if item:
-                    branch = item.branch
-
-        if not branch:
-            job_id = self.request.data.get('job')
-            if job_id:
-                from jobs.models import JobCard
-                job = JobCard.objects.filter(pk=job_id).first()
-                if job:
-                    branch = job.branch
-
-        if not branch and hasattr(user, 'branches') and user.branches.exists():
-            branch = user.branches.first()
-
-        if not branch:
-            raise ValidationError({'branch': 'Could not determine branch for this repair. Please specify a valid branch.'})
+        if not branch or not user.has_branch_access(branch):
+            raise PermissionDenied('You do not have access to the repair branch.')
+        for related in (job, inventory_item):
+            if related and related.branch_id != branch.id:
+                raise ValidationError({'branch': 'All repair records must belong to the same branch.'})
+        if vendor and vendor.branch_id and vendor.branch_id != branch.id:
+            raise ValidationError({'vendor': 'Vendor does not belong to the repair branch.'})
 
         serializer.save(sent_by=user, branch=branch)
+        self._audit_create(serializer.instance)
 
     @action(detail=True, methods=['post'], url_path='return')
     def mark_returned(self, request, pk=None):
@@ -1060,34 +1051,13 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if outsource.status != OutsourcedRepairStatus.SENT:
             raise ValidationError("Record is not in SENT status.")
 
-        return_date = request.data.get('return_date')
-        if not return_date:
-            raise ValidationError("return_date is required.")
-
-        outsource.status = OutsourcedRepairStatus.RETURNED
-        outsource.return_date = return_date
-        outsource.actual_cost = request.data.get('actual_cost')
-        outsource.repair_outcome = request.data.get('repair_outcome', RepairOutcome.REPAIRED)
-        outsource.vendor_notes = request.data.get('vendor_notes', '')
-        outsource.vendor_invoice_number = request.data.get('vendor_invoice_number', '')
-        outsource.received_by = request.user
-        outsource.save()
-
-        # If linked to a job, optionally update job status
-        if outsource.job:
-            new_job_status = request.data.get('new_job_status')
-            if new_job_status:
-                old_status = outsource.job.status
-                outsource.job.status = new_job_status
-                outsource.job.save(update_fields=['status'])
-
-                JobStatusHistory.objects.create(
-                    job=outsource.job,
-                    from_status=old_status,
-                    to_status=new_job_status,
-                    changed_by=request.user,
-                    notes=f"Returned from outsource ({outsource.vendor.name}): {outsource.vendor_notes}"
-                )
+        serializer = OutsourcedRepairReturnSerializer(
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        outsource = serializer.update(outsource, serializer.validated_data)
+        self._audit_update(outsource)
 
         return Response(OutsourcedRepairSerializer(outsource).data)
 
@@ -1104,11 +1074,12 @@ from rest_framework.views import APIView
 
 class JobOutsourceView(APIView):
     """POST /jobs/{job_id}/outsource/ — create outsource record + change status."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    serializer_class = OutsourcedRepairCreateSerializer
 
     def post(self, request, job_id):
         try:
-            job = JobCard.objects.get(pk=job_id)
+            job = JobCard.objects.get(pk=job_id, branch__in=request.user.get_accessible_branches())
         except JobCard.DoesNotExist:
             raise NotFound("Job not found.")
 
@@ -1127,6 +1098,7 @@ class JobOutsourceView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         outsource = serializer.save()
+        AuditLogService.log_create(request.user, outsource, request=request)
 
         return Response(
             OutsourcedRepairSerializer(outsource).data,
@@ -1136,12 +1108,15 @@ class JobOutsourceView(APIView):
 
 class JobOutsourceReturnView(APIView):
     """POST /jobs/{job_id}/outsource/{outsource_id}/return/ — mark returned."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    serializer_class = OutsourcedRepairReturnSerializer
 
     def post(self, request, job_id, outsource_id):
         try:
             outsource = OutsourcedRepair.objects.select_related('job', 'vendor').get(
-                pk=outsource_id, job_id=job_id
+                pk=outsource_id,
+                job_id=job_id,
+                branch__in=request.user.get_accessible_branches(),
             )
         except OutsourcedRepair.DoesNotExist:
             raise NotFound("Outsource record not found.")
@@ -1155,6 +1130,7 @@ class JobOutsourceReturnView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         outsource = serializer.update(outsource, serializer.validated_data)
+        AuditLogService.log_update(request.user, outsource, request=request)
 
         return Response(
             OutsourcedRepairSerializer(outsource).data,

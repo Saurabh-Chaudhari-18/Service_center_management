@@ -178,6 +178,37 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'ENUM_NAME_OVERRIDES': {
+        'JobStatusEnum': 'jobs.models.JobStatus.choices',
+        'InvoiceStatusEnum': 'billing.models.InvoiceStatus.choices',
+        'EnquiryStatusEnum': 'enquiries.models.EnquiryStatus.choices',
+        'PickupRequestStatusEnum': 'jobs.models.PickupRequestStatus.choices',
+        'PurchaseStatusEnum': 'inventory.models.PurchaseStatus.choices',
+        'ExpenseCategoryEnum': 'expenses.models.ExpenseCategory.choices',
+        'DropdownCategoryEnum': 'jobs.models.DropdownCategory.choices',
+        'NotificationChannelEnum': 'notifications.models.NotificationChannel.choices',
+        'BillingPaymentMethodEnum': 'billing.models.PaymentMethod.choices',
+        'PurchaseOrderStatusEnum': [
+            ('DRAFT', 'Draft'), ('SENT', 'Sent to Supplier'),
+            ('CONFIRMED', 'Confirmed'), ('PARTIAL', 'Partially Received'),
+            ('RECEIVED', 'Fully Received'), ('CANCELLED', 'Cancelled'),
+        ],
+        'ExpensePaymentMethodEnum': [
+            ('CASH', 'Cash'), ('UPI', 'UPI'), ('CARD', 'Card'),
+            ('NEFT', 'NEFT/RTGS'), ('OTHER', 'Other'),
+        ],
+        'GSTPaymentMethodEnum': [
+            ('NEFT', 'NEFT/RTGS'), ('UPI', 'UPI'), ('CASH', 'Cash at Bank'),
+            ('DEBIT_CARD', 'Debit Card'), ('OTHER', 'Other'),
+        ],
+        'PurchasePaymentMethodEnum': [
+            ('CASH', 'Cash'), ('UPI', 'UPI'),
+            ('CARD', 'Credit/Debit Card'), ('BANK_TRANSFER', 'Bank Transfer'),
+        ],
+        'MarketingChannelEnum': [
+            ('WHATSAPP', 'WhatsApp'), ('SMS', 'SMS'),
+        ],
+    },
 }
 
 # CORS Settings

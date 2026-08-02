@@ -109,6 +109,18 @@ class CustomerLedgerEntrySerializer(serializers.ModelSerializer):
 
 class CustomerLedgerCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating ledger entries."""
+    def validate(self, attrs):
+        branch = attrs.get('branch')
+        customer = attrs.get('customer')
+        request = self.context.get('request')
+        if not branch:
+            raise serializers.ValidationError({'branch': 'A branch is required.'})
+        if request and not request.user.has_branch_access(branch):
+            raise serializers.ValidationError({'branch': 'You do not have access to this branch.'})
+        if customer and customer.branch_id != branch.id:
+            raise serializers.ValidationError({'customer': 'Customer does not belong to the ledger branch.'})
+        return attrs
+
     class Meta:
         model = CustomerLedgerEntry
         fields = [

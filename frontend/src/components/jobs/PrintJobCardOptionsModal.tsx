@@ -108,7 +108,7 @@ export function PrintJobCardOptionsModal({
                         </span>
                         {branch.id === branchDetails?.id && (
                           <span className="text-[10px] bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-200 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-                            Job's Branch
+                            Job’s Branch
                           </span>
                         )}
                       </div>

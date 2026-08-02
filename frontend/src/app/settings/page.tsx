@@ -22,7 +22,7 @@ import {
   Info,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
-import { formatPhone } from "@/lib/formatters";
+
 
 // =====================================================
 // Profile Section

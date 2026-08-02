@@ -83,7 +83,7 @@ describe("Settings page smoke tests", () => {
 
   it("shows Profile tab navigation", () => {
     renderSettings("OWNER");
-    expect(screen.getByText(/profile/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Profile" })).toBeInTheDocument();
   });
 
   it("shows Security tab", () => {

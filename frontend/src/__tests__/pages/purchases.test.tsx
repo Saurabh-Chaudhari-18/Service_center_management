@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -58,21 +58,21 @@ describe("Purchases page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<PurchasesPage />)).not.toThrow();
+    expect(() => renderWithQuery(<PurchasesPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<PurchasesPage />);
+    renderWithQuery(<PurchasesPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Purchase History heading", () => {
-    render(<PurchasesPage />);
+    renderWithQuery(<PurchasesPage />);
     expect(screen.getByRole("heading", { name: "Purchase History" })).toBeInTheDocument();
   });
 
   it("shows Add New Purchase button", () => {
-    render(<PurchasesPage />);
+    renderWithQuery(<PurchasesPage />);
     expect(screen.getByText(/add new purchase/i)).toBeInTheDocument();
   });
 });
@@ -83,16 +83,16 @@ describe("New Purchase page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<NewPurchasePage />)).not.toThrow();
+    expect(() => renderWithQuery(<NewPurchasePage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<NewPurchasePage />);
+    renderWithQuery(<NewPurchasePage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Add New Purchase heading", () => {
-    render(<NewPurchasePage />);
+    renderWithQuery(<NewPurchasePage />);
     expect(screen.getByRole("heading", { name: "Add New Purchase" })).toBeInTheDocument();
   });
 });

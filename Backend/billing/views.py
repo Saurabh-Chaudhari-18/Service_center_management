@@ -13,6 +13,8 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import models
 from django.http import HttpResponse
 from decimal import Decimal
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 
 from billing.models import (
     Invoice, InvoiceLineItem, Payment, CreditNote,
@@ -30,6 +32,7 @@ from core.permissions import (
     IsOwnerOrManager
 )
 from core.models import Role
+from core.serializers import KeyValueSerializer
 from core.exceptions import ProtectedResourceError
 
 
@@ -89,9 +92,9 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return InvoiceSerializer
 
     def perform_destroy(self, instance):
-        # GST records must be retained for 8 years — deletion is never permitted.
+        # GST records have a statutory retention period; deletion is never permitted.
         raise ProtectedResourceError(
-            "Invoices cannot be deleted. GST records must be retained for 8 years. "
+            "Invoices cannot be deleted during the statutory GST retention period. "
             "Cancel the invoice instead."
         )
 
@@ -121,7 +124,10 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if invoice.is_finalized:
             raise ValidationError('Cannot modify a finalized invoice.')
 
-        serializer = AddLineItemSerializer(data=request.data)
+        serializer = AddLineItemSerializer(
+            data=request.data,
+            context={'request': request, 'invoice': invoice},
+        )
         serializer.is_valid(raise_exception=True)
 
         line_item = InvoiceLineItem.objects.create(
@@ -150,6 +156,9 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
+    @extend_schema(parameters=[
+        OpenApiParameter('item_id', OpenApiTypes.UUID, OpenApiParameter.PATH)
+    ])
     @action(detail=True, methods=['delete'], url_path='line-items/(?P<item_id>[^/.]+)')
     def remove_line_item(self, request, pk=None, item_id=None):
         """Remove a line item from an invoice."""
@@ -396,11 +405,14 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+        from audit.services import AuditLogService
+        AuditLogService.log_create(self.request.user, serializer.instance, request=self.request)
 
 
 class PaymentMethodsView(APIView):
     """APIView for payment method options."""
     permission_classes = [IsAuthenticated]
+    serializer_class = KeyValueSerializer
 
     def get(self, request):
         """Get all payment methods."""

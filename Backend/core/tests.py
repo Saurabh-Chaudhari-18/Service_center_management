@@ -88,7 +88,63 @@ class TestBranchIsolation:
             received_by=user_branch1,
         )
 
-        response = api_client.get('/api/jobs/jobs/', HTTP_X_BRANCH_ID=str(branch.id))
+        response = api_client.get('/api/jobs/', HTTP_X_BRANCH_ID=str(branch.id))
         payload = response.data
         job_ids = [j['id'] for j in payload.get('results', payload)]
         assert str(job.id) not in job_ids
+
+    def test_unsafe_body_cannot_select_unassigned_branch(
+        self, api_client, make_user, branch, org, seed_permissions,
+    ):
+        from core.models import Branch
+        from customers.models import Customer
+
+        other_branch = Branch.objects.create(
+            organization=org, name='Body Branch', code='BLR',
+            email='blr@test.com', phone='+919999999996',
+            address_line1='789 Other St', city='Bengaluru',
+            state='Karnataka', pincode='560001',
+            gstin='29AABCT1332L1ZV', state_code='29',
+        )
+        receptionist = make_user(role=Role.RECEPTIONIST, branch=branch)
+        api_client.force_authenticate(user=receptionist)
+
+        response = api_client.post('/api/customers/', {
+            'branch': str(other_branch.id),
+            'first_name': 'Cross',
+            'last_name': 'Branch',
+            'mobile': '9888888888',
+        }, format='json', HTTP_X_BRANCH_ID=str(branch.id))
+
+        assert response.status_code == 403
+        assert not Customer.objects.filter(first_name='Cross', last_name='Branch').exists()
+
+    def test_invoice_rejects_customer_from_another_branch(
+        self, api_client, make_user, branch, org, seed_permissions,
+    ):
+        from core.models import Branch
+        from customers.models import Customer
+        from billing.models import Invoice
+
+        other_branch = Branch.objects.create(
+            organization=org, name='Invoice Branch', code='CHE',
+            email='che@test.com', phone='+919999999995',
+            address_line1='100 Other St', city='Chennai',
+            state='Tamil Nadu', pincode='600001',
+            gstin='33AABCT1332L1ZV', state_code='33',
+        )
+        other_customer = Customer.objects.create(
+            branch=other_branch, first_name='Other', last_name='Invoice',
+            mobile='+919777777777',
+        )
+        accountant = make_user(role=Role.ACCOUNTANT, branch=branch)
+        api_client.force_authenticate(user=accountant)
+
+        response = api_client.post('/api/billing/invoices/', {
+            'customer_id': str(other_customer.id),
+            'customer_name': 'Other Invoice',
+            'is_interstate': False,
+        }, format='json', HTTP_X_BRANCH_ID=str(branch.id))
+
+        assert response.status_code == 400
+        assert not Invoice.objects.filter(customer_name='Other Invoice').exists()

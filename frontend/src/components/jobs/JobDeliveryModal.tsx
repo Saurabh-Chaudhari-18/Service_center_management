@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Modal, Button, Input, Textarea, Alert } from "@/components/ui";
+import { Modal, Button, Textarea, Alert } from "@/components/ui";
 import { useToast } from "@/context/ToastContext";
 import { jobsApi } from "@/lib/api";
-import { RefreshCw } from "lucide-react";
 
 export interface JobDeliveryModalProps {
   isOpen: boolean;
@@ -41,17 +40,6 @@ export function JobDeliveryModal({
     },
   });
 
-  const { mutate: resendOtp, isPending: isResending } = useMutation({
-    mutationFn: () => jobsApi.resendDeliveryOtp(jobId),
-    onSuccess: (data) => {
-      if (data?.otp && data.otp !== "******") {
-        toast.success(`OTP sent. Code: ${data.otp}`);
-      } else {
-        toast.success("OTP sent to customer.");
-      }
-    },
-    onError: () => toast.error("Failed to send OTP."),
-  });
 
     const handleClose = () => {
     setOtp("");

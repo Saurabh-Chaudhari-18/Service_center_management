@@ -123,3 +123,64 @@ class TestEncryptionRoundTrip:
         job.refresh_from_db()
         assert job.device_password == original_password
         assert job._device_password != original_password
+
+
+@pytest.mark.django_db
+class TestOutsourcedRepairReturn:
+    """Both return routes enforce the same validated job transition rules."""
+
+    def test_return_action_rejects_arbitrary_job_status(
+        self, api_client, owner, branch, seed_permissions
+    ):
+        from datetime import date
+        from customers.models import Customer
+        from jobs.models import (
+            OutsourcedRepair, OutsourceVendor, RepairOutcome,
+            OutsourcedRepairStatus,
+        )
+
+        customer = Customer.objects.create(
+            branch=branch,
+            first_name='Outsource',
+            last_name='Customer',
+            mobile='9000000099',
+        )
+        job = JobCard.objects.create(
+            branch=branch,
+            customer=customer,
+            brand='Dell',
+            model='Latitude',
+            customer_complaint='Motherboard repair',
+            status=JobStatus.OUTSOURCED,
+            received_by=owner,
+        )
+        vendor = OutsourceVendor.objects.create(
+            branch=branch,
+            name='Board Repair Lab',
+            phone='9000000088',
+        )
+        outsource = OutsourcedRepair.objects.create(
+            branch=branch,
+            job=job,
+            vendor=vendor,
+            reason='Board-level repair',
+            sent_date=date.today(),
+            sent_by=owner,
+        )
+
+        api_client.force_authenticate(user=owner)
+        response = api_client.post(
+            f'/api/jobs/outsourced-repairs/{outsource.id}/return/',
+            {
+                'return_date': date.today().isoformat(),
+                'repair_outcome': RepairOutcome.REPAIRED,
+                'new_job_status': JobStatus.DELIVERED,
+            },
+            format='json',
+        )
+
+        assert response.status_code == 400
+        outsource.refresh_from_db()
+        job.refresh_from_db()
+        assert outsource.status == OutsourcedRepairStatus.SENT
+        assert job.status == JobStatus.OUTSOURCED

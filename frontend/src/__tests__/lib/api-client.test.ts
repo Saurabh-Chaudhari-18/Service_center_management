@@ -9,7 +9,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { tokenManager, API_BASE_URL } from "@/lib/api/client";
 
 const ACCESS_KEY = "scm_access_token";
-const REFRESH_KEY = "scm_refresh_token";
 const BRANCH_KEY = "scm_current_branch";
 
 describe("tokenManager", () => {
@@ -18,44 +17,36 @@ describe("tokenManager", () => {
     // clear mocks so call counts start fresh
     vi.clearAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   it("getAccessToken returns null when nothing stored", () => {
     expect(tokenManager.getAccessToken()).toBeNull();
   });
 
-  it("getRefreshToken returns null when nothing stored", () => {
-    expect(tokenManager.getRefreshToken()).toBeNull();
-  });
 
-  it("setTokens stores access and refresh tokens", () => {
-    tokenManager.setTokens("access-abc", "refresh-xyz");
-    expect(localStorage.setItem).toHaveBeenCalledWith(ACCESS_KEY, "access-abc");
-    expect(localStorage.setItem).toHaveBeenCalledWith(REFRESH_KEY, "refresh-xyz");
+  it("setTokens stores only the access token in session storage", () => {
+    tokenManager.setTokens("access-abc");
+    expect(sessionStorage.getItem(ACCESS_KEY)).toBe("access-abc");
+    expect(sessionStorage.getItem("scm_refresh_token")).toBeNull();
   });
 
   it("getAccessToken returns stored token after setTokens", () => {
-    // Simulate what localStorage.getItem should return after setTokens
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => {
-      if (key === ACCESS_KEY) return "my-access";
-      if (key === REFRESH_KEY) return "my-refresh";
-      return null;
-    });
-
+    sessionStorage.setItem(ACCESS_KEY, "my-access");
     expect(tokenManager.getAccessToken()).toBe("my-access");
-    expect(tokenManager.getRefreshToken()).toBe("my-refresh");
   });
 
-  it("clearTokens removes access, refresh, and branch keys", () => {
+  it("clearTokens removes access and branch keys", () => {
+    sessionStorage.setItem(ACCESS_KEY, "access");
+    sessionStorage.setItem(BRANCH_KEY, "branch");
     tokenManager.clearTokens();
-    expect(localStorage.removeItem).toHaveBeenCalledWith(ACCESS_KEY);
-    expect(localStorage.removeItem).toHaveBeenCalledWith(REFRESH_KEY);
-    expect(localStorage.removeItem).toHaveBeenCalledWith(BRANCH_KEY);
+    expect(sessionStorage.getItem(ACCESS_KEY)).toBeNull();
+    expect(sessionStorage.getItem(BRANCH_KEY)).toBeNull();
   });
 
   it("setCurrentBranchId stores branch id", () => {
     tokenManager.setCurrentBranchId("branch-42");
-    expect(localStorage.setItem).toHaveBeenCalledWith(BRANCH_KEY, "branch-42");
+    expect(sessionStorage.getItem(BRANCH_KEY)).toBe("branch-42");
   });
 
   it("getCurrentBranchId returns null when not set", () => {
@@ -63,11 +54,7 @@ describe("tokenManager", () => {
   });
 
   it("getCurrentBranchId returns stored branch id", () => {
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => {
-      if (key === BRANCH_KEY) return "branch-99";
-      return null;
-    });
-
+    sessionStorage.setItem(BRANCH_KEY, "branch-99");
     expect(tokenManager.getCurrentBranchId()).toBe("branch-99");
   });
 });

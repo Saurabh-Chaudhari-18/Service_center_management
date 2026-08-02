@@ -435,7 +435,6 @@ function BillingContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // PDF Generation State
-  const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState<Invoice | null>(null);
 
   const printRef = useRef<HTMLDivElement>(null);

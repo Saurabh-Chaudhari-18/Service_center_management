@@ -194,12 +194,12 @@ class JobCardSerializer(serializers.ModelSerializer):
             'delivery_date', 'delivered_by', 'created_at', 'updated_at'
         ]
 
-    def get_allowed_transitions(self, obj):
+    def get_allowed_transitions(self, obj) -> list:
         """Get list of allowed status transitions."""
         allowed = ALLOWED_STATUS_TRANSITIONS.get(obj.status, [])
         return [{'value': s, 'label': s.label} for s in allowed]
 
-    def get_is_readonly(self, obj):
+    def get_is_readonly(self, obj) -> bool:
         """Check if job is in read-only terminal state."""
         request = self.context.get('request')
         if request and request.user.role == 'OWNER':
@@ -237,13 +237,13 @@ class JobCardSerializer(serializers.ModelSerializer):
         
         return ', '.join(labels)
 
-    def get_physical_condition_display(self, obj):
+    def get_physical_condition_display(self, obj) -> str:
         return self._resolve_dropdown_ids(obj.physical_condition)
 
-    def get_engineer_diagnosis_display(self, obj):
+    def get_engineer_diagnosis_display(self, obj) -> str:
         return self._resolve_dropdown_ids(obj.engineer_diagnosis)
 
-    def get_outsourced_repairs(self, obj):
+    def get_outsourced_repairs(self, obj) -> list:
         """Serialize outsourced repair records (lazy import to avoid forward reference)."""
         repairs = obj.outsourced_repairs.all()
         if not repairs.exists():
@@ -285,6 +285,9 @@ class JobCardCreateSerializer(serializers.ModelSerializer):
         branch_id = self.initial_data.get('branch')
         try:
             customer = Customer.objects.get(pk=value)
+            request = self.context.get('request')
+            if request and not request.user.has_branch_access(customer.branch):
+                raise serializers.ValidationError("Customer not found.")
             if branch_id and str(customer.branch_id) != str(branch_id):
                 raise serializers.ValidationError(
                     "Customer does not belong to the specified branch."
@@ -579,12 +582,12 @@ class PickupRequestSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
 
-    def get_assigned_technician_name(self, obj):
+    def get_assigned_technician_name(self, obj) -> str:
         if obj.assigned_technician:
             return obj.assigned_technician.get_full_name()
         return None
 
-    def get_allowed_transitions(self, obj):
+    def get_allowed_transitions(self, obj) -> list:
         allowed = ALLOWED_PICKUP_TRANSITIONS.get(obj.status, [])
         return [{'value': s.value, 'label': s.label} for s in allowed]
 
@@ -643,7 +646,7 @@ class PickupRequestListSerializer(serializers.ModelSerializer):
             'is_urgent', 'created_at'
         ]
 
-    def get_assigned_technician_name(self, obj):
+    def get_assigned_technician_name(self, obj) -> str:
         if obj.assigned_technician:
             return obj.assigned_technician.get_full_name()
         return None
@@ -701,26 +704,26 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'branch', 'sent_by', 'created_at', 'updated_at']
 
-    def get_job_number(self, obj):
+    def get_job_number(self, obj) -> str:
         if obj.job:
             return obj.job.job_number
         if obj.serial_number:
             return f"SN:{obj.serial_number}"
         return "INVENTORY-WARRANTY"
 
-    def get_customer_name(self, obj):
+    def get_customer_name(self, obj) -> str:
         if obj.job and obj.job.customer:
             return obj.job.customer.get_full_name()
         if obj.customer_name:
             return obj.customer_name
         return "Inventory Customer"
 
-    def get_customer_mobile(self, obj):
+    def get_customer_mobile(self, obj) -> str:
         if obj.job and obj.job.customer:
             return obj.job.customer.mobile
         return obj.customer_phone or ""
 
-    def get_device_summary(self, obj):
+    def get_device_summary(self, obj) -> str:
         if obj.job:
             return f"{obj.job.get_device_type_display()} {obj.job.brand or ''} {obj.job.model or ''}".strip()
         if obj.item_name:
@@ -729,7 +732,7 @@ class OutsourcedRepairSerializer(serializers.ModelSerializer):
             return obj.inventory_item.name
         return "Inventory Warranty Item"
 
-    def get_received_by_name(self, obj):
+    def get_received_by_name(self, obj) -> str:
         return obj.received_by.get_full_name() if obj.received_by else None
 
 
@@ -745,10 +748,13 @@ class OutsourcedRepairCreateSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_vendor(self, value):
+        job = self.context.get('job')
         try:
-            OutsourceVendor.objects.get(pk=value, is_active=True)
+            vendor = OutsourceVendor.objects.get(pk=value, is_active=True)
         except OutsourceVendor.DoesNotExist:
             raise serializers.ValidationError("Vendor not found or inactive.")
+        if job and vendor.branch_id and vendor.branch_id != job.branch_id:
+            raise serializers.ValidationError("Vendor does not belong to this branch.")
         return value
 
     @transaction.atomic

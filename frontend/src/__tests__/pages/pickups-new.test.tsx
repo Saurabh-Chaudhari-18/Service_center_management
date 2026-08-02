@@ -99,7 +99,7 @@ describe("New Pickup page (pickups/new) — regression tests", () => {
   it("shows customer search input", () => {
     renderPage();
     expect(
-      screen.getByPlaceholderText(/search customer by name or mobile/i),
+      screen.getByPlaceholderText(/search by name or mobile/i),
     ).toBeInTheDocument();
   });
 

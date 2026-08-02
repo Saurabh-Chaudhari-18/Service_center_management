@@ -14,7 +14,6 @@ export const API_BASE_URL =
 
 // Token storage keys (sessionStorage limits XSS persistence vs localStorage)
 const ACCESS_TOKEN_KEY = "scm_access_token";
-const REFRESH_TOKEN_KEY = "scm_refresh_token";
 const CURRENT_BRANCH_KEY = "scm_current_branch";
 
 const storage =
@@ -51,27 +50,9 @@ export const tokenManager = {
     return legacy;
   },
 
-  getRefreshToken: (): string | null => {
-    if (!storage) return null;
-    const token = storage.getItem(REFRESH_TOKEN_KEY);
-    if (token) return token;
-    const legacy =
-      typeof localStorage !== "undefined"
-        ? localStorage.getItem(REFRESH_TOKEN_KEY)
-        : null;
-    if (legacy) {
-      storage.setItem(REFRESH_TOKEN_KEY, legacy);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-    }
-    return legacy;
-  },
-
-  setTokens: (access: string, refresh?: string): void => {
+  setTokens: (access: string): void => {
     if (!storage) return;
     storage.setItem(ACCESS_TOKEN_KEY, access);
-    if (refresh) {
-      storage.setItem(REFRESH_TOKEN_KEY, refresh);
-    }
     if (typeof document !== "undefined") {
       const secure = window.location.protocol === "https:" ? "; Secure" : "";
       document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
@@ -81,14 +62,12 @@ export const tokenManager = {
   clearTokens: (): void => {
     if (!storage) return;
     storage.removeItem(ACCESS_TOKEN_KEY);
-    storage.removeItem(REFRESH_TOKEN_KEY);
     storage.removeItem(CURRENT_BRANCH_KEY);
     if (typeof document !== "undefined") {
       document.cookie = "scm_session=; path=/; max-age=0";
     }
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
       localStorage.removeItem(CURRENT_BRANCH_KEY);
     }
   },
@@ -168,18 +147,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = tokenManager.getRefreshToken();
-
-      if (!refreshToken) {
-        tokenManager.clearTokens();
-        window.location.href = "/login";
-        return Promise.reject(error);
-      }
-
       try {
         const response = await axios.post(
           `${API_BASE_URL}/auth/token/refresh/`,
-          refreshToken ? { refresh: refreshToken } : {},
+          {},
           { timeout: 120000, withCredentials: true },
         );
 

@@ -9,7 +9,7 @@ Features:
 - Export to Excel/PDF
 """
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
@@ -26,7 +26,12 @@ from core.permissions import CanViewReports
 from core.models import Branch
 
 
+class ReportResponseSerializer(serializers.Serializer):
+    """Named schema for dynamically assembled report responses."""
+
+
 class ReportsViewSet(viewsets.ViewSet):
+    serializer_class = ReportResponseSerializer
     """
     ViewSet for generating various reports.
     Only Owners, Managers, and Accountants can view reports.
@@ -214,55 +219,47 @@ class ReportsViewSet(viewsets.ViewSet):
         branches = self.get_accessible_branches()
         from_date, to_date = self.get_date_range()
         
-        # Get technicians in accessible branches
+        # Aggregate all technician metrics in one query to avoid N+1 report queries.
+        assigned_filter = Q(assigned_jobs__branch__in=branches)
+        completed_filter = assigned_filter & Q(
+            assigned_jobs__status=JobStatus.DELIVERED,
+            assigned_jobs__delivery_date__date__gte=from_date,
+            assigned_jobs__delivery_date__date__lte=to_date,
+        )
+        pending_filter = assigned_filter & ~Q(
+            assigned_jobs__status__in=[
+                JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED,
+            ]
+        )
+
+        completion_duration = ExpressionWrapper(
+            F('assigned_jobs__delivery_date') - F('assigned_jobs__created_at'),
+            output_field=DurationField(),
+        )
         technicians = User.objects.filter(
             role=Role.TECHNICIAN,
             branches__in=branches,
-            is_active=True
-        ).distinct()
-        
-        productivity_data = []
-        
-        for tech in technicians:
-            # Jobs assigned
-            assigned_jobs = JobCard.objects.filter(
-                assigned_technician=tech,
-                branch__in=branches
-            )
-            
-            # Completed in date range
-            completed = assigned_jobs.filter(
-                status=JobStatus.DELIVERED,
-                delivery_date__date__gte=from_date,
-                delivery_date__date__lte=to_date
-            )
-            
-            # Currently assigned (not completed)
-            current = assigned_jobs.exclude(
-                status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
-            )
-            
-            avg_result = completed.annotate(
-                days_taken=ExpressionWrapper(
-                    F('delivery_date') - F('created_at'),
-                    output_field=DurationField()
-                )
-            ).aggregate(avg_days=Avg('days_taken'))
-            avg_td = avg_result['avg_days']
-            avg_completion_days = round(avg_td.total_seconds() / 86400, 1) if avg_td else 0
+            is_active=True,
+        ).distinct().annotate(
+            assigned_jobs_count=Count('assigned_jobs', filter=assigned_filter, distinct=True),
+            completed_jobs_count=Count('assigned_jobs', filter=completed_filter, distinct=True),
+            pending_jobs_count=Count('assigned_jobs', filter=pending_filter, distinct=True),
+            avg_completion_duration=Avg(completion_duration, filter=completed_filter),
+        ).order_by('-completed_jobs_count', 'first_name', 'last_name')
 
+        productivity_data = []
+        for tech in technicians:
+            avg_td = tech.avg_completion_duration
+            avg_completion_days = round(avg_td.total_seconds() / 86400, 1) if avg_td else 0
             productivity_data.append({
                 'technician_id': str(tech.id),
                 'technician_name': tech.get_full_name(),
-                'assigned_jobs': assigned_jobs.count(),
-                'completed_jobs': completed.count(),
-                'pending_jobs': current.count(),
+                'assigned_jobs': tech.assigned_jobs_count,
+                'completed_jobs': tech.completed_jobs_count,
+                'pending_jobs': tech.pending_jobs_count,
                 'avg_completion_days': avg_completion_days,
             })
-        
-        # Sort by completed jobs
-        productivity_data.sort(key=lambda x: x['completed_jobs'], reverse=True)
-        
+
         return Response({
             'from_date': str(from_date),
             'to_date': str(to_date),

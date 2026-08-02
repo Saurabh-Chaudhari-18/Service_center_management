@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -51,21 +52,21 @@ describe("Expenses page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<ExpensesPage />)).not.toThrow();
+    expect(() => renderWithQuery(<ExpensesPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<ExpensesPage />);
+    renderWithQuery(<ExpensesPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Expenses heading", () => {
-    render(<ExpensesPage />);
+    renderWithQuery(<ExpensesPage />);
     expect(screen.getByRole("heading", { name: "Expenses" })).toBeInTheDocument();
   });
 
   it("shows Add Expense button", () => {
-    render(<ExpensesPage />);
+    renderWithQuery(<ExpensesPage />);
     expect(screen.getByText(/add expense/i)).toBeInTheDocument();
   });
 });

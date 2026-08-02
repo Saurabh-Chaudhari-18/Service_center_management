@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -54,21 +55,21 @@ describe("Ledger (Customer Khata) page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<LedgerPage />)).not.toThrow();
+    expect(() => renderWithQuery(<LedgerPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<LedgerPage />);
+    renderWithQuery(<LedgerPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
-  it("shows Customer Ledger heading", () => {
-    render(<LedgerPage />);
-    expect(screen.getByRole("heading", { name: /customer ledger/i })).toBeInTheDocument();
+  it("shows Ledger (Khata) heading", () => {
+    renderWithQuery(<LedgerPage />);
+    expect(screen.getByRole("heading", { name: /ledger \(khata\)/i })).toBeInTheDocument();
   });
 
   it("shows Add Entry button", () => {
-    render(<LedgerPage />);
+    renderWithQuery(<LedgerPage />);
     expect(screen.getByText(/add entry/i)).toBeInTheDocument();
   });
 });

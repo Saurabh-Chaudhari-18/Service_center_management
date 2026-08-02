@@ -14,7 +14,7 @@ import pytest
 from unittest.mock import patch
 from tests.conftest import bh
 
-JOBS_URL = '/api/jobs/jobs/'
+JOBS_URL = '/api/jobs/'
 
 
 def _create_job(auth_client, customer, branch):
@@ -72,12 +72,12 @@ class TestEstimateNotification:
 
         # Advance to DIAGNOSIS with estimated_cost
         auth_client.post(
-            f'{JOBS_URL}{job.id}/add_diagnosis/',
+            f'{JOBS_URL}{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Fixed', 'estimated_cost': '2000.00'},
             format='json', **bh(branch),
         )
         before = NotificationLog.objects.count()
-        auth_client.post(f'{JOBS_URL}{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        auth_client.post(f'{JOBS_URL}{job.id}/share-estimate/', {}, format='json', **bh(branch))
         after = NotificationLog.objects.count()
         assert after > before
 
@@ -103,24 +103,24 @@ class TestReadyForDeliveryNotification:
             pass
 
         auth_client.post(
-            f'{JOBS_URL}{job.id}/add_diagnosis/',
+            f'{JOBS_URL}{job.id}/add-diagnosis/',
             {'diagnosis_notes': 'Fixed', 'estimated_cost': '1000.00'},
             format='json', **bh(branch),
         )
-        auth_client.post(f'{JOBS_URL}{job.id}/share_estimate/', {}, format='json', **bh(branch))
+        auth_client.post(f'{JOBS_URL}{job.id}/share-estimate/', {}, format='json', **bh(branch))
         auth_client.post(
-            f'{JOBS_URL}{job.id}/record_customer_response/',
+            f'{JOBS_URL}{job.id}/record-customer-response/',
             {'approved': True},
             format='json', **bh(branch),
         )
         auth_client.post(
-            f'{JOBS_URL}{job.id}/update_status/',
+            f'{JOBS_URL}{job.id}/update-status/',
             {'new_status': JobStatus.REPAIR_IN_PROGRESS},
             format='json', **bh(branch),
         )
         before = NotificationLog.objects.count()
         auth_client.post(
-            f'{JOBS_URL}{job.id}/mark_ready/',
+            f'{JOBS_URL}{job.id}/mark-ready/',
             {'completion_notes': 'Done'},
             format='json', **bh(branch),
         )

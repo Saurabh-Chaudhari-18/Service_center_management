@@ -28,7 +28,7 @@ vi.mock("@/app/gst/GSTDateFilter", () => ({
 // Module-level vi.fn() with a DEFAULT implementation so the function survives
 // vi.restoreAllMocks() between tests (restoreAllMocks resets to the original
 // implementation — for vi.fn(defaultImpl) that means defaultImpl remains).
-const mockGetDashboard = vi.fn(() =>
+const mockGetDashboard = vi.fn((..._args: unknown[]) =>
   Promise.resolve({
     net_payable: { total: 0 },
     output_gst: { total: 0, cgst: 0, sgst: 0, igst: 0 },

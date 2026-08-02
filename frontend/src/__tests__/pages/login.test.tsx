@@ -8,14 +8,14 @@ import { mockAuthValue } from "../test-utils";
 
 // Capture push so we can assert redirects. Module-level vi.fn() survives
 // vi.clearAllMocks() with its implementation intact; only call history is wiped.
-const mockPush = vi.fn();
+const mockReplace = vi.fn();
 
 // Override the global next/navigation mock (from vitest.setup.ts) with one
 // that hands the same mockPush instance to every useRouter() call.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: mockPush,
-    replace: vi.fn(),
+    push: vi.fn(),
+    replace: mockReplace,
     refresh: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
@@ -89,7 +89,7 @@ describe("Login page", () => {
       expect(mockLogin).toHaveBeenCalledWith("owner@test.com", "password123");
     });
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/dashboard");
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard");
     });
   });
 

@@ -63,7 +63,7 @@ class TestAddStock:
     def test_add_stock_increases_quantity(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=0)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/add_stock/',
+            f'{ITEMS_URL}{item.id}/add-stock/',
             {'quantity': 10, 'reason': 'Initial stock'},
             format='json', **bh(branch),
         )
@@ -73,7 +73,7 @@ class TestAddStock:
     def test_add_stock_creates_adjustment_row(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=0)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/add_stock/',
+            f'{ITEMS_URL}{item.id}/add-stock/',
             {'quantity': 5, 'reason': 'Restock'},
             format='json', **bh(branch),
         )
@@ -81,15 +81,15 @@ class TestAddStock:
 
     def test_add_stock_cumulates(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=0)
-        auth_client.post(f'{ITEMS_URL}{item.id}/add_stock/', {'quantity': 5, 'reason': 'Batch 1'}, format='json', **bh(branch))
-        auth_client.post(f'{ITEMS_URL}{item.id}/add_stock/', {'quantity': 3, 'reason': 'Batch 2'}, format='json', **bh(branch))
+        auth_client.post(f'{ITEMS_URL}{item.id}/add-stock/', {'quantity': 5, 'reason': 'Batch 1'}, format='json', **bh(branch))
+        auth_client.post(f'{ITEMS_URL}{item.id}/add-stock/', {'quantity': 3, 'reason': 'Batch 2'}, format='json', **bh(branch))
         item.refresh_from_db()
         assert item.quantity == 8
 
     def test_add_zero_quantity_returns_400(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=5)
         resp = auth_client.post(
-            f'{ITEMS_URL}{item.id}/add_stock/',
+            f'{ITEMS_URL}{item.id}/add-stock/',
             {'quantity': 0},
             format='json', **bh(branch),
         )
@@ -98,7 +98,7 @@ class TestAddStock:
     def test_add_negative_quantity_returns_400(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=5)
         resp = auth_client.post(
-            f'{ITEMS_URL}{item.id}/add_stock/',
+            f'{ITEMS_URL}{item.id}/add-stock/',
             {'quantity': -3},
             format='json', **bh(branch),
         )
@@ -115,7 +115,7 @@ class TestDeductStock:
     def test_deduct_stock_decreases_quantity(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=10)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/deduct_stock/',
+            f'{ITEMS_URL}{item.id}/deduct-stock/',
             {'quantity': 3, 'reason': 'Used in repair'},
             format='json', **bh(branch),
         )
@@ -125,7 +125,7 @@ class TestDeductStock:
     def test_deduct_stock_creates_adjustment_row(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=10)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/deduct_stock/',
+            f'{ITEMS_URL}{item.id}/deduct-stock/',
             {'quantity': 2, 'reason': 'Job usage'},
             format='json', **bh(branch),
         )
@@ -137,7 +137,7 @@ class TestDeductStock:
     ):
         item = make_inventory_item(quantity=2)
         resp = auth_client.post(
-            f'{ITEMS_URL}{item.id}/deduct_stock/',
+            f'{ITEMS_URL}{item.id}/deduct-stock/',
             {'quantity': 10, 'reason': 'Overdeduct'},
             format='json', **bh(branch),
         )
@@ -148,7 +148,7 @@ class TestDeductStock:
     ):
         item = make_inventory_item(quantity=2)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/deduct_stock/',
+            f'{ITEMS_URL}{item.id}/deduct-stock/',
             {'quantity': 10, 'reason': 'Overdeduct test'},
             format='json', **bh(branch),
         )
@@ -157,9 +157,9 @@ class TestDeductStock:
 
     def test_stock_cannot_go_negative(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=5)
-        auth_client.post(f'{ITEMS_URL}{item.id}/deduct_stock/', {'quantity': 5, 'reason': 'Full deduct'}, format='json', **bh(branch))
+        auth_client.post(f'{ITEMS_URL}{item.id}/deduct-stock/', {'quantity': 5, 'reason': 'Full deduct'}, format='json', **bh(branch))
         resp = auth_client.post(
-            f'{ITEMS_URL}{item.id}/deduct_stock/',
+            f'{ITEMS_URL}{item.id}/deduct-stock/',
             {'quantity': 1, 'reason': 'Exceed zero test'},
             format='json', **bh(branch),
         )
@@ -178,7 +178,7 @@ class TestAdjustStock:
     def test_adjust_stock_sets_exact_quantity(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=5)
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/adjust_stock/',
+            f'{ITEMS_URL}{item.id}/adjust-stock/',
             {'new_quantity': 20, 'reason': 'Physical count correction'},
             format='json', **bh(branch),
         )
@@ -189,7 +189,7 @@ class TestAdjustStock:
         item = make_inventory_item(quantity=5)
         before = InventoryAdjustment.objects.filter(item=item).count()
         auth_client.post(
-            f'{ITEMS_URL}{item.id}/adjust_stock/',
+            f'{ITEMS_URL}{item.id}/adjust-stock/',
             {'new_quantity': 15, 'reason': 'Audit correction fix'},
             format='json', **bh(branch),
         )
@@ -199,7 +199,7 @@ class TestAdjustStock:
     def test_adjust_stock_missing_reason_returns_400(self, auth_client, make_inventory_item, branch):
         item = make_inventory_item(quantity=5)
         resp = auth_client.post(
-            f'{ITEMS_URL}{item.id}/adjust_stock/',
+            f'{ITEMS_URL}{item.id}/adjust-stock/',
             {'new_quantity': 10},
             format='json', **bh(branch),
         )
@@ -218,7 +218,7 @@ class TestLowStock:
     ):
         low = make_inventory_item(quantity=1)
         ok = make_inventory_item(quantity=100)
-        resp = auth_client.get(f'{ITEMS_URL}low_stock/', **bh(branch))
+        resp = auth_client.get(f'{ITEMS_URL}low-stock/', **bh(branch))
         assert resp.status_code == 200
         data = resp.data if isinstance(resp.data, list) else resp.data.get('results', resp.data)
         ids = [str(i['id']) for i in data]

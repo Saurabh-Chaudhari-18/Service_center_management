@@ -166,7 +166,7 @@ describe("Badge", () => {
 
 describe("JobStatusBadge", () => {
   const cases: [JobStatus, string][] = [
-    ["RECEIVED", "Received"],
+    ["RECEIVED", "Inward Received"],
     ["DIAGNOSIS", "Under Diagnosis"],
     ["APPROVED", "Customer Approved"],
     ["REJECTED", "Customer Rejected"],

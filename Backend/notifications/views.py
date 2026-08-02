@@ -22,6 +22,8 @@ from notifications.serializers import (
     NotificationTypeSerializer, NotificationChannelSerializer
 )
 from core.permissions import IsBranchMember, IsOwnerOrManager, BranchScopedMixin
+from core.serializers import KeyValueSerializer
+from core.serializers import KeyValueSerializer
 
 
 class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -142,6 +144,10 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
             NotificationService._send_sms(log.recipient_mobile, log.message, log)
         elif log.channel == NotificationChannel.WHATSAPP:
             NotificationService._send_whatsapp(log.recipient_mobile, log.message, log)
+        elif log.channel == NotificationChannel.EMAIL:
+            NotificationService._send_email(
+                log.recipient_email, log.subject, log.message, log
+            )
         
         return Response({'message': 'Notification retry initiated.'})
 
@@ -204,6 +210,7 @@ class InternalAlertViewSet(viewsets.ModelViewSet):
 class SendNotificationView(APIView):
     """APIView for sending custom notifications."""
     permission_classes = [IsAuthenticated, IsOwnerOrManager]
+    serializer_class = SendNotificationSerializer
 
     def post(self, request):
         """Send a custom notification."""
@@ -212,18 +219,27 @@ class SendNotificationView(APIView):
         
         data = serializer.validated_data
         
-        # Get job if provided
+        accessible_branches = request.user.get_accessible_branches()
+        branch = accessible_branches.first()
+        if branch is None:
+            raise PermissionDenied('You do not have access to an active branch.')
+
+        # A linked job must belong to a branch the sender can access.
         job = None
         if 'job_id' in data:
             from jobs.models import JobCard
             try:
-                job = JobCard.objects.get(pk=data['job_id'])
+                job = JobCard.objects.get(
+                    pk=data['job_id'],
+                    branch__in=accessible_branches,
+                )
             except JobCard.DoesNotExist:
-                pass
-        
+                raise ValidationError({'job_id': 'Job not found or inaccessible.'})
+            branch = job.branch
+
         # Create log entry
         log = NotificationLog.objects.create(
-            branch=request.user.get_accessible_branches().first(),
+            branch=branch,
             notification_type=NotificationType.CUSTOM,
             channel=data['channel'],
             recipient_mobile=data.get('recipient_mobile', ''),
@@ -243,6 +259,10 @@ class SendNotificationView(APIView):
             NotificationService._send_sms(data['recipient_mobile'], data['message'], log)
         elif data['channel'] == NotificationChannel.WHATSAPP:
             NotificationService._send_whatsapp(data['recipient_mobile'], data['message'], log)
+        elif data['channel'] == NotificationChannel.EMAIL:
+            NotificationService._send_email(
+                data['recipient_email'], data.get('subject', ''), data['message'], log
+            )
             
         if log.status == 'FAILED':
             return Response({
@@ -259,6 +279,7 @@ class SendNotificationView(APIView):
 class NotificationEnumsView(viewsets.ViewSet):
     """ViewSet for notification enums."""
     permission_classes = [IsAuthenticated]
+    serializer_class = KeyValueSerializer
 
     @action(detail=False, methods=['get'])
     def types(self, request):

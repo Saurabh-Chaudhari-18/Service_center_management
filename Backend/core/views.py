@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from core.serializers import HealthCheckSerializer
 
 
 class HealthCheckView(APIView):
@@ -20,6 +21,7 @@ class HealthCheckView(APIView):
     """
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = HealthCheckSerializer
 
     def get(self, request):
         from django.db import connection
@@ -40,7 +42,8 @@ from core.serializers import (
     OrganizationBrandingSerializer,
     BranchSerializer, BranchMinimalSerializer,
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
-    ChangePasswordSerializer, SetCurrentBranchSerializer
+    ChangePasswordSerializer, SetCurrentBranchSerializer,
+    KeyValueSerializer
 )
 from core.permissions import (
     IsOwner, IsOwnerOrManager, IsBranchMember, IsSuperAdmin,
@@ -55,6 +58,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     Only superusers can create organizations.
     Owners can view/update their own organization.
     """
+    queryset = Organization.objects.none()
     serializer_class = OrganizationSerializer
     permission_classes = [IsAuthenticated, IsOwner]
     filter_backends = [SearchFilter, OrderingFilter]
@@ -108,6 +112,7 @@ class BranchViewSet(viewsets.ModelViewSet):
     - Managers can view branches they're assigned to
     - All users can view their accessible branches
     """
+    queryset = Branch.objects.none()
     serializer_class = BranchSerializer
     permission_classes = [IsAuthenticated, IsBranchMember]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -223,6 +228,7 @@ class UserViewSet(viewsets.ModelViewSet):
     ViewSet for User management.
     Only Owners can manage users in their organization.
     """
+    queryset = User.objects.none()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, CanManageUsers]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -429,6 +435,8 @@ class UserViewSet(viewsets.ModelViewSet):
 class RoleListView(generics.ListAPIView):
     """List available roles."""
     permission_classes = [IsAuthenticated]
+    serializer_class = KeyValueSerializer
+    queryset = User.objects.none()
 
     def get(self, request):
         roles = [

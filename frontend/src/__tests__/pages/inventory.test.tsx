@@ -36,8 +36,8 @@ vi.mock("@/components/layout/Layout", () => ({
   Sidebar: () => null,
 }));
 
-const mockInventoryList = vi.fn(() =>
-  Promise.resolve({ count: 0, results: [], next: null, previous: null }),
+const mockInventoryList = vi.fn((..._args: unknown[]) =>
+  Promise.resolve({ count: 0, results: [] as InventoryItem[], next: null, previous: null }),
 );
 
 vi.mock("@/lib/api", () => ({

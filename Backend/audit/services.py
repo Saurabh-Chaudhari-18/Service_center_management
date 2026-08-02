@@ -2,8 +2,10 @@
 Audit services for logging operations.
 """
 
+import json
 import logging
 from django.utils import timezone
+from django.db import transaction
 from audit.models import AuditLog, LoginLog, DataExportLog
 
 logger = logging.getLogger(__name__)
@@ -37,9 +39,9 @@ class AuditLogService:
                 action=action.upper(),
                 model_name=model_name,
                 object_id=str(object_id),
-                details=details or {},
-                old_values=old_values or {},
-                new_values=new_values or {},
+                details=AuditLogService._json_safe(details or {}),
+                old_values=AuditLogService._json_safe(old_values or {}),
+                new_values=AuditLogService._json_safe(new_values or {}),
             )
             
             if request:
@@ -48,7 +50,8 @@ class AuditLogService:
                 log.request_path = request.path[:500]
                 log.request_method = request.method
             
-            log.save()
+            with transaction.atomic():
+                log.save()
             logger.info(f"Audit log: {action} on {model_name}:{object_id} by {user}")
             return log
             
@@ -158,21 +161,30 @@ class AuditLogService:
         return request.META.get('REMOTE_ADDR')
 
     @staticmethod
+    def _json_safe(value):
+        """Recursively convert model data into JSON-compatible primitives."""
+        if isinstance(value, dict):
+            return {str(key): AuditLogService._json_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [AuditLogService._json_safe(item) for item in value]
+        if hasattr(value, 'pk'):
+            return str(value.pk)
+        if hasattr(value, 'isoformat'):
+            return value.isoformat()
+        try:
+            json.dumps(value)
+            return value
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
     def _get_model_dict(obj):
-        """Convert model instance to dictionary for logging."""
+        """Convert a model instance into an audit-safe dictionary."""
         try:
             from django.forms.models import model_to_dict
-            data = model_to_dict(obj)
-            # Convert non-serializable values
-            for key, value in data.items():
-                if hasattr(value, 'pk'):
-                    data[key] = str(value.pk)
-                elif hasattr(value, 'isoformat'):
-                    data[key] = value.isoformat()
-            return data
+            return AuditLogService._json_safe(model_to_dict(obj))
         except Exception:
             return {'pk': str(obj.pk)}
-
 
 class AuditQueryService:
     """

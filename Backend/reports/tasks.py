@@ -166,8 +166,9 @@ def generate_gstr1_report(self, branch_ids, from_date_str, to_date_str):
     ws_b2c.append(b2c_headers)
 
     for inv in invoices:
+        from core.utils import format_place_of_supply
         state_code = inv.customer_state_code or (inv.branch.state_code if inv.branch else '')
-        place_of_supply = f"{state_code}-{inv.branch.state if inv.branch else ''}"
+        place_of_supply = format_place_of_supply(state_code)
         first_item = inv.line_items.first()
         gst_rate = float(first_item.gst_rate) if first_item else 18.0
         row_data = [

@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
+from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import (
     TokenObtainPairSerializer as BaseTokenObtainPairSerializer,
@@ -21,12 +22,17 @@ class TokenObtainPairSerializer(BaseTokenObtainPairSerializer):
 class TokenRefreshSerializer(BaseTokenRefreshSerializer):
     """Turn stale refresh tokens (user deleted / DB wiped) into 401 instead of 500."""
 
+    refresh = serializers.CharField(required=False, write_only=True)
+
     def validate(self, attrs):
         request = self.context.get('request')
         if request and not attrs.get('refresh'):
             cookie_refresh = request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
             if cookie_refresh:
                 attrs = {**attrs, 'refresh': cookie_refresh}
+
+        if not attrs.get('refresh'):
+            raise serializers.ValidationError({'refresh': 'A refresh token is required.'})
 
         try:
             return super().validate(attrs)

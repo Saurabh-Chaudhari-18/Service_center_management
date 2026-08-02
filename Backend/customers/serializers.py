@@ -7,6 +7,16 @@ from customers.models import Customer, CustomerDocument
 from core.models import Branch
 
 
+def mobile_variants(mobile):
+    """Return canonical and legacy Indian mobile representations."""
+    variants = {mobile}
+    if mobile.startswith('+91') and len(mobile) == 13:
+        variants.add(mobile[3:])
+    elif len(mobile) == 10 and mobile.isdigit():
+        variants.add('+91' + mobile)
+    return variants
+
+
 class CustomerDocumentSerializer(serializers.ModelSerializer):
     """Serializer for customer documents."""
     
@@ -40,10 +50,10 @@ class CustomerSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def get_pending_jobs_count(self, obj):
+    def get_pending_jobs_count(self, obj) -> int:
         return obj.get_pending_jobs().count()
 
-    def get_total_jobs_count(self, obj):
+    def get_total_jobs_count(self, obj) -> int:
         return obj.job_cards.count()
 
     def validate_mobile(self, value):
@@ -68,7 +78,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         if branch and mobile:
             existing = Customer.objects.filter(
                 branch=branch,
-                mobile=mobile
+                mobile__in=mobile_variants(mobile)
             )
             
             # Exclude current instance if updating
@@ -132,7 +142,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         mobile = data.get('mobile')
 
         if branch and mobile:
-            if Customer.objects.filter(branch=branch, mobile=mobile).exists():
+            if Customer.objects.filter(branch=branch, mobile__in=mobile_variants(mobile)).exists():
                 raise serializers.ValidationError({
                     'mobile': 'A customer with this mobile already exists in this branch.'
                 })

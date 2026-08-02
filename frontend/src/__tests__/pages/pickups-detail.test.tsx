@@ -53,7 +53,7 @@ vi.mock("@/components/layout/Layout", () => ({
   ),
 }));
 
-const mockGetPickup = vi.fn(() =>
+const mockGetPickup = vi.fn((_id?: string) =>
   Promise.resolve<PickupRequest>({
     id: "pickup-1",
     branch: "branch-1",

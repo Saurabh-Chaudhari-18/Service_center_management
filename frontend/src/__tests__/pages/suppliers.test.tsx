@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -50,26 +51,26 @@ describe("Suppliers page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<SuppliersPage />)).not.toThrow();
+    expect(() => renderWithQuery(<SuppliersPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<SuppliersPage />);
+    renderWithQuery(<SuppliersPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Suppliers heading", () => {
-    render(<SuppliersPage />);
+    renderWithQuery(<SuppliersPage />);
     expect(screen.getByRole("heading", { name: "Suppliers" })).toBeInTheDocument();
   });
 
   it("shows Add Supplier button", () => {
-    render(<SuppliersPage />);
+    renderWithQuery(<SuppliersPage />);
     expect(screen.getByText(/add supplier/i)).toBeInTheDocument();
   });
 
   it("shows empty state message when no suppliers", async () => {
-    render(<SuppliersPage />);
+    renderWithQuery(<SuppliersPage />);
     await waitFor(() => {
       expect(screen.getByText(/no suppliers found/i)).toBeInTheDocument();
     });

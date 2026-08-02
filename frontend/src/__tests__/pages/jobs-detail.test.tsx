@@ -48,7 +48,7 @@ vi.mock("@/components/layout/Layout", () => ({
   ),
 }));
 
-const mockGetJob = vi.fn(() =>
+const mockGetJob = vi.fn((_id?: string) =>
   Promise.resolve<JobCard>({
     id: "job-1",
     branch: "branch-1",
@@ -173,11 +173,11 @@ describe("Job detail page (jobs/[id]) — regression tests", () => {
     });
   });
 
-  it("shows Edit Job button for OWNER after data loads", async () => {
+  it("shows the overflow actions menu for OWNER after data loads", async () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("link", { name: /edit job/i }),
+        screen.getByRole("button", { name: /more actions/i }),
       ).toBeInTheDocument();
     });
   });

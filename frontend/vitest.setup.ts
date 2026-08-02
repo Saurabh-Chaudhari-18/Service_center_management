@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { cleanup } from "@testing-library/react";
 import { createElement } from "react";
 import { vi, afterEach, beforeEach } from "vitest";
 
@@ -41,6 +42,18 @@ vi.mock("next/link", () => ({
 }));
 
 // ── window.matchMedia ────────────────────────────────────────────────────────
+
+const toastMock = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+
+vi.mock("@/context/ToastContext", () => ({
+  useToast: () => ({ toasts: [], dismiss: vi.fn(), toast: toastMock }),
+  ToastProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 function setupMatchMedia() {
   Object.defineProperty(window, "matchMedia", {
@@ -97,7 +110,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  cleanup();
+  vi.clearAllMocks();
 });
 
 // Suppress noisy React act() warnings that are expected in async tests

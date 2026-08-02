@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, User, Phone, MapPin, Building, AlertCircle } from "lucide-react";
+import { Plus, X, Building } from "lucide-react";
 import {
   Modal,
   Button,
@@ -12,7 +12,6 @@ import {
   Alert,
 } from "@/components/ui";
 import { jobsApi, outsourceVendorsApi } from "@/lib/api";
-import type { OutsourceVendor } from "@/types";
 
 export interface OutsourceRepairModalProps {
   isOpen: boolean;
@@ -55,20 +54,6 @@ export function OutsourceRepairModal({
 
   const vendors = vendorsData?.results || [];
 
-  // Reset state on open/close
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedVendorId("");
-      setReason("");
-      setSentDate(new Date().toISOString().split("T")[0]);
-      setEstimatedCost("");
-      setExpectedReturnDate("");
-      setNotes("");
-      setShowNewVendorForm(false);
-      resetVendorForm();
-    }
-  }, [isOpen]);
-
   const resetVendorForm = () => {
     setVendorName("");
     setContactPerson("");
@@ -80,6 +65,21 @@ export function OutsourceRepairModal({
     setVendorError("");
   };
 
+  const resetForm = () => {
+    setSelectedVendorId("");
+    setReason("");
+    setSentDate(new Date().toISOString().split("T")[0]);
+    setEstimatedCost("");
+    setExpectedReturnDate("");
+    setNotes("");
+    setShowNewVendorForm(false);
+    resetVendorForm();
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
   // Vendor Creation Mutation
   const createVendorMutation = useMutation({
     mutationFn: () =>
@@ -120,7 +120,7 @@ export function OutsourceRepairModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      onClose();
+      handleClose();
     },
   });
 
@@ -143,12 +143,12 @@ export function OutsourceRepairModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Outsource Repair"
       size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           {!showNewVendorForm && (

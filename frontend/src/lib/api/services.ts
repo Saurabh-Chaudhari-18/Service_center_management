@@ -50,20 +50,12 @@ export const authApi = {
     );
   },
 
-  refreshToken: async (refresh?: string): Promise<{ access: string }> => {
-    return apiPost(
-      "/auth/token/refresh/",
-      refresh ? { refresh } : {},
-      { withCredentials: true },
-    );
+  refreshToken: async (): Promise<{ access: string }> => {
+    return apiPost("/auth/token/refresh/", {}, { withCredentials: true });
   },
 
-  logout: async (refresh?: string): Promise<void> => {
-    return apiPost(
-      "/auth/logout/",
-      refresh ? { refresh } : {},
-      { withCredentials: true },
-    );
+  logout: async (): Promise<void> => {
+    return apiPost("/auth/logout/", {}, { withCredentials: true });
   },
 
   verifyToken: async (token: string): Promise<{ valid: boolean }> => {

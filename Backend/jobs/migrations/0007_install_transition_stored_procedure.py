@@ -68,11 +68,15 @@ $$;
 
 
 def install_procedure(apps, schema_editor):
+    if schema_editor.connection.vendor != 'postgresql':
+        return
     with schema_editor.connection.cursor() as cursor:
         cursor.execute(CREATE_PROCEDURE_SQL)
 
 
 def drop_procedure(apps, schema_editor):
+    if schema_editor.connection.vendor != 'postgresql':
+        return
     with schema_editor.connection.cursor() as cursor:
         cursor.execute("DROP PROCEDURE IF EXISTS transition_job_status;")
 

@@ -26,10 +26,10 @@ class OrganizationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def get_branches_count(self, obj):
+    def get_branches_count(self, obj) -> int:
         return obj.branches.filter(is_active=True).count()
 
-    def get_users_count(self, obj):
+    def get_users_count(self, obj) -> int:
         return obj.users.filter(is_active=True).count()
 
 
@@ -139,7 +139,7 @@ class BranchSerializer(serializers.ModelSerializer):
             'effective_upi_id', 'effective_authorized_signatory'
         ]
 
-    def get_users_count(self, obj):
+    def get_users_count(self, obj) -> int:
         return obj.users.filter(is_active=True).count()
 
     def validate_gstin(self, value):
@@ -218,7 +218,7 @@ class UserSerializer(serializers.ModelSerializer):
                     )
         return branches
 
-    def get_permissions(self, obj):
+    def get_permissions(self, obj) -> dict:
         """Get DB-driven permissions for the user's role."""
         return RolePermission.get_permissions_for_role(obj.role)
 
@@ -455,3 +455,28 @@ class SetCurrentBranchSerializer(serializers.Serializer):
             raise serializers.ValidationError("You do not have access to this branch.")
         
         return value
+
+
+class EmptySerializer(serializers.Serializer):
+    """Named empty schema for endpoints without a request body."""
+
+
+class KeyValueSerializer(serializers.Serializer):
+    """Schema for enum and dropdown option responses."""
+    value = serializers.CharField()
+    label = serializers.CharField()
+
+
+class MessageSerializer(serializers.Serializer):
+    """Schema for a simple API message."""
+    message = serializers.CharField()
+
+
+class HealthCheckSerializer(serializers.Serializer):
+    """Schema for the service health endpoint."""
+    status = serializers.CharField()
+    db = serializers.BooleanField()
+
+
+class GenericResponseSerializer(serializers.Serializer):
+    """Named schema for dynamically assembled read-only responses."""

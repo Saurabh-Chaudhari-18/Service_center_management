@@ -7,6 +7,7 @@ bearer token usage, and unauthenticated rejection.
 All tests go through the HTTP layer — no model methods called directly.
 """
 import pytest
+from django.conf import settings
 
 TOKEN_URL = '/api/auth/token/'
 REFRESH_URL = '/api/auth/token/refresh/'
@@ -16,11 +17,14 @@ JOBS_URL = '/api/jobs/'
 @pytest.mark.django_db
 class TestLogin:
 
-    def test_valid_credentials_return_access_and_refresh_tokens(self, api_client, owner):
+    def test_valid_credentials_return_access_and_secure_refresh_cookie(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
         assert resp.status_code == 200
         assert 'access' in resp.data
-        assert 'refresh' in resp.data
+        assert 'refresh' not in resp.data
+        cookie = resp.cookies[settings.JWT_REFRESH_COOKIE_NAME]
+        assert cookie.value
+        assert cookie['httponly'] is True
         assert len(resp.data['access']) > 20
 
     def test_wrong_password_returns_401(self, api_client, owner):
@@ -53,20 +57,21 @@ class TestLogin:
 @pytest.mark.django_db
 class TestTokenRefresh:
 
-    def _get_tokens(self, api_client, owner):
+    def _login(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
         assert resp.status_code == 200
-        return resp.data['access'], resp.data['refresh']
+        assert settings.JWT_REFRESH_COOKIE_NAME in resp.cookies
+        return resp.data['access']
 
     def test_valid_refresh_token_returns_new_access_token(self, api_client, owner):
-        access1, refresh = self._get_tokens(api_client, owner)
-        resp = api_client.post(REFRESH_URL, {'refresh': refresh}, format='json')
+        access1 = self._login(api_client, owner)
+        resp = api_client.post(REFRESH_URL, {}, format='json')
         assert resp.status_code == 200
         assert 'access' in resp.data
 
     def test_refresh_returns_different_access_token(self, api_client, owner):
-        access1, refresh = self._get_tokens(api_client, owner)
-        resp = api_client.post(REFRESH_URL, {'refresh': refresh}, format='json')
+        access1 = self._login(api_client, owner)
+        resp = api_client.post(REFRESH_URL, {}, format='json')
         assert resp.data['access'] != access1
 
     def test_invalid_refresh_token_returns_401(self, api_client):
@@ -80,10 +85,10 @@ class TestTokenRefresh:
     def test_refresh_for_deleted_user_returns_401(self, api_client, owner):
         from audit.models import LoginLog
 
-        _, refresh = self._get_tokens(api_client, owner)
+        self._login(api_client, owner)
         LoginLog.objects.filter(user=owner).delete()
         owner.delete()
-        resp = api_client.post(REFRESH_URL, {'refresh': refresh}, format='json')
+        resp = api_client.post(REFRESH_URL, {}, format='json')
         assert resp.status_code == 401
 
 

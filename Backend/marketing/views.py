@@ -159,20 +159,13 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         else:
             new_balance = current_balance - amount
 
-        branch_id = self.request.data.get('branch') or self.request.headers.get('X-Branch-ID')
-        from core.models import Branch
-        branch = None
-        if branch_id:
-            try:
-                branch = Branch.objects.get(pk=branch_id)
-            except Branch.DoesNotExist:
-                pass
-
+        branch = serializer.validated_data['branch']
         serializer.save(
             created_by=self.request.user,
             running_balance=new_balance,
-            branch=branch
+            branch=branch,
         )
+        self._audit_create(serializer.instance)
 
     @action(detail=False, methods=['get'], url_path='customer-statement')
     def customer_statement(self, request):

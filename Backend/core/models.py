@@ -10,6 +10,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 import uuid
+import re
 
 
 class TimeStampedModel(models.Model):
@@ -285,73 +286,63 @@ class Branch(TimeStampedModel):
         end_year_short = str(start_year + 1)[-2:]
         return f"{start_year}-{end_year_short}"
 
-    def get_next_invoice_number(self):
-        """
-        Generate next invoice number for this branch.
-        Format: PREFIX/FY/BRANCH_CODE/SEQUENCE
-        Example: INV/2025-26/MUM/00001
-
-        Uses a dedicated BranchSequence row so only the (branch, invoice) counter
-        row is locked — not the entire Branch row — eliminating contention with
-        concurrent Branch reads/writes on other fields.
-        """
+    def _next_sequence(self, kind, period_key, initial_value=0, preserve_unkeyed=False):
+        """Atomically increment a branch counter, resetting it for a new period."""
         from django.db import transaction
 
         with transaction.atomic():
             seq, _ = BranchSequence.objects.select_for_update().get_or_create(
                 branch=self,
-                kind=BranchSequence.Kind.INVOICE,
-                defaults={'last_value': self.invoice_current_number},
+                kind=kind,
+                defaults={'last_value': initial_value, 'period_key': period_key},
             )
+            if seq.period_key != period_key:
+                if preserve_unkeyed and not seq.period_key:
+                    seq.last_value = max(seq.last_value, initial_value)
+                else:
+                    seq.last_value = 0
+                seq.period_key = period_key
             seq.last_value += 1
-            seq.save(update_fields=['last_value'])
+            seq.save(update_fields=['last_value', 'period_key'])
+            return seq.last_value
 
-            fy = self.get_current_financial_year()
-            return f"{self.invoice_prefix}/{fy}/{self.code}/{str(seq.last_value).zfill(5)}"
+    def get_next_invoice_number(self):
+        """Generate a GST-compliant serial number of at most 16 characters."""
+        fy = self.get_current_financial_year()
+        sequence = self._next_sequence(
+            BranchSequence.Kind.INVOICE,
+            fy,
+            initial_value=self.invoice_current_number,
+            preserve_unkeyed=True,
+        )
+        if sequence > 99999:
+            raise ValueError('Annual invoice sequence exceeded 99,999 records.')
+        prefix = re.sub(r'[^A-Za-z0-9]', '', self.invoice_prefix or 'INV')[:3].upper() or 'INV'
+        code = re.sub(r'[^A-Za-z0-9]', '', self.code or 'BR')[:3].upper() or 'BR'
+        start_year = fy[2:4]
+        return f"{prefix}{start_year}-{code}-{sequence:05d}"
 
     def get_next_jobcard_number(self, received_date=None):
-        """
-        Generate next job card number for this branch.
-        Format: [PREFIX-]YYMMDDNN
-        Example: apeksha-26062401 (1st job on 24-Jun-2026 for Apeksha Info branch)
-
-        The daily sequence resets each day. We count existing jobs for
-        today's date prefix in this branch and increment by 1.
-        Uses SELECT FOR UPDATE on BranchSequence to serialize concurrent
-        inserts and avoid duplicate numbers.
-        """
-        from django.db import transaction
-
+        """Generate a collision-safe job number with a daily sequence."""
         prefix = self.jobcard_number_prefix
-        # Use received_date if provided, otherwise default to today
         target_date = received_date or timezone.now().date()
         if hasattr(target_date, 'date'):
             target_date = target_date.date()
-        date_prefix = target_date.strftime('%y%m%d')  # e.g. "260624" (2-digit year)
-        full_prefix = f"{prefix}{date_prefix}"
+        date_prefix = target_date.strftime('%y%m%d')
+        next_seq = self._next_sequence(BranchSequence.Kind.JOBCARD, date_prefix)
+        return f"{prefix}{date_prefix}{next_seq:03d}"
 
-        with transaction.atomic():
-            # Lock the sequence row to serialize concurrent creates
-            seq, _ = BranchSequence.objects.select_for_update().get_or_create(
-                branch=self,
-                kind=BranchSequence.Kind.JOBCARD,
-                defaults={'last_value': 0},
-            )
+    def get_next_pickup_number(self):
+        """Generate a collision-safe pickup number within the financial year."""
+        fy = self.get_current_financial_year()
+        next_seq = self._next_sequence(BranchSequence.Kind.PICKUP, fy)
+        return f"PU/{fy}/{self.code}/{next_seq:05d}"
 
-            # Count jobs already created today for this branch with this prefix
-            from jobs.models import JobCard
-            today_count = JobCard.objects.filter(
-                branch=self,
-                job_number__startswith=full_prefix,
-            ).count()
-
-            next_seq = today_count + 1
-            # Update the sequence tracker (informational, not used for numbering)
-            seq.last_value = next_seq
-            seq.save(update_fields=['last_value'])
-
-            return f"{full_prefix}{str(next_seq).zfill(2)}"
-
+    def get_next_purchase_order_number(self):
+        """Generate a collision-safe purchase-order number within the financial year."""
+        fy = self.get_current_financial_year()
+        next_seq = self._next_sequence(BranchSequence.Kind.PURCHASE_ORDER, fy)
+        return f"PO/{fy}/{self.code}/{next_seq:05d}"
 
 class BranchSequence(models.Model):
     """
@@ -366,14 +357,17 @@ class BranchSequence(models.Model):
     class Kind(models.TextChoices):
         INVOICE = 'invoice', 'Invoice'
         JOBCARD = 'jobcard', 'Job Card'
+        PICKUP = 'pickup', 'Pickup'
+        PURCHASE_ORDER = 'purchase_order', 'Purchase Order'
 
     branch = models.ForeignKey(
         Branch,
         on_delete=models.CASCADE,
         related_name='sequences',
     )
-    kind = models.CharField(max_length=10, choices=Kind.choices)
+    kind = models.CharField(max_length=20, choices=Kind.choices)
     last_value = models.PositiveIntegerField(default=0)
+    period_key = models.CharField(max_length=16, blank=True, default='')
 
     class Meta:
         unique_together = [['branch', 'kind']]

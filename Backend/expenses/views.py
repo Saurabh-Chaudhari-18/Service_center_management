@@ -6,6 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import models
@@ -19,6 +20,7 @@ from expenses.serializers import (
 )
 from core.permissions import (
     IsBranchMember, BranchScopedMixin, IsOwnerOrManager, CanManageFinance,
+    get_requested_branch_id, require_accessible_branch,
 )
 
 
@@ -68,17 +70,12 @@ class ExpenseViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Set the created_by field and handle branch assignment."""
-        branch_id = self.request.data.get('branch') or self.request.headers.get('X-Branch-ID')
-        
-        if branch_id and str(branch_id).lower() != 'universal':
-            from core.models import Branch
-            try:
-                branch = Branch.objects.get(pk=branch_id)
-                serializer.save(created_by=self.request.user, branch=branch)
-            except Branch.DoesNotExist:
-                serializer.save(created_by=self.request.user)
-        else:
-            serializer.save(created_by=self.request.user)
+        branch_id = get_requested_branch_id(self.request, self)
+        if not branch_id or str(branch_id).lower() == 'universal':
+            raise ValidationError({'branch': 'A branch is required for an expense.'})
+        branch = require_accessible_branch(self.request.user, branch_id)
+        serializer.save(created_by=self.request.user, branch=branch)
+        self._audit_create(serializer.instance)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

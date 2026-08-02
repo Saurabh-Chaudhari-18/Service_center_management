@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mockAuthValue } from "../test-utils";
+import { mockAuthValue, renderWithQuery } from "../test-utils";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ vi.mock("@/context/AuthContext", async (importOriginal) => {
   return {
     ...actual,
     useAuth: vi.fn(() => mockAuthValue("OWNER")),
+    ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -52,21 +53,21 @@ describe("Enquiries page smoke tests", () => {
   });
 
   it("renders without crashing", () => {
-    expect(() => render(<EnquiriesPage />)).not.toThrow();
+    expect(() => renderWithQuery(<EnquiriesPage />)).not.toThrow();
   });
 
   it("renders the app layout wrapper", () => {
-    render(<EnquiriesPage />);
+    renderWithQuery(<EnquiriesPage />);
     expect(screen.getByTestId("app-layout")).toBeInTheDocument();
   });
 
   it("shows Enquiries heading", () => {
-    render(<EnquiriesPage />);
+    renderWithQuery(<EnquiriesPage />);
     expect(screen.getByRole("heading", { name: "Enquiries" })).toBeInTheDocument();
   });
 
   it("shows New Enquiry button", () => {
-    render(<EnquiriesPage />);
+    renderWithQuery(<EnquiriesPage />);
     expect(screen.getByText(/new enquiry/i)).toBeInTheDocument();
   });
 });

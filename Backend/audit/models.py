@@ -83,7 +83,7 @@ class AuditLog(TimeStampedModel):
         return f"{self.action} on {self.model_name} by {self.user}"
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        if not self._state.adding:
             raise ValueError("AuditLog records are immutable and cannot be modified.")
         super().save(*args, **kwargs)
 
@@ -125,7 +125,7 @@ class DevicePasswordAccessLog(TimeStampedModel):
         return f"{self.job.job_number} accessed by {self.accessed_by.email}"
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        if not self._state.adding:
             raise ValueError("DevicePasswordAccessLog records are immutable.")
         super().save(*args, **kwargs)
 

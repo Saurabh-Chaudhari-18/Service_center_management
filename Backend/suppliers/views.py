@@ -20,7 +20,8 @@ from suppliers.serializers import (
     PurchaseOrderItemSerializer
 )
 from core.permissions import (
-    IsBranchMember, BranchScopedMixin, IsOwnerOrManager
+    IsBranchMember, BranchScopedMixin, IsOwnerOrManager,
+    get_requested_branch_id, require_accessible_branch,
 )
 
 
@@ -68,63 +69,54 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
-        """Create PO with auto-generated PO number."""
-        branch_id = self.request.data.get('branch') or self.request.headers.get('X-Branch-ID')
+        """Create a branch-safe PO with an atomic sequence number."""
+        branch_id = get_requested_branch_id(self.request, self)
+        if not branch_id or str(branch_id).lower() == 'universal':
+            raise ValidationError({'branch': 'A branch is required for a purchase order.'})
+        branch = require_accessible_branch(self.request.user, branch_id)
 
-        from core.models import Branch
-        branch = None
-        if branch_id:
-            try:
-                branch = Branch.objects.get(pk=branch_id)
-            except Branch.DoesNotExist:
-                pass
-
-        # Generate PO number
-        prefix = "PO"
-        fy = branch.get_current_financial_year() if branch else str(timezone.now().year)
-        code = branch.code if branch else "GEN"
-        last_po = PurchaseOrder.objects.filter(
-            po_number__startswith=f"{prefix}/{fy}/{code}/"
-        ).order_by('-po_number').first()
-        
-        if last_po:
-            try:
-                seq = int(last_po.po_number.split('/')[-1]) + 1
-            except ValueError:
-                seq = 1
-        else:
-            seq = 1
-        
-        po_number = f"{prefix}/{fy}/{code}/{str(seq).zfill(5)}"
+        supplier = serializer.validated_data.get('supplier')
+        if supplier and supplier.branch_id not in (None, branch.id):
+            raise ValidationError({'supplier': 'Supplier does not belong to this branch.'})
 
         po = serializer.save(
             created_by=self.request.user,
             branch=branch,
-            po_number=po_number
+            po_number=branch.get_next_purchase_order_number(),
         )
 
-        # Create line items
+        from inventory.models import InventoryItem
+
         items_data = self.request.data.get('items', [])
         subtotal = Decimal('0')
         for item_data in items_data:
             quantity = int(item_data.get('quantity', 0))
             unit_price = Decimal(str(item_data.get('unit_price', 0)))
-            total_price = quantity * unit_price
+            if quantity <= 0 or unit_price < 0:
+                raise ValidationError({'items': 'Quantity must be positive and price cannot be negative.'})
 
+            inventory_item = None
+            inventory_item_id = item_data.get('inventory_item')
+            if inventory_item_id:
+                inventory_item = InventoryItem.objects.filter(pk=inventory_item_id).first()
+                if not inventory_item or inventory_item.branch_id not in (None, branch.id):
+                    raise ValidationError({'items': 'Inventory item does not belong to this branch.'})
+
+            total_price = quantity * unit_price
             PurchaseOrderItem.objects.create(
                 purchase_order=po,
-                inventory_item_id=item_data.get('inventory_item'),
+                inventory_item=inventory_item,
                 description=item_data.get('description', ''),
                 quantity=quantity,
                 unit_price=unit_price,
-                total_price=total_price
+                total_price=total_price,
             )
             subtotal += total_price
 
         po.subtotal = subtotal
         po.total_amount = subtotal + po.tax_amount
-        po.save()
-
+        po.save(update_fields=['subtotal', 'total_amount', 'updated_at'])
+        self._audit_create(po)
     @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
         """Mark items as received and add to inventory."""

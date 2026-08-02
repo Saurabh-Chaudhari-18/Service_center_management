@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const tokens = await authApi.login(email, password);
-      tokenManager.setTokens(tokens.access, tokens.refresh);
+      tokenManager.setTokens(tokens.access);
       // scm_session cookie set inside setTokens for edge middleware
 
       const user = await authApi.getMe();
@@ -190,8 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout function
   const logout = useCallback(() => {
-    const refresh = tokenManager.getRefreshToken();
-    authApi.logout(refresh ?? undefined).catch(() => {
+    authApi.logout().catch(() => {
       /* still clear local session if API is unreachable */
     });
     tokenManager.clearTokens();

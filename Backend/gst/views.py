@@ -40,6 +40,8 @@ def get_branches(request):
 
 
 class GSTViewSet(viewsets.ViewSet):
+    queryset = GSTPayment.objects.none()
+    serializer_class = GSTPaymentSerializer
     permission_classes = [IsAuthenticated, CanViewReports]
 
     # ─── Dashboard ────────────────────────────────────────────────────────────
@@ -461,7 +463,9 @@ class GSTViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['delete'], url_path='delete-payment')
     def delete_payment(self, request, pk=None):
         try:
-            payment = GSTPayment.objects.get(pk=pk)
+            payment = GSTPayment.objects.get(
+                pk=pk, branch__in=request.user.get_accessible_branches()
+            )
             payment.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except GSTPayment.DoesNotExist:
