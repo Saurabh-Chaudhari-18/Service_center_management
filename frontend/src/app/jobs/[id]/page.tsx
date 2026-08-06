@@ -86,7 +86,7 @@ function MoreMenu({ actions }: { actions: MenuAction[] }) {
                   className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
                   onClick={() => setOpen(false)}
                 >
-                  <span className="text-neutral-400">{item.icon}</span>
+                  <span className="shrink-0">{item.icon}</span>
                   {item.label}
                 </Link>
               ) : (
@@ -99,7 +99,7 @@ function MoreMenu({ actions }: { actions: MenuAction[] }) {
                   }}
                   className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
                 >
-                  <span className="text-neutral-400">{item.icon}</span>
+                  <span className="shrink-0">{item.icon}</span>
                   {item.label}
                 </button>
               ),

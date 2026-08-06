@@ -124,108 +124,79 @@ export function JobCardStickerTemplate({ job, branchDetails }: JobCardStickerTem
           </div>
         </div>
 
-        {/* MIDDLE SECTION: White background */}
+        {/* MIDDLE SECTION: Job Card ID as centrepiece */}
         <div 
           style={{
             flex: 1,
             backgroundColor: "white",
-            padding: "0.8mm 1.5mm 0.8mm 1.5mm",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "stretch",
-            gap: "1.5mm",
-          }}
-        >
-          {/* Address (Left Column) */}
-          <div 
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              flex: 1,
-              maxWidth: "28mm",
-            }}
-          >
-            <span 
-              style={{ 
-                fontSize: "4.5pt", 
-                fontWeight: "bold", 
-                color: "#6b7280", 
-                letterSpacing: "0.2px",
-                marginBottom: "0.3mm" 
-              }}
-            >
-              ADDRESS
-            </span>
-            <span 
-              className="truncate"
-              style={{
-                fontSize: "6.5pt",
-                fontWeight: "600",
-                lineHeight: "1.1",
-                color: "#374151",
-              }}
-            >
-              {shortAddress}
-            </span>
-          </div>
-
-          {/* Job Number (Right Column) */}
-          <div 
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "flex-end",
-              textAlign: "right",
-              borderLeft: "0.5px solid #e5e7eb",
-              paddingLeft: "1.5mm",
-              flexShrink: 0,
-            }}
-          >
-            <span 
-              style={{ 
-                fontSize: "4.5pt", 
-                fontWeight: "bold", 
-                color: "#ef4444", 
-                letterSpacing: "0.2px",
-                marginBottom: "0.3mm" 
-              }}
-            >
-              JOB CARD
-            </span>
-            <span 
-              className="font-mono font-bold"
-              style={{ 
-                fontSize: "7.5pt", 
-                lineHeight: "1", 
-                color: "#111827",
-              }}
-            >
-              {job.job_number}
-            </span>
-          </div>
-        </div>
-
-        {/* BOTTOM STRIP: Vibrant red gradient */}
-        <div 
-          style={{
-            background: "linear-gradient(to right, #dc2626, #991b1b)",
             padding: "0.8mm 1.5mm",
-            textAlign: "center",
             display: "flex",
+            flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
-            color: "white",
-            minHeight: "5.5mm",
+            textAlign: "center",
           }}
         >
           <span 
-            style={{
-              fontSize: "7.5pt",
-              fontWeight: "bold",
+            style={{ 
+              fontSize: "4.5pt", 
+              fontWeight: "bold", 
+              color: "#ef4444", 
+              letterSpacing: "0.8px",
+              marginBottom: "0.5mm",
+              textTransform: "uppercase",
+            }}
+          >
+            JOB CARD
+          </span>
+          <span 
+            className="font-mono font-extrabold"
+            style={{ 
+              fontSize: "11pt", 
+              lineHeight: "1", 
+              color: "#111827",
               letterSpacing: "0.5px",
+            }}
+          >
+            {job.job_number}
+          </span>
+        </div>
+
+        {/* BOTTOM STRIP: Address + Phone side by side */}
+        <div 
+          style={{
+            background: "linear-gradient(to right, #dc2626, #991b1b)",
+            padding: "0.6mm 1.5mm",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            color: "white",
+            minHeight: "5.5mm",
+            gap: "1mm",
+          }}
+        >
+          {/* Short Address — left side */}
+          <span 
+            className="truncate"
+            style={{
+              fontSize: "5pt",
+              fontWeight: "600",
+              letterSpacing: "0.1px",
               lineHeight: "1",
+              opacity: 0.92,
+              flex: 1,
+            }}
+          >
+            📍 {shortAddress}
+          </span>
+          {/* Phone — right side */}
+          <span 
+            style={{
+              fontSize: "6.5pt",
+              fontWeight: "bold",
+              letterSpacing: "0.3px",
+              lineHeight: "1",
+              flexShrink: 0,
             }}
           >
             📞 {shopPhone}
