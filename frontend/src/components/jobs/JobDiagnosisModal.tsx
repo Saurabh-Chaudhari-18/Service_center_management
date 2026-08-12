@@ -34,7 +34,9 @@ export function JobDiagnosisModal({
   const [diagnosis, setDiagnosis] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [estimatedDate, setEstimatedDate] = useState("");
-  const [parts, setParts] = useState<DiagnosisPartFormRow[]>([]);
+  const [parts, setParts] = useState<DiagnosisPartFormRow[]>([
+    { name: "", price: "", warranty_months: "0", quantity: "1" },
+  ]);
   const [damagePhotos, setDamagePhotos] = useState<File[]>([]);
   const [photoDescriptions, setPhotoDescriptions] = useState<string[]>([]);
   const prevIsOpenRef = useRef(false);
@@ -50,30 +52,34 @@ export function JobDiagnosisModal({
               : "",
           );
           setEstimatedDate(initialData.estimated_completion_date || "");
-          setParts(
-            initialData.diagnosis_parts
+          const existingParts =
+            initialData.diagnosis_parts && initialData.diagnosis_parts.length > 0
               ? initialData.diagnosis_parts.map((p) => ({
                   name: p.name,
                   price: String(p.price),
                   warranty_months: String(p.warranty_months),
                   quantity: String(p.quantity),
                 }))
-              : [],
-          );
+              : [{ name: "", price: "", warranty_months: "0", quantity: "1" }];
+          setParts(existingParts);
         });
+      } else {
+        // Fresh open — start with one blank row so the combobox is visible
+        setParts([{ name: "", price: "", warranty_months: "0", quantity: "1" }]);
       }
     } else if (!isOpen && prevIsOpenRef.current) {
       startTransition(() => {
         setDiagnosis("");
         setEstimatedCost("");
         setEstimatedDate("");
-        setParts([]);
+        setParts([{ name: "", price: "", warranty_months: "0", quantity: "1" }]);
         setDamagePhotos([]);
         setPhotoDescriptions([]);
       });
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen, initialData]);
+
 
   const totalPartsPrice = parts.reduce((sum, part) => {
     return sum + (parseFloat(part.price) || 0) * (parseInt(part.quantity) || 1);

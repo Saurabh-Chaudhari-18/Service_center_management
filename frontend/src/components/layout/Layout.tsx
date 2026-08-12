@@ -355,7 +355,7 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
   const notificationCount = notifData?.count ?? 0;
 
   return (
-    <header className="min-h-[4rem] lg:min-h-[4.5rem] py-3 px-4 lg:px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
+    <header className="relative z-30 min-h-[4rem] lg:min-h-[4.5rem] py-3 px-4 lg:px-6 flex flex-wrap items-center justify-between gap-y-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-neutral-200/50 dark:border-slate-800/50">
       <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger button – visible only on mobile */}
         <button
