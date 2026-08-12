@@ -4,9 +4,9 @@ Core URL configuration.
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from core.views import (
-    OrganizationViewSet, BranchViewSet, UserViewSet, RoleListView, HealthCheckView
-)
+from tenancy.views import OrganizationViewSet, BranchViewSet
+from identity.views import UserViewSet, RoleListView
+from platform_health.views import HealthCheckView
 
 app_name = 'core'
 

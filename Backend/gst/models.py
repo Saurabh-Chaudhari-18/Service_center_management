@@ -65,9 +65,7 @@ class GSTPayment(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='gst_payments',
-        null=True,
-        blank=True
+        related_name='gst_payments'
     )
     # Period this payment covers (first day of the month)
     period_month = models.DateField(
@@ -130,9 +128,7 @@ class GSTReturnStatus(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='gst_return_statuses',
-        null=True,
-        blank=True
+        related_name='gst_return_statuses'
     )
     period_month = models.DateField(
         help_text="First day of the return period month"

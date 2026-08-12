@@ -17,6 +17,21 @@ External dependencies:
 
 ## Docker (Recommended)
 
+### Tenant-integrity preflight for upgrades
+
+The tenant schema now makes branch ownership mandatory for tenant-owned business
+records. Before deploying these migrations over an existing database, run the
+audit with the new application image while the old schema is still active:
+
+```bash
+python manage.py audit_tenant_integrity
+```
+
+If it reports legacy rows, map each row to its real owning branch and rerun the
+audit. Do not invent a default branch: the migration intentionally stops on
+unresolved ownership rather than exposing data to the wrong tenant. Fresh
+installations can proceed directly to `migrate`.
+
 ### Build the backend image
 
 ```bash
@@ -69,7 +84,7 @@ docker run -d \
   celery -A config worker -l info --concurrency=2
 ```
 
-### Celery beat (scheduled tasks — if used)
+### Celery Beat scheduler (required)
 
 ```bash
 docker run -d \
@@ -81,6 +96,8 @@ docker run -d \
   scm-backend:latest \
   celery -A config beat -l info
 ```
+
+Beat is required for notification outbox recovery, the worker/scheduler heartbeat, and service reminders. A deployment without it is not ready.
 
 ---
 
@@ -128,6 +145,19 @@ services:
     build: ./Backend
     entrypoint: ""
     command: celery -A config worker -l info --concurrency=2
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: "postgres://postgres:admin@db:5432/service_center_db"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "${SECRET_KEY}"
+      DEBUG: "False"
+
+  celery-beat:
+    build: ./Backend
+    entrypoint: ""
+    command: celery -A config beat -l info
     depends_on:
       - db
       - redis
@@ -193,6 +223,11 @@ Render offers a free tier for web services and PostgreSQL.
 3. **Start command:** `celery -A config worker -l info --concurrency=2`
 4. Same environment variables
 
+### Celery Beat (Render Background Worker)
+1. Create a second **Background Worker** service from the backend image
+2. **Start command:** `celery -A config beat -l info`
+3. Use the same database, Redis, secret, and encryption environment variables
+
 ### PostgreSQL
 - Create a **PostgreSQL** service on Render (free tier: 256 MB)
 - Copy the `Internal Database URL` as `DATABASE_URL`
@@ -211,12 +246,15 @@ Render offers a free tier for web services and PostgreSQL.
 3. Framework: Next.js (auto-detected)
 4. Environment variables:
    ```
-   NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api
+   NEXT_PUBLIC_API_URL=/api
+   BACKEND_API_URL=https://your-backend.onrender.com/api
    ```
 5. Deploy
 
 ### Custom domain
 Configure your domain in Vercel project settings. Update `CORS_ALLOWED_ORIGINS` in the backend to include `https://yourdomain.com`.
+
+Browser API traffic must stay on the frontend origin (`/api`). Next.js or Nginx proxies that path to Django, allowing Secure, HTTP-only access and refresh cookies to protect the session without exposing tokens to JavaScript.
 
 ---
 
@@ -250,6 +288,7 @@ Configure your domain in Vercel project settings. Update `CORS_ALLOWED_ORIGINS` 
 - [ ] Health check endpoint responding: `GET /api/healthz/` → 200
 - [ ] Readiness endpoint responding: `GET /api/readyz/` → 200 (shared cache, task queue, customer delivery, media, and verified backups)
 - [ ] Celery worker running and processing tasks
+- [ ] Celery Beat running; `/api/readyz/` reports a recent scheduler heartbeat
 - [ ] Daily database backup scheduled
 - [ ] A backup has been restored into an isolated database and `BACKUP_VERIFICATION_TOKEN` records that successful drill
 - [ ] Log rotation configured (handled by `RotatingFileHandler` — 10MB × 10 files)

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 
 export function TechnicianLocationTracker() {
   const { user, isAuthenticated } = useAuth();
@@ -11,16 +11,9 @@ export function TechnicianLocationTracker() {
   useEffect(() => {
     const updateLocation = async (lat: number, lng: number) => {
       try {
-        const token = localStorage.getItem("scm_access_token");
-        if (!token) return;
-        
-        await fetch(`${API_BASE_URL}/core/users/update-location/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ latitude: lat, longitude: lng })
+        await apiClient.post("/core/users/update-location/", {
+          latitude: lat,
+          longitude: lng,
         });
       } catch (err) {
         console.error("Failed to update technician location", err);

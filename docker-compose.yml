@@ -29,13 +29,14 @@ services:
     build:
       context: ./Backend
       dockerfile: Dockerfile
-    env_file: .env
+    env_file: Backend/.env
     environment:
       DATABASE_URL: postgres://scm:scm@postgres:5432/scm
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       GUNICORN_BIND: "0.0.0.0:8001"
+      SECURE_SSL_REDIRECT: "${SECURE_SSL_REDIRECT:-False}"
     volumes:
       - scm_static:/app/staticfiles
       - scm_media:/app/media
@@ -56,7 +57,7 @@ services:
       context: ./Backend
       dockerfile: Dockerfile
     command: celery -A config worker -l info --concurrency=4 --without-gossip --without-mingle
-    env_file: .env
+    env_file: Backend/.env
     environment:
       DATABASE_URL: postgres://scm:scm@postgres:5432/scm
       REDIS_URL: redis://redis:6379/0
@@ -69,6 +70,34 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping --timeout 5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  celery-beat:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    command: celery -A config beat -l info --schedule=/tmp/celerybeat-schedule
+    env_file: Backend/.env
+    environment:
+      DATABASE_URL: postgres://scm:scm@postgres:5432/scm
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
@@ -79,9 +108,16 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      BACKEND_API_URL: http://backend:8001/api
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   nginx:
     image: nginx:alpine
@@ -92,8 +128,20 @@ services:
       - scm_static:/var/www/static:ro
       - scm_media:/var/www/media:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      celery-worker:
+        condition: service_healthy
+      celery-beat:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/api/readyz/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
 
 volumes:
   postgres_data:

@@ -77,6 +77,7 @@ export function mockUser(role: UserRole, permissions?: Partial<UserPermissions>)
     branch_names: ["Main Branch"],
     is_active: true,
     is_staff: role === "SUPER_ADMIN",
+    onboarding_dismissed: false,
     last_login: null,
     date_joined: "2024-01-01T00:00:00Z",
     created_at: "2024-01-01T00:00:00Z",

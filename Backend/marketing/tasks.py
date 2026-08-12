@@ -9,7 +9,7 @@ from django.utils import timezone
 def process_due_service_reminders():
     from marketing.models import ServiceReminder
     from notifications.models import NotificationChannel, NotificationLog, NotificationType
-    from notifications.services import NotificationService
+    from notifications.tasks import enqueue_notification
 
     delivered = 0
     due_ids = list(ServiceReminder.objects.filter(
@@ -17,7 +17,7 @@ def process_due_service_reminders():
     ).values_list('id', flat=True)[:200])
     for reminder_id in due_ids:
         with transaction.atomic():
-            reminder = ServiceReminder.objects.select_for_update().select_related(
+            reminder = ServiceReminder.objects.select_for_update(of=('self',)).select_related(
                 'job', 'customer', 'branch', 'branch__reminder_config',
             ).get(pk=reminder_id)
             if reminder.status != 'PENDING':
@@ -42,18 +42,14 @@ def process_due_service_reminders():
                 recipient_name=reminder.customer.get_full_name(),
                 message=message,
                 job=reminder.job,
+                delivery_context={'service_reminder_id': str(reminder.pk)},
             )
-            if reminder.channel == NotificationChannel.WHATSAPP:
-                NotificationService._send_whatsapp(log.recipient_mobile, log.message, log)
-            else:
-                NotificationService._send_sms(log.recipient_mobile, log.message, log)
-            log.refresh_from_db()
-            if log.status == 'SENT':
-                reminder.status = 'SENT'
-                reminder.sent_at = timezone.now()
-                delivered += 1
-            else:
-                reminder.status = 'FAILED'
-                reminder.error_message = log.error_message
-            reminder.save(update_fields=['status', 'sent_at', 'error_message', 'updated_at'])
+            reminder.status = 'QUEUED'
+            reminder.error_message = ''
+            reminder.save(update_fields=['status', 'error_message', 'updated_at'])
+            transaction.on_commit(
+                lambda notification_id=log.pk: enqueue_notification(notification_id),
+                robust=True,
+            )
+            delivered += 1
     return delivered

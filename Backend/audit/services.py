@@ -18,8 +18,8 @@ class AuditLogService:
     """
 
     @staticmethod
-    def log(user, action, model_name, object_id, details=None, 
-            old_values=None, new_values=None, request=None):
+    def log(user, action, model_name, object_id, details=None,
+            old_values=None, new_values=None, request=None, strict=False):
         """
         Create an audit log entry.
         
@@ -46,9 +46,10 @@ class AuditLogService:
             
             if request:
                 log.ip_address = AuditLogService._get_client_ip(request)
-                log.user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
-                log.request_path = request.path[:500]
-                log.request_method = request.method
+                request_meta = getattr(request, 'META', {})
+                log.user_agent = request_meta.get('HTTP_USER_AGENT', '')[:500]
+                log.request_path = getattr(request, 'path', '')[:500]
+                log.request_method = getattr(request, 'method', '')
             
             with transaction.atomic():
                 log.save()
@@ -57,10 +58,12 @@ class AuditLogService:
             
         except Exception as e:
             logger.error(f"Failed to create audit log: {str(e)}")
+            if strict:
+                raise
             return None
 
     @staticmethod
-    def log_create(user, obj, request=None, details=None):
+    def log_create(user, obj, request=None, details=None, strict=False):
         """Log object creation."""
         return AuditLogService.log(
             user=user,
@@ -69,7 +72,8 @@ class AuditLogService:
             object_id=str(obj.pk),
             new_values=AuditLogService._get_model_dict(obj),
             details=details,
-            request=request
+            request=request,
+            strict=strict,
         )
 
     @staticmethod
@@ -155,10 +159,11 @@ class AuditLogService:
     @staticmethod
     def _get_client_ip(request):
         """Extract client IP from request."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        request_meta = getattr(request, 'META', {})
+        x_forwarded_for = request_meta.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
             return x_forwarded_for.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR')
+        return request_meta.get('REMOTE_ADDR')
 
     @staticmethod
     def _json_safe(value):

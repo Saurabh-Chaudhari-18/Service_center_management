@@ -41,9 +41,7 @@ class Expense(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='expenses',
-        null=True,
-        blank=True
+        related_name='expenses'
     )
 
     # Expense Details

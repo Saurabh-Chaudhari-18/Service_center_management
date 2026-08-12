@@ -94,6 +94,7 @@ class ServiceReminder(TimeStampedModel):
         max_length=20,
         choices=[
             ('PENDING', 'Pending'),
+            ('QUEUED', 'Queued'),
             ('SENT', 'Sent'),
             ('FAILED', 'Failed'),
             ('CANCELLED', 'Cancelled'),
@@ -218,9 +219,7 @@ class CustomerLedgerEntry(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='ledger_entries',
-        null=True,
-        blank=True
+        related_name='ledger_entries'
     )
     customer = models.ForeignKey(
         Customer,
@@ -275,6 +274,13 @@ class CustomerLedgerEntry(TimeStampedModel):
     class Meta:
         ordering = ['-entry_date', '-created_at']
         verbose_name_plural = 'Customer ledger entries'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'reference_type', 'reference_id'],
+                condition=~models.Q(reference_id=''),
+                name='unique_customer_ledger_reference',
+            ),
+        ]
         indexes = [
             models.Index(fields=['customer', 'entry_date']),
             models.Index(fields=['branch', 'customer']),

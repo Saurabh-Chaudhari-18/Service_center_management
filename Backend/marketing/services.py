@@ -2,7 +2,58 @@
 
 from datetime import timedelta
 
-from marketing.models import ReminderConfig, ServiceReminder
+from django.db import transaction
+from django.utils import timezone
+
+from customers.models import Customer
+from marketing.models import CustomerLedgerEntry, ReminderConfig, ServiceReminder
+
+
+def append_customer_ledger_entry(
+    *,
+    customer,
+    branch,
+    entry_type,
+    amount,
+    description,
+    reference_type,
+    reference_id,
+    created_by,
+    entry_date=None,
+    notes='',
+):
+    """Append one ledger entry while serializing balance changes per customer."""
+    with transaction.atomic():
+        locked_customer = Customer.objects.select_for_update().get(pk=customer.pk)
+        reference_id = str(reference_id or '')
+        if reference_id:
+            existing = CustomerLedgerEntry.objects.filter(
+                customer=locked_customer,
+                reference_type=reference_type,
+                reference_id=reference_id,
+            ).first()
+            if existing:
+                return existing
+
+        last_entry = CustomerLedgerEntry.objects.filter(
+            customer=locked_customer,
+        ).order_by('-created_at').first()
+        current_balance = last_entry.running_balance if last_entry else 0
+        delta = amount if entry_type == 'CREDIT' else -amount
+        entry = CustomerLedgerEntry.objects.create(
+            branch=branch,
+            customer=locked_customer,
+            entry_type=entry_type,
+            amount=amount,
+            description=description,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            entry_date=entry_date or timezone.localdate(),
+            running_balance=current_balance + delta,
+            created_by=created_by,
+            notes=notes,
+        )
+        return entry
 
 
 def schedule_service_reminders(job):

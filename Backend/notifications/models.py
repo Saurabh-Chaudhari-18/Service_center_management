@@ -146,6 +146,7 @@ class NotificationLog(TimeStampedModel):
         max_length=20,
         choices=[
             ('PENDING', 'Pending'),
+            ('SENDING', 'Sending'),
             ('SENT', 'Sent'),
             ('DELIVERED', 'Delivered'),
             ('FAILED', 'Failed'),
@@ -158,6 +159,8 @@ class NotificationLog(TimeStampedModel):
         help_text="Response from SMS/WhatsApp provider"
     )
     error_message = models.TextField(blank=True)
+    delivery_context = models.JSONField(default=dict, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
     
     # Retry
     retry_count = models.PositiveIntegerField(default=0)
@@ -178,6 +181,10 @@ class NotificationLog(TimeStampedModel):
             models.Index(fields=['branch', 'notification_type']),
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
+            models.Index(
+                fields=['status', 'dispatched_at'],
+                name='notif_outbox_pending_idx',
+            ),
         ]
 
     def __str__(self):

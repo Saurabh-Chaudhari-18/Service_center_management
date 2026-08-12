@@ -6,6 +6,7 @@ import {
   startOfYear, endOfYear, subYears,
   format,
 } from "date-fns";
+import { Button, Input } from "@/components/ui";
 
 export type DateRange = { from: string; to: string };
 
@@ -111,14 +112,15 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
   return (
     <div className="relative inline-block" ref={containerRef}>
       {/* Trigger button */}
-      <button
+      <Button
+        type="button"
+        variant="secondary"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-medium text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 transition-all shadow-sm"
+        leftIcon={<Calendar className="w-4 h-4 text-primary-600" />}
+        rightIcon={<ChevronDown className={`w-3.5 h-3.5 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />}
       >
-        <Calendar className="w-4 h-4 text-green-600" />
         {showLabel && <span>{formatLabel()}</span>}
-        <ChevronDown className={`w-3.5 h-3.5 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+      </Button>
 
       {/* Dropdown */}
       {open && (
@@ -134,7 +136,7 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
                     onClick={() => selectPreset(preset)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-left ${
                       active === preset.key
-                        ? "bg-green-600 text-white shadow-sm"
+                        ? "bg-primary-600 text-white shadow-sm"
                         : "bg-neutral-50 text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
@@ -150,31 +152,31 @@ export function GSTDateFilter({ onChange, showLabel = true }: GSTDateFilterProps
                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1 px-1">Custom Range</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-neutral-500 mb-0.5">From</label>
-                    <input
+                    <Input
+                      label="From"
                       type="date"
                       value={range.from}
                       onChange={(e) => handleCustomChange("from", e.target.value)}
-                      className="w-full border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                   </div>
                   <span className="text-neutral-300 text-xs mt-4">→</span>
                   <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-neutral-500 mb-0.5">To</label>
-                    <input
+                    <Input
+                      label="To"
                       type="date"
                       value={range.to}
                       onChange={(e) => handleCustomChange("to", e.target.value)}
-                      className="w-full border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                   </div>
                 </div>
-                <button
+                <Button
+                  type="button"
+                  size="sm"
                   onClick={() => setOpen(false)}
-                  className="w-full py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors mt-1"
+                  className="mt-1 w-full"
                 >
                   Apply Range
-                </button>
+                </Button>
               </div>
             )}
 

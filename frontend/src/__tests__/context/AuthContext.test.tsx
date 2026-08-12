@@ -91,6 +91,7 @@ function IsRoleProbe({ roles }: { roles: UserRole[] }) {
 
 beforeEach(() => {
   vi.mocked(tokenManager.getAccessToken).mockReturnValue("fake-access-token");
+  vi.mocked(authApi.refreshToken).mockResolvedValue({ authenticated: true });
 });
 
 describe("hasPermission", () => {
@@ -99,7 +100,7 @@ describe("hasPermission", () => {
   });
 
   it("returns false when user is null (no token)", async () => {
-    vi.mocked(tokenManager.getAccessToken).mockReturnValue(null);
+    vi.mocked(authApi.refreshToken).mockRejectedValue(new Error("no session"));
 
     render(<HasPermissionProbe permission="canViewBilling" />, { wrapper: Wrapper });
 
@@ -229,7 +230,7 @@ describe("isRole", () => {
   });
 
   it("returns false when user is null (no token)", async () => {
-    vi.mocked(tokenManager.getAccessToken).mockReturnValue(null);
+    vi.mocked(authApi.refreshToken).mockRejectedValue(new Error("no session"));
 
     render(<IsRoleProbe roles={["OWNER"]} />, { wrapper: Wrapper });
 

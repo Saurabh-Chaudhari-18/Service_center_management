@@ -8,6 +8,7 @@ WA   → Twilio       (paid, configured separately via TWILIO_* env vars)
 import logging
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.db import transaction
 from django.template.loader import render_to_string
 from notifications.models import (
     NotificationLog, NotificationTemplate, NotificationType,
@@ -26,14 +27,6 @@ class NotificationService:
     @staticmethod
     def on_job_created(job):
         """Send notification when a job is created."""
-        # Generate job card PDF to attach to email
-        job_pdf = None
-        try:
-            from jobs.services import JobCardService
-            job_pdf = JobCardService.generate_job_card_pdf(job)
-        except Exception as e:
-            logger.warning(f"Could not generate job card PDF: {e}")
-
         return NotificationService._send_customer_notification(
             job=job,
             notification_type=NotificationType.JOB_CREATED,
@@ -44,7 +37,6 @@ class NotificationService:
                 'device': f"{job.brand} {job.model}",
                 'tracking_pin': getattr(job, 'tracking_pin', '') or '',
             },
-            job_pdf=job_pdf,
             job_pdf_filename=f"{job.job_number.replace('/', '-')}.pdf",
         )
 
@@ -284,6 +276,32 @@ class NotificationService:
                 # Persist the log row first — this is the durability record.
                 # The actual send is dispatched to a Celery worker so it never
                 # blocks the request thread.
+                default_subject = (
+                    f"Job Card {job.job_number} - Device Received"
+                    if notification_type == NotificationType.JOB_CREATED and job
+                    else f"Credit Note {credit_note.credit_note_number}"
+                    if credit_note
+                    else f"Invoice {invoice.invoice_number}"
+                    if invoice and not job
+                    else f"Update on Job {job.job_number}"
+                    if job
+                    else 'Service Center Notification'
+                )
+                subject = template.subject if template and template.subject else default_subject
+                html_message = ''
+                if channel == NotificationChannel.EMAIL:
+                    html_message = render_to_string(
+                        'emails/job_notification.html',
+                        {
+                            'branch': branch,
+                            'message': message,
+                            'job_number': context.get('job_number'),
+                            'device': context.get('device'),
+                            'invoice_number': context.get('invoice_number'),
+                            'amount': context.get('amount'),
+                        },
+                    )
+
                 log = NotificationLog.objects.create(
                     branch=branch,
                     notification_type=notification_type,
@@ -291,92 +309,42 @@ class NotificationService:
                     recipient_mobile=recipient_mobile,
                     recipient_email=recipient_email if channel == NotificationChannel.EMAIL else '',
                     recipient_name=recipient_name,
+                    subject=subject,
                     message=message,
                     job=job,
                     invoice=invoice,
                     credit_note=credit_note,
-                    status='PENDING'
+                    status='PENDING',
+                    delivery_context={'html_message': html_message},
                 )
                 result['channels'].append(channel)
 
-                # Dispatch to background worker.
-                # Each .delay() call is individually wrapped so that a Celery broker
-                # or Redis result-store outage (e.g. "Retry limit exceeded reconnecting
-                # to result store") never bubbles up and crashes the job creation flow.
-                from notifications.tasks import deliver_sms, deliver_whatsapp, deliver_email
+                # The row is the transactional outbox record. Publish only
+                # after commit; if publishing fails it remains PENDING with no
+                # dispatch timestamp and the periodic dispatcher will recover it.
+                if (
+                    channel == NotificationChannel.WHATSAPP
+                    and NotificationChannel.SMS in channels_to_try
+                ):
+                    channels_to_try.remove(NotificationChannel.SMS)
 
-                if channel == NotificationChannel.WHATSAPP:
-                    try:
-                        deliver_whatsapp.delay(str(log.id))
-                    except Exception as celery_err:
-                        logger.warning(
-                            f"Could not queue WHATSAPP task (Celery/Redis unavailable): {celery_err}. "
-                            "Notification logged as FAILED — will retry on next worker restart."
-                        )
-                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
-                        result['failed'] += 1
-                    else:
-                        result['queued'] += 1
+                log_id = log.pk
 
-                elif channel == NotificationChannel.SMS:
-                    try:
-                        deliver_sms.delay(str(log.id))
-                    except Exception as celery_err:
-                        logger.warning(
-                            f"Could not queue SMS task (Celery/Redis unavailable): {celery_err}. "
-                            "Notification logged as FAILED — will retry on next worker restart."
-                        )
-                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
-                        result['failed'] += 1
-                    else:
-                        result['queued'] += 1
+                def publish_after_commit(notification_id=log_id):
+                    from notifications.tasks import enqueue_notification
 
-                elif channel == NotificationChannel.EMAIL:
-                    default_subject = (
-                        f"Job Card {job.job_number} — Device Received"
-                        if notification_type == NotificationType.JOB_CREATED and job
-                        else (
-                            f"Credit Note {credit_note.credit_note_number}"
-                            if credit_note
-                            else f"Invoice {invoice.invoice_number}"
-                            if invoice and not job
-                            else f"Update on Job {job.job_number}"
-                        )
-                    )
-                    subject = template.subject if template and template.subject else default_subject
+                    enqueue_notification(notification_id)
 
-                    html_context = {
-                        'branch': branch,
-                        'message': message,
-                        'job_number': context.get('job_number'),
-                        'device': context.get('device'),
-                        'invoice_number': context.get('invoice_number'),
-                        'amount': context.get('amount'),
-                    }
-                    html_message = render_to_string('emails/job_notification.html', html_context)
-
-                    try:
-                        deliver_email.delay(str(log.id), recipient_email, subject, html_message)
-                    except Exception as celery_err:
-                        logger.warning(
-                            f"Could not queue EMAIL task (Celery/Redis unavailable): {celery_err}. "
-                            "Notification logged as FAILED — will retry on next worker restart."
-                        )
-                        log.mark_failed(f"Celery dispatch failed: {celery_err}")
-                        result['failed'] += 1
-                    else:
-                        result['queued'] += 1
-                
-                # Only break if we successfully sent a mobile notification (SMS/WA). 
-                # We still want the loop to continue to send the EMAIL (which is the last channel in the list).
-                if channel in [NotificationChannel.WHATSAPP, NotificationChannel.SMS]:
-                    # Remove SMS from channels_to_try so we don't send both WA and SMS
-                    if NotificationChannel.SMS in channels_to_try and channel == NotificationChannel.WHATSAPP:
-                        channels_to_try.remove(NotificationChannel.SMS)
-                
+                transaction.on_commit(publish_after_commit, robust=True)
+                result['queued'] += 1
+                continue
             except Exception as e:
                 logger.error(f"Failed to send {channel} notification: {str(e)}")
-                result['failed'] += 1
+                # Outbox construction is part of the surrounding business
+                # transaction. Broker/provider outages happen later in workers;
+                # a persistence or rendering failure here must not silently
+                # commit a business event with no durable notification record.
+                raise
         return result
 
     @staticmethod

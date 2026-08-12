@@ -20,12 +20,15 @@ class TestLogin:
     def test_valid_credentials_return_access_and_secure_refresh_cookie(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
         assert resp.status_code == 200
-        assert 'access' in resp.data
+        assert resp.data['authenticated'] is True
+        assert 'access' not in resp.data
         assert 'refresh' not in resp.data
         cookie = resp.cookies[settings.JWT_REFRESH_COOKIE_NAME]
         assert cookie.value
         assert cookie['httponly'] is True
-        assert len(resp.data['access']) > 20
+        access_cookie = resp.cookies[settings.JWT_ACCESS_COOKIE_NAME]
+        assert access_cookie.value
+        assert access_cookie['httponly'] is True
 
     def test_wrong_password_returns_401(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'WRONG'}, format='json')
@@ -61,18 +64,19 @@ class TestTokenRefresh:
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
         assert resp.status_code == 200
         assert settings.JWT_REFRESH_COOKIE_NAME in resp.cookies
-        return resp.data['access']
+        return resp.cookies[settings.JWT_ACCESS_COOKIE_NAME].value
 
     def test_valid_refresh_token_returns_new_access_token(self, api_client, owner):
         access1 = self._login(api_client, owner)
         resp = api_client.post(REFRESH_URL, {}, format='json')
         assert resp.status_code == 200
-        assert 'access' in resp.data
+        assert resp.data['authenticated'] is True
+        assert settings.JWT_ACCESS_COOKIE_NAME in resp.cookies
 
     def test_refresh_returns_different_access_token(self, api_client, owner):
         access1 = self._login(api_client, owner)
         resp = api_client.post(REFRESH_URL, {}, format='json')
-        assert resp.data['access'] != access1
+        assert resp.cookies[settings.JWT_ACCESS_COOKIE_NAME].value != access1
 
     def test_invalid_refresh_token_returns_401(self, api_client):
         resp = api_client.post(REFRESH_URL, {'refresh': 'not.a.token'}, format='json')
@@ -101,7 +105,9 @@ class TestBearerTokenAccess:
 
     def test_valid_bearer_token_grants_access(self, api_client, owner, branch, seed_permissions):
         login = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
-        api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {login.data["access"]}')
+        api_client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {login.cookies[settings.JWT_ACCESS_COOKIE_NAME].value}'
+        )
         resp = api_client.get(JOBS_URL, HTTP_X_BRANCH_ID=str(branch.id))
         assert resp.status_code == 200
 
@@ -112,7 +118,19 @@ class TestBearerTokenAccess:
 
     def test_bearer_token_without_branch_header_still_authenticates(self, api_client, owner, seed_permissions):
         login = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
-        api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {login.data["access"]}')
+        api_client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {login.cookies[settings.JWT_ACCESS_COOKIE_NAME].value}'
+        )
         resp = api_client.get(JOBS_URL)
         # Should be 200 or 400 (missing branch), never 401
         assert resp.status_code != 401
+
+    def test_http_only_access_cookie_grants_access(
+        self, api_client, owner, branch, seed_permissions
+    ):
+        login = api_client.post(
+            TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json'
+        )
+        assert settings.JWT_ACCESS_COOKIE_NAME in login.cookies
+        response = api_client.get(JOBS_URL, HTTP_X_BRANCH_ID=str(branch.id))
+        assert response.status_code == 200

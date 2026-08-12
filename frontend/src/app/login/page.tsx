@@ -5,7 +5,19 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import {
+  Wrench,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Crown,
+  BriefcaseBusiness,
+  Phone,
+  Calculator,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button, Input } from "@/components/ui";
 
@@ -19,6 +31,19 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+const DEMO_ACCOUNTS: Array<{
+  label: string;
+  email: string;
+  icon: React.ElementType;
+}> = [
+  { label: "Owner", email: "demo-owner@scm.local", icon: Crown },
+  { label: "Manager", email: "demo-manager@scm.local", icon: BriefcaseBusiness },
+  { label: "Technician", email: "demo-tech@scm.local", icon: Wrench },
+  { label: "Receptionist", email: "demo-reception@scm.local", icon: Phone },
+  { label: "Accountant", email: "demo-accounts@scm.local", icon: Calculator },
+  { label: "Super Admin", email: "demo-superadmin@scm.local", icon: ShieldCheck },
+];
 
 // =====================================================
 // Login Page Component
@@ -145,66 +170,22 @@ export default function LoginPage() {
                 Quick Demo Login (Click to autofill)
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-owner@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  👑 Owner
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-manager@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  💼 Manager
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-tech@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  🔧 Technician
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-reception@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  📞 Receptionist
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-accounts@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  📊 Accountant
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue("email", "demo-superadmin@scm.local");
-                    setValue("password", "demo12345");
-                  }}
-                  className="min-h-11 px-2 py-1.5 text-xs bg-white hover:bg-indigo-50 border border-neutral-200 hover:border-indigo-300 text-neutral-700 hover:text-indigo-700 rounded-lg font-medium shadow-sm transition-all text-center"
-                >
-                  🛡️ Super Admin
-                </button>
+                {DEMO_ACCOUNTS.map(({ label, email, icon: Icon }) => (
+                  <Button
+                    key={email}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<Icon className="h-4 w-4" />}
+                    onClick={() => {
+                      setValue("email", email);
+                      setValue("password", "demo12345");
+                    }}
+                    className="w-full justify-start rounded-lg text-xs shadow-sm"
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
             </div>
           )}

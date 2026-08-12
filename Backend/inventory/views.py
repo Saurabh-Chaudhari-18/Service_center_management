@@ -33,6 +33,7 @@ from core.pagination import OptionalPageSizePagination
 
 
 class InventoryCategoryViewSet(BranchScopedMixin, viewsets.ModelViewSet):
+    include_universal = True
     """ViewSet for inventory categories."""
     serializer_class = InventoryCategorySerializer
     permission_classes = [IsAuthenticated, IsBranchMember, CanManageInventory]
@@ -300,52 +301,32 @@ class InventoryItemViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return Response(data)
 
 
-class InventoryAdjustmentViewSet(viewsets.ReadOnlyModelViewSet):
+class InventoryAdjustmentViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only ViewSet for inventory adjustments."""
     serializer_class = InventoryAdjustmentSerializer
-    permission_classes = [IsAuthenticated, CanManageInventory]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageInventory]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['item', 'adjustment_type', 'is_manual_adjustment']
     ordering = ['-created_at']
+    branch_field = 'item__branch'
+    queryset = InventoryAdjustment.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return InventoryAdjustment.objects.none()
-        
-        queryset = InventoryAdjustment.objects.select_related('item', 'adjusted_by')
-        
-        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
-        if branch_id:
-            queryset = queryset.filter(item__branch_id=branch_id)
-        else:
-            queryset = queryset.filter(item__branch__in=user.get_accessible_branches())
-            
-        return queryset
+        return super().get_queryset().select_related('item', 'adjusted_by')
 
 
-class JobPartUsageViewSet(viewsets.ReadOnlyModelViewSet):
+class JobPartUsageViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only ViewSet for job part usage records."""
     serializer_class = JobPartUsageSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsBranchMember]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['job', 'inventory_item']
     ordering = ['-created_at']
+    branch_field = 'job__branch'
+    queryset = JobPartUsage.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return JobPartUsage.objects.none()
-        
-        queryset = JobPartUsage.objects.select_related('job', 'inventory_item')
-        
-        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
-        if branch_id:
-            queryset = queryset.filter(job__branch_id=branch_id)
-        else:
-            queryset = queryset.filter(job__branch__in=user.get_accessible_branches())
-            
-        return queryset
+        return super().get_queryset().select_related('job', 'inventory_item')
 
 
 class StockTransferViewSet(viewsets.ModelViewSet):
@@ -365,27 +346,13 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return StockTransfer.objects.none()
-        
+        from core.permissions import get_scoped_branches
         queryset = StockTransfer.objects.select_related('from_branch', 'to_branch', 'initiated_by')
-        
-        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
-        
-        if branch_id:
-            queryset = queryset.filter(
-                models.Q(from_branch_id=branch_id) |
-                models.Q(to_branch_id=branch_id)
-            )
-        else:
-            accessible = user.get_accessible_branches()
-            queryset = queryset.filter(
-                models.Q(from_branch__in=accessible) |
-                models.Q(to_branch__in=accessible)
-            )
-            
-        return queryset
+        branches = get_scoped_branches(self.request, self)
+        return queryset.filter(
+            models.Q(from_branch__in=branches) |
+            models.Q(to_branch__in=branches)
+        )
 
     def perform_create(self, serializer):
         serializer.save(initiated_by=self.request.user)

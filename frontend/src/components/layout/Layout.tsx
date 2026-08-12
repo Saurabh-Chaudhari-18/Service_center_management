@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { notificationsApi } from "@/lib/api";
 import { useTheme } from "@/context/ThemeContext";
@@ -123,7 +123,6 @@ function useMobileSidebar() {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user, currentBranch, accessibleBranches, switchBranch, logout, hasPermission, isRole, gstEnabled } = useAuth();
   const [branchMenuOpen, setBranchMenuOpen] = React.useState(false);
@@ -168,7 +167,6 @@ export function Sidebar() {
     try {
       await switchBranch(branchId);
       setBranchMenuOpen(false);
-      await queryClient.invalidateQueries();
       router.refresh();
     } catch (error) {
       console.error("Failed to switch branch:", error);
@@ -342,7 +340,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
-  const { currentBranch, organizationBranding, hasPermission } = useAuth();
+  const { currentBranch, hasPermission } = useAuth();
   const { toggle } = useMobileSidebar();
   const canManageNotifications = hasPermission("canManageBranches");
 
@@ -383,13 +381,9 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
               ))}
             </nav>
           )}
-          {organizationBranding?.name && organizationBranding.name !== "ServiceHub" ? (
-            <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 dark:from-indigo-400 dark:via-violet-400 dark:to-purple-400 bg-clip-text text-transparent truncate">
-              {title}
-            </h1>
-          ) : (
-            <h1 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent truncate">{title}</h1>
-          )}
+          <h1 className="truncate text-lg font-bold text-neutral-900 dark:text-neutral-50 lg:text-xl">
+            {title}
+          </h1>
           {subtitle && <p className="text-xs lg:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">{subtitle}</p>}
         </div>
       </div>

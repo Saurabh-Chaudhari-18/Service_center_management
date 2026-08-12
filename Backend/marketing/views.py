@@ -30,19 +30,14 @@ from core.permissions import (
 from core.pagination import OptionalPageSizePagination
 
 
-class ReminderConfigViewSet(viewsets.ModelViewSet):
+class ReminderConfigViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """ViewSet for reminder configuration."""
     serializer_class = ReminderConfigSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrManager]
     queryset = ReminderConfig.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return self.queryset.none()
-        return self.queryset.filter(
-            branch__in=user.get_accessible_branches()
-        )
+        return super().get_queryset()
 
 
 class ServiceReminderViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
@@ -83,19 +78,14 @@ class ServiceReminderViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
         return Response({'message': 'Reminder marked as sent.'})
 
 
-class ReviewConfigViewSet(viewsets.ModelViewSet):
+class ReviewConfigViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """ViewSet for review configuration."""
     serializer_class = ReviewConfigSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrManager]
     queryset = ReviewConfig.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return self.queryset.none()
-        return self.queryset.filter(
-            branch__in=user.get_accessible_branches()
-        )
+        return super().get_queryset()
 
 
 class ReviewRequestViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
@@ -142,28 +132,20 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         return CustomerLedgerEntrySerializer
 
     def perform_create(self, serializer):
-        """Create ledger entry and calculate running balance."""
-        customer = serializer.validated_data['customer']
-        entry_type = serializer.validated_data['entry_type']
-        amount = serializer.validated_data['amount']
+        """Create a row-locked ledger entry through the financial service."""
+        from marketing.services import append_customer_ledger_entry
 
-        # Get current balance
-        last_entry = CustomerLedgerEntry.objects.filter(
-            customer=customer
-        ).order_by('-entry_date', '-created_at').first()
-
-        current_balance = last_entry.running_balance if last_entry else Decimal('0.00')
-
-        if entry_type == 'CREDIT':
-            new_balance = current_balance + amount
-        else:
-            new_balance = current_balance - amount
-
-        branch = serializer.validated_data['branch']
-        serializer.save(
+        serializer.instance = append_customer_ledger_entry(
+            branch=serializer.validated_data['branch'],
+            customer=serializer.validated_data['customer'],
+            entry_type=serializer.validated_data['entry_type'],
+            amount=serializer.validated_data['amount'],
+            description=serializer.validated_data['description'],
+            reference_type=serializer.validated_data.get('reference_type', ''),
+            reference_id=serializer.validated_data.get('reference_id', ''),
+            entry_date=serializer.validated_data.get('entry_date'),
             created_by=self.request.user,
-            running_balance=new_balance,
-            branch=branch,
+            notes=serializer.validated_data.get('notes', ''),
         )
         self._audit_create(serializer.instance)
 
@@ -209,13 +191,13 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         from customers.models import Customer
         from django.db.models import Sum, Q
 
-        user = request.user
-        branches = user.get_accessible_branches()
+        scoped_entries = self.get_queryset()
+        branch_ids = scoped_entries.values_list('branch_id', flat=True).distinct()
 
         # --- 1. Get pending/partial invoices grouped by customer mobile ---
         unpaid_invoices = (
             Invoice.objects.filter(
-                branch__in=branches,
+                branch_id__in=branch_ids,
                 status__in=[InvoiceStatus.PENDING, InvoiceStatus.PARTIAL],
                 is_finalized=True,
             )
@@ -279,7 +261,10 @@ class CustomerLedgerViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         all_mobiles = list(invoice_data.keys())
         mobile_to_customer = {
             c.mobile: c
-            for c in Customer.objects.filter(mobile__in=all_mobiles)
+            for c in Customer.objects.filter(
+                mobile__in=all_mobiles,
+                branch_id__in=branch_ids,
+            )
         }
 
         result = []

@@ -1,0 +1,668 @@
+"""
+Job Card ViewSets with lifecycle management and branch-scoped access.
+"""
+
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
+from rest_framework.permissions import IsAuthenticated
+from django_filters import rest_framework as filters
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django.db import transaction
+from django.db import models as django_models
+from django.utils import timezone
+from drf_spectacular.utils import extend_schema
+
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.throttling import ScopedRateThrottle
+
+from jobs.models import (
+    JobCard, JobStatus, JobStatusHistory, JobAccessory,
+    JobPhoto, JobNote, PartRequest, DeviceType, AccessoryType,
+    PickupRequest, PickupRequestStatus, ALLOWED_PICKUP_TRANSITIONS,
+    DropdownOption, DropdownCategory,
+    OutsourceVendor, OutsourcedRepair, OutsourcedRepairStatus
+)
+from jobs.serializers import (
+    JobCardSerializer, JobCardCreateSerializer, JobCardListSerializer,
+    JobStatusUpdateSerializer, JobAssignTechnicianSerializer,
+    JobCardUpdateSerializer,
+    JobDiagnosisSerializer, JobEstimateApprovalSerializer,
+    JobDeliverySerializer, DevicePasswordAccessSerializer,
+    JobAccessorySerializer, JobPhotoSerializer, JobNoteSerializer,
+    PartRequestSerializer, AccessoryTypeSerializer, DeviceTypeSerializer,
+    JobStatusHistorySerializer,
+    PickupRequestSerializer, PickupRequestCreateSerializer,
+    PickupRequestListSerializer, PickupRequestStatusUpdateSerializer,
+    DropdownOptionSerializer,
+    OutsourceVendorSerializer, OutsourcedRepairSerializer,
+    OutsourcedRepairCreateSerializer, OutsourcedRepairReturnSerializer
+)
+from audit.services import AuditLogService
+from core.permissions import (
+    IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
+    CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin,
+    IsOwnerOrManager, CanManageOutsourcing, CanManageCustomerApproval, require_accessible_branch,
+    get_requested_branch_id,
+)
+from core.models import Role, User, Branch
+from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
+from core.pagination import OptionalPageSizePagination
+from core.serializers import GenericResponseSerializer, KeyValueSerializer
+
+
+class JobCardFilter(filters.FilterSet):
+    """
+    Custom FilterSet for Job Cards to support string filters like
+    assigned_technician='unassigned', status='PENDING', and boolean is_pending.
+    """
+    assigned_technician = filters.CharFilter(method='filter_assigned_technician')
+    is_pending = filters.BooleanFilter(method='filter_is_pending')
+    status = filters.CharFilter(method='filter_status')
+    device_type = filters.CharFilter(field_name='device_type')
+    is_urgent = filters.BooleanFilter(field_name='is_urgent')
+    is_overdue = filters.BooleanFilter(method='filter_is_overdue')
+
+    class Meta:
+        model = JobCard
+        fields = ['status', 'device_type', 'is_urgent', 'is_overdue', 'assigned_technician', 'is_pending']
+
+    def filter_is_overdue(self, queryset, name, value):
+        if not value:
+            return queryset
+        from django.utils import timezone
+        return queryset.filter(
+            estimated_completion_date__lt=timezone.localdate(),
+        ).exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+
+    def filter_assigned_technician(self, queryset, name, value):
+        if not value or value.upper() == 'ALL':
+            return queryset
+        if value.lower() in ['unassigned', 'null', 'none', 'is_null']:
+            return queryset.filter(assigned_technician__isnull=True)
+        try:
+            return queryset.filter(assigned_technician_id=value)
+        except Exception:
+            return queryset.none()
+
+    def filter_is_pending(self, queryset, name, value):
+        if value:
+            return queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+        return queryset
+
+    def filter_status(self, queryset, name, value):
+        if not value or value.upper() == 'ALL':
+            return queryset
+        if value.upper() == 'PENDING':
+            return queryset.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
+        return queryset.filter(status=value)
+
+
+class JobCardPagination(PageNumberPagination):
+    """Explicit page size for job lists (my_jobs, pending, etc.)."""
+
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for Job Card management.
+
+    Features:
+    - Branch-scoped access
+    - Sequential status lifecycle
+    - Technician assignment
+    - Device password access logging
+    """
+    serializer_class = JobCardSerializer
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = JobCardFilter
+    search_fields = [
+        'job_number', 'customer__mobile', 'customer__first_name',
+        'customer__last_name', 'brand', 'model', 'serial_number'
+    ]
+    ordering_fields = ['created_at', 'estimated_completion_date', 'is_urgent']
+    ordering = ['-is_urgent', '-created_at']
+    branch_field = 'branch'
+    queryset = JobCard.objects.all()
+    pagination_class = JobCardPagination
+    throttle_scope = None
+
+    def get_queryset(self):
+        """Filter jobs based on user's role and branch access."""
+        # BranchScopedMixin handles branch authorization and X-Branch-ID filtering
+        queryset = super().get_queryset()
+
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset
+
+        queryset = queryset.select_related(
+            'branch', 'customer', 'assigned_technician', 'received_by'
+        ).prefetch_related('accessories', 'photos', 'notes', 'status_history')
+
+        # Technicians only see their assigned jobs
+        if user.role == Role.TECHNICIAN:
+            queryset = queryset.filter(assigned_technician=user)
+
+        return queryset
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return JobCardCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return JobCardUpdateSerializer
+        if self.action == 'list':
+            return JobCardListSerializer
+        return JobCardSerializer
+
+    def perform_destroy(self, instance):
+        raise ProtectedResourceError(
+            "Job cards are permanent service records and cannot be deleted. "
+            "Cancel the job instead."
+        )
+
+    @action(detail=True, methods=['post'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        """
+        Update job status with validation.
+        Enforces sequential status transitions.
+        """
+        job = self.get_object()
+
+        # Allow Owner to update status even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
+            raise ValidationError(f'Job is in terminal status ({job.get_status_display()}) and cannot be modified.')
+
+        serializer = JobStatusUpdateSerializer(
+            data=request.data,
+            context={'job': job, 'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            job.transition_status(
+                new_status=JobStatus(serializer.validated_data['new_status']),
+                user=request.user,
+                notes=serializer.validated_data.get('notes', ''),
+                is_override=serializer.validated_data.get('is_override', False)
+            )
+
+            return Response({
+                'message': f'Status updated to {job.get_status_display()}',
+                'status': job.status,
+                'status_display': job.get_status_display()
+            })
+        except (JobReadOnlyError, InvalidStatusTransition) as e:
+            raise ValidationError(str(e)) from e
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageJobs], url_path='assign-technician')
+    def assign_technician(self, request, pk=None):
+        """Assign or reassign technician to job."""
+        job = self.get_object()
+
+        # Allow Owner to assign technician even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
+            raise ValidationError('Cannot assign technician to a completed job.')
+
+        serializer = JobAssignTechnicianSerializer(
+            data=request.data,
+            context={'job': job, 'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        technician = User.objects.get(pk=serializer.validated_data['technician_id'])
+        old_technician = job.assigned_technician
+
+        with transaction.atomic():
+            job.assigned_technician = technician
+            job.save(update_fields=['assigned_technician', 'updated_at'])
+
+            # Add note
+            JobNote.objects.create(
+                job=job,
+                note=f"Technician assigned: {technician.get_full_name()}. {serializer.validated_data.get('notes', '')}",
+                created_by=request.user,
+                is_internal=True
+            )
+
+            # The internal alert is part of the same transaction.
+            from notifications.services import NotificationService
+            NotificationService.on_technician_assigned(job, technician)
+
+        return Response({
+            'message': f'Technician {technician.get_full_name()} assigned to job.',
+            'technician': {
+                'id': str(technician.id),
+                'name': technician.get_full_name()
+            }
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='add-diagnosis')
+    def add_diagnosis(self, request, pk=None):
+        """Add or update diagnosis notes."""
+        from jobs.services import apply_diagnosis
+
+        job = self.get_object()
+        serializer = JobDiagnosisSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = apply_diagnosis(job, serializer.validated_data, request.user)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        return Response(result)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageCustomerApproval], url_path='share-estimate')
+    def share_estimate(self, request, pk=None):
+        """Share estimate with customer."""
+        job = self.get_object()
+
+        if job.status != JobStatus.DIAGNOSIS:
+            raise ValidationError('Job must be diagnosed before sharing estimate.')
+
+        if not job.estimated_cost:
+            raise ValidationError('Estimated cost must be set before sharing.')
+
+        with transaction.atomic():
+            job.transition_status(
+                JobStatus.ESTIMATE_SHARED,
+                request.user,
+                f'Estimate of ₹{job.estimated_cost} shared with customer'
+            )
+
+        return Response({
+            'message': 'Estimate shared with customer.',
+            'status': job.status
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageCustomerApproval], url_path='record-customer-response')
+    def record_customer_response(self, request, pk=None):
+        """Record customer's approval or rejection of estimate."""
+        job = self.get_object()
+
+        if job.status != JobStatus.ESTIMATE_SHARED:
+            raise ValidationError('Estimate must be shared before recording response.')
+
+        serializer = JobEstimateApprovalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            if serializer.validated_data['approved']:
+                job.customer_approval_date = timezone.now()
+                job.transition_status(
+                    JobStatus.APPROVED,
+                    request.user,
+                    'Customer approved estimate'
+                )
+                message = 'Customer approved the estimate.'
+            else:
+                job.customer_rejection_reason = serializer.validated_data['rejection_reason']
+                job.transition_status(
+                    JobStatus.REJECTED,
+                    request.user,
+                    f"Customer rejected: {job.customer_rejection_reason}"
+                )
+                message = 'Customer rejected the estimate.'
+
+            job.save()
+
+        return Response({
+            'message': message,
+            'status': job.status
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='mark-ready')
+    def mark_ready(self, request, pk=None):
+        """Mark job as ready for pickup."""
+        job = self.get_object()
+
+        # Allow Owner to mark ready even if not in expected status (via override effectively, but here we check status)
+        # Actually, standard flow enforces status. Owner can use update_status to force move.
+        # But let's leave this strict unless requested, or relax if owner?
+        # User said "edit the form till last status".
+        # Let's keep this strict for workflow, Owner can use update_status for arbitrary jumps.
+
+        if job.status not in [JobStatus.REPAIR_IN_PROGRESS, JobStatus.WAITING_FOR_PARTS]:
+            raise ValidationError('Job must be in progress to mark as ready.')
+
+        completion_notes = request.data.get('completion_notes', '')
+
+        with transaction.atomic():
+            job.completion_notes = completion_notes
+            job.actual_completion_date = timezone.now()
+            job.save()
+
+            job.transition_status(
+                JobStatus.READY_FOR_DELIVERY,
+                request.user,
+                completion_notes
+            )
+
+            # Generate delivery OTP
+            job.generate_delivery_otp()
+
+        return Response({
+            'message': 'Job marked as ready for pickup.',
+            'status': job.status
+        })
+
+    @action(detail=True, methods=['post'], throttle_classes=[ScopedRateThrottle], throttle_scope='otp')
+    def deliver(self, request, pk=None):
+        """
+        Deliver job to customer.
+        Requires OTP or signature verification.
+        """
+        job = self.get_object()
+
+        if job.status != JobStatus.READY_FOR_DELIVERY:
+            raise ValidationError('Job must be ready for pickup before delivery.')
+
+        serializer = JobDeliverySerializer(
+            data=request.data,
+            context={'job': job}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            if serializer.validated_data.get('signature'):
+                job.delivery_signature = serializer.validated_data['signature']
+
+            job.delivery_date = timezone.now()
+            job.delivered_by = request.user
+            job.delivery_otp = ''
+            job.delivery_otp_created_at = None
+            job.delivery_otp_expires_at = None
+            job.delivery_otp_attempts = 0
+            job.save()
+
+            job.transition_status(
+                JobStatus.DELIVERED,
+                request.user,
+                serializer.validated_data.get('notes', 'Device delivered to customer')
+            )
+            from marketing.services import schedule_service_reminders
+            schedule_service_reminders(job)
+
+        return Response({
+            'message': 'Job delivered successfully.',
+            'status': job.status
+        })
+
+    @action(detail=True, methods=['post'], url_path='resend-delivery-otp', throttle_classes=[ScopedRateThrottle], throttle_scope='otp')
+    def resend_delivery_otp(self, request, pk=None):
+        """Resend delivery OTP to customer."""
+        job = self.get_object()
+
+        if job.status != JobStatus.READY_FOR_DELIVERY:
+            raise ValidationError('Job must be ready for pickup.')
+
+        _, delivery_result = job.generate_delivery_otp()
+        if not delivery_result or delivery_result.get('queued', 0) == 0:
+            raise ValidationError(
+                'OTP was generated but could not be sent. Check the customer communication preferences, provider credentials, and worker connection, or use customer signature instead.'
+            )
+
+        return Response({
+            'message': 'OTP queued for delivery to the customer.',
+            'channels': delivery_result.get('channels', []),
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[CanAccessDevicePasswords], url_path='access-device-password')
+    def access_device_password(self, request, pk=None):
+        """
+        Access device password with audit logging.
+        Only Owner, Manager, and Technician can access.
+        """
+        job = self.get_object()
+
+        serializer = DevicePasswordAccessSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Log the access
+        from audit.models import DevicePasswordAccessLog
+        DevicePasswordAccessLog.objects.create(
+            job=job,
+            accessed_by=request.user,
+            reason=serializer.validated_data['reason']
+        )
+
+        return Response({
+            'device_password': job.device_password,
+            'bios_password': job.bios_password,
+            'warning': 'This access has been logged for security purposes.'
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsTechnicianOrAbove], url_path='request-part')
+    def request_part(self, request, pk=None):
+        """Request a part for this job."""
+        job = self.get_object()
+
+        # Allow Owner to request parts even if terminal
+        if job.is_terminal_status() and request.user.role != Role.OWNER:
+            raise ValidationError('Cannot request parts for a completed job.')
+
+        serializer = PartRequestSerializer(data={
+            **request.data,
+            'job': str(job.id)
+        })
+        serializer.is_valid(raise_exception=True)
+        serializer.save(requested_by=request.user)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(operation_id='jobs_job_part_requests_list')
+    @action(detail=True, methods=['get'], url_path='part-requests')
+    def part_requests(self, request, pk=None):
+        """Get all part requests for this job."""
+        job = self.get_object()
+        requests = job.part_requests.all()
+        serializer = PartRequestSerializer(requests, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='add-photo')
+    def add_photo(self, request, pk=None):
+        """Add a photo to the job."""
+        job = self.get_object()
+
+        # Build mutable data dict from the multipart request.
+        # We cannot spread `request.data` directly because it is a QueryDict
+        # and ** unpacking turns multi-value keys into lists, which breaks
+        # single-value fields like photo_type and description.
+        # The actual file lives in request.FILES, not request.data.
+        data = {
+            'photo': request.FILES.get('photo'),
+            'photo_type': request.data.get('photo_type', ''),
+            'description': request.data.get('description', ''),
+            'job': str(job.id),
+            'uploaded_by': str(request.user.id),
+        }
+
+        serializer = JobPhotoSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='add-note')
+    def add_note(self, request, pk=None):
+        """Add an internal note to the job."""
+        job = self.get_object()
+
+        serializer = JobNoteSerializer(data={
+            **request.data,
+            'job': str(job.id),
+            'created_by': str(request.user.id)
+        })
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def timeline(self, request, pk=None):
+        """Get complete timeline of job events."""
+        job = self.get_object()
+
+        # Combine status history and notes
+        timeline = []
+
+        # Status changes
+        for history in job.status_history.all():
+            timeline.append({
+                'type': 'status_change',
+                'timestamp': history.created_at,
+                'from_status': history.from_status,
+                'to_status': history.to_status,
+                'user': history.changed_by.get_full_name(),
+                'notes': history.notes,
+                'is_override': history.is_override
+            })
+
+        # Notes
+        for note in job.notes.all():
+            timeline.append({
+                'type': 'note',
+                'timestamp': note.created_at,
+                'user': note.created_by.get_full_name(),
+                'content': note.note,
+                'is_internal': note.is_internal
+            })
+
+        # Sort by timestamp
+        timeline.sort(key=lambda x: x['timestamp'], reverse=True)
+
+        return Response(timeline)
+
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get all pending jobs (not delivered/cancelled)."""
+        queryset = self.get_queryset().exclude(
+            status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
+        )
+
+        # Apply additional filters
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        urgent_only = request.query_params.get('urgent')
+        if urgent_only == 'true':
+            queryset = queryset.filter(is_urgent=True)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = JobCardListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = JobCardListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='my-jobs')
+    def my_jobs(self, request):
+        """Get jobs assigned to current user (for technicians).
+
+        Paginated to prevent massive JSON payloads as technicians
+        accumulate hundreds of historical jobs over time.
+        """
+        if request.user.role != Role.TECHNICIAN:
+            raise PermissionDenied('This endpoint is for technicians only.')
+
+        queryset = (
+            JobCard.objects.filter(
+                assigned_technician=request.user,
+                branch__in=request.user.get_accessible_branches(),
+            )
+            .exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED])
+            .order_by('-is_urgent', '-created_at')
+            .select_related('customer', 'assigned_technician')
+        )
+
+        # Paginate to avoid downloading entire job history in one request
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = JobCardListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = JobCardListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get per-status job counts for the current branch.
+
+        Uses PostgreSQL aggregations (COUNT + GROUP BY) so the frontend
+        does NOT need to download the entire jobs table just to count statuses.
+        This replaces the anti-pattern of fetching all jobs client-side to
+        build the status-tab counters on jobs/page.tsx.
+        """
+        qs = self.get_queryset()
+        counts = qs.values('status').annotate(count=django_models.Count('id'))
+        result = {item['status']: item['count'] for item in counts}
+        total = sum(result.values())
+        urgent = qs.filter(is_urgent=True).count()
+        pending = qs.exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]).count()
+        return Response({
+            'total': total,
+            'by_status': result,
+            'urgent': urgent,
+            'pending': pending,
+        })
+
+    @action(detail=False, methods=['get'])
+    def schedule(self, request):
+        """Return the complete pending schedule and per-technician workload."""
+        queryset = self.get_queryset().exclude(
+            status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
+        ).filter(estimated_completion_date__isnull=False).order_by('estimated_completion_date', '-is_urgent')
+        technicians = queryset.filter(assigned_technician__isnull=False).values(
+            'assigned_technician_id',
+            'assigned_technician__first_name',
+            'assigned_technician__last_name',
+        ).annotate(job_count=django_models.Count('id')).order_by('-job_count')
+        return Response({
+            'jobs': JobCardListSerializer(queryset, many=True).data,
+            'technician_load': [
+                {
+                    'id': str(item['assigned_technician_id']),
+                    'name': f"{item['assigned_technician__first_name']} {item['assigned_technician__last_name']}".strip(),
+                    'job_count': item['job_count'],
+                }
+                for item in technicians
+            ],
+            'unassigned_count': queryset.filter(assigned_technician__isnull=True).count(),
+        })
+
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Predict next job number for a branch."""
+        branch_id = request.query_params.get('branch')
+        if not branch_id:
+             raise ValidationError('Branch ID required')
+
+        # Validate access
+        try:
+            branch = Branch.objects.get(pk=branch_id)
+        except Branch.DoesNotExist:
+            raise NotFound('Branch not found')
+
+        if not request.user.has_branch_access(branch):
+             raise PermissionDenied('Access denied')
+
+        # Predict using new date-based format: [PREFIX-]YYYYMMDDNN
+        prefix = branch.jobcard_number_prefix
+        today = timezone.now().date()
+        date_prefix = today.strftime('%Y%m%d')
+        full_prefix = f"{prefix}{date_prefix}"
+        today_count = JobCard.objects.filter(
+            branch=branch,
+            job_number__startswith=full_prefix,
+        ).count()
+        next_sequence = str(today_count + 1).zfill(2)
+        predicted_number = f"{full_prefix}{next_sequence}"
+
+        return Response({'next_number': predicted_number})

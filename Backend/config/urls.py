@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from core.auth_views import (
+from identity.auth_views import (
     ThrottledTokenObtainPairView,
     ThrottledTokenRefreshView,
     ThrottledTokenVerifyView,
@@ -17,7 +17,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from core.views import HealthCheckView, ReadinessCheckView
+from platform_health.views import HealthCheckView, ReadinessCheckView
 
 urlpatterns = [
     # Admin

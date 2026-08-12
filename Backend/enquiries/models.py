@@ -49,9 +49,7 @@ class Enquiry(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='enquiries',
-        null=True,
-        blank=True
+        related_name='enquiries'
     )
 
     # Customer Info (may not be existing customer)

@@ -43,7 +43,11 @@ class InventoryCategory(TimeStampedModel):
     class Meta:
         verbose_name_plural = 'Inventory categories'
         constraints = [
-            models.UniqueConstraint(fields=['branch', 'name'], name='unique_branch_category_name')
+            models.UniqueConstraint(
+                fields=['branch', 'name'],
+                name='unique_branch_category_name',
+                nulls_distinct=False,
+            )
         ]
         ordering = ['name']
 
@@ -61,9 +65,7 @@ class InventoryItem(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='inventory_items',
-        null=True,
-        blank=True
+        related_name='inventory_items'
     )
     
     # Item Details
@@ -490,9 +492,7 @@ class Purchase(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.CASCADE,
-        related_name='purchases',
-        null=True,
-        blank=True
+        related_name='purchases'
     )
     vendor_name = models.CharField(max_length=255)
     vendor_gstin = models.CharField(

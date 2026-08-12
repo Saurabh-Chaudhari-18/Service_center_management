@@ -217,6 +217,126 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 Textarea.displayName = "Textarea";
 
 // =====================================================
+// Checkbox & Switch Components
+// =====================================================
+
+interface CheckboxProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  containerClassName?: string;
+}
+
+export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
+  ({ label, description, containerClassName = "", className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const checkboxId = id || `checkbox-${generatedId}`;
+    const descriptionId = description ? `${checkboxId}-description` : undefined;
+
+    return (
+      <label
+        htmlFor={checkboxId}
+        className={`flex cursor-pointer items-start gap-3 text-sm text-neutral-700 dark:text-neutral-200 ${containerClassName}`.trim()}
+      >
+        <input
+          ref={ref}
+          id={checkboxId}
+          type="checkbox"
+          aria-describedby={descriptionId}
+          className={`checkbox mt-0.5 ${className}`.trim()}
+          {...props}
+        />
+        <span className="min-w-0">
+          <span className="font-medium">{label}</span>
+          {description ? (
+            <span id={descriptionId} className="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">
+              {description}
+            </span>
+          ) : null}
+        </span>
+      </label>
+    );
+  },
+);
+Checkbox.displayName = "Checkbox";
+
+interface RadioProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label: React.ReactNode;
+  containerClassName?: string;
+}
+
+export const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
+  ({ label, containerClassName = "", className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const radioId = id || `radio-${generatedId}`;
+
+    return (
+      <label
+        htmlFor={radioId}
+        className={`flex cursor-pointer items-start gap-3 text-sm text-neutral-700 dark:text-neutral-200 ${containerClassName}`.trim()}
+      >
+        <input
+          ref={ref}
+          id={radioId}
+          type="radio"
+          className={`radio mt-0.5 ${className}`.trim()}
+          {...props}
+        />
+        <span className="min-w-0 flex-1">{label}</span>
+      </label>
+    );
+  },
+);
+Radio.displayName = "Radio";
+
+interface SwitchProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  containerClassName?: string;
+}
+
+export const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
+  ({ label, description, containerClassName = "", className = "", id, ...props }, ref) => {
+    const generatedId = useId();
+    const switchId = id || `switch-${generatedId}`;
+    const descriptionId = description ? `${switchId}-description` : undefined;
+
+    return (
+      <label
+        htmlFor={switchId}
+        className={`flex cursor-pointer items-center justify-between gap-4 ${containerClassName}`.trim()}
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100">{label}</span>
+          {description ? (
+            <span id={descriptionId} className="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">
+              {description}
+            </span>
+          ) : null}
+        </span>
+        <span className="relative shrink-0">
+          <input
+            ref={ref}
+            id={switchId}
+            type="checkbox"
+            role="switch"
+            aria-describedby={descriptionId}
+            className={`peer sr-only ${className}`.trim()}
+            {...props}
+          />
+          <span className="switch-track bg-neutral-300 peer-checked:bg-primary-600 dark:bg-slate-700 dark:peer-checked:bg-primary-500">
+            <span className="switch-thumb translate-x-0" />
+          </span>
+        </span>
+      </label>
+    );
+  },
+);
+Switch.displayName = "Switch";
+
+// =====================================================
 // Card Component
 // =====================================================
 
@@ -281,11 +401,11 @@ interface StatsCardProps {
 }
 
 const STATS_ICON_CLASSES: Record<string, string> = {
-  primary: "bg-violet-100 text-indigo-600",
-  success: "bg-green-100 text-green-600",
-  warning: "bg-amber-100 text-amber-600",
-  danger:  "bg-red-100 text-red-600",
-  accent:  "bg-blue-100 text-blue-600",
+  primary: "stats-icon-primary",
+  success: "stats-icon-success",
+  warning: "stats-icon-warning",
+  danger:  "stats-icon-danger",
+  accent:  "stats-icon-accent",
 };
 
 export function StatsCard({ label, value, icon, trend, variant = "primary" }: StatsCardProps) {
@@ -402,12 +522,12 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       {icon && (
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-gradient-to-br from-violet-100 to-indigo-100">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-300">
           {icon}
         </div>
       )}
-      <h3 className="text-lg font-bold text-neutral-800">{title}</h3>
-      {description && <p className="mt-2 text-sm text-neutral-500 max-w-sm">{description}</p>}
+      <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">{title}</h3>
+      {description && <p className="mt-2 max-w-sm text-sm text-neutral-500 dark:text-neutral-400">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );

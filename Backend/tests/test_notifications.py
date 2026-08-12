@@ -32,12 +32,14 @@ class TestJobCreationNotification:
     @patch('notifications.tasks.deliver_sms.delay')
     @patch('notifications.tasks.deliver_whatsapp.delay')
     def test_job_creation_creates_notification_log_for_sms_customer(
-        self, mock_wa, mock_sms, auth_client, make_customer, branch
+        self, mock_wa, mock_sms, auth_client, make_customer, branch,
+        django_capture_on_commit_callbacks,
     ):
         from notifications.models import NotificationLog
         cust = make_customer(mobile='9600000001', sms_enabled=True, whatsapp_enabled=False)
         before = NotificationLog.objects.count()
-        _create_job(auth_client, cust, branch)
+        with django_capture_on_commit_callbacks(execute=True):
+            _create_job(auth_client, cust, branch)
         after = NotificationLog.objects.count()
         # At least one notification log should be created
         assert after > before
@@ -45,11 +47,13 @@ class TestJobCreationNotification:
     @patch('notifications.tasks.deliver_sms.delay')
     @patch('notifications.tasks.deliver_whatsapp.delay')
     def test_job_creation_for_sms_disabled_customer_sends_whatsapp_only(
-        self, mock_wa, mock_sms, auth_client, make_customer, branch
+        self, mock_wa, mock_sms, auth_client, make_customer, branch,
+        django_capture_on_commit_callbacks,
     ):
         from notifications.models import NotificationLog
         cust = make_customer(mobile='9600000002', sms_enabled=False, whatsapp_enabled=True)
-        _create_job(auth_client, cust, branch)
+        with django_capture_on_commit_callbacks(execute=True):
+            _create_job(auth_client, cust, branch)
         logs = NotificationLog.objects.filter(
             recipient_mobile__contains=cust.mobile[-10:],
         )
@@ -64,7 +68,8 @@ class TestEstimateNotification:
     @patch('notifications.tasks.deliver_sms.delay')
     @patch('notifications.tasks.deliver_whatsapp.delay')
     def test_share_estimate_creates_notification_log(
-        self, mock_wa, mock_sms, auth_client, make_customer, make_job, branch
+        self, mock_wa, mock_sms, auth_client, make_customer, make_job, branch,
+        django_capture_on_commit_callbacks,
     ):
         from notifications.models import NotificationLog
         cust = make_customer(mobile='9600000003', sms_enabled=True)
@@ -77,7 +82,8 @@ class TestEstimateNotification:
             format='json', **bh(branch),
         )
         before = NotificationLog.objects.count()
-        auth_client.post(f'{JOBS_URL}{job.id}/share-estimate/', {}, format='json', **bh(branch))
+        with django_capture_on_commit_callbacks(execute=True):
+            auth_client.post(f'{JOBS_URL}{job.id}/share-estimate/', {}, format='json', **bh(branch))
         after = NotificationLog.objects.count()
         assert after > before
 
@@ -88,7 +94,8 @@ class TestReadyForDeliveryNotification:
     @patch('notifications.tasks.deliver_sms.delay')
     @patch('notifications.tasks.deliver_whatsapp.delay')
     def test_mark_ready_creates_notification_log(
-        self, mock_wa, mock_sms, auth_client, make_customer, make_job, branch
+        self, mock_wa, mock_sms, auth_client, make_customer, make_job, branch,
+        django_capture_on_commit_callbacks,
     ):
         from notifications.models import NotificationLog
         from jobs.models import JobStatus
@@ -119,10 +126,11 @@ class TestReadyForDeliveryNotification:
             format='json', **bh(branch),
         )
         before = NotificationLog.objects.count()
-        auth_client.post(
-            f'{JOBS_URL}{job.id}/mark-ready/',
-            {'completion_notes': 'Done'},
-            format='json', **bh(branch),
-        )
+        with django_capture_on_commit_callbacks(execute=True):
+            auth_client.post(
+                f'{JOBS_URL}{job.id}/mark-ready/',
+                {'completion_notes': 'Done'},
+                format='json', **bh(branch),
+            )
         after = NotificationLog.objects.count()
         assert after > before

@@ -12,7 +12,7 @@ from django.db import models
 from django.db.models import Sum
 from django.core.validators import MinValueValidator
 from django.utils import timezone
-from core.models import TimeStampedModel, Branch, User
+from core.models import TimeStampedModel, Branch, SystemSequence, User
 from core.utils import calculate_gst, is_interstate_supply
 from core.exceptions import InvoiceNumberConflict
 import uuid
@@ -191,27 +191,10 @@ class Invoice(TimeStampedModel):
 
     def get_universal_invoice_number(self):
         """Generate a universal invoice number when no branch is assigned."""
-        from django.db.models import Max
-        from django.utils import timezone
-        
         prefix = "UNIV-INV-"
         year = str(timezone.now().year)[-2:]
-        prefix_with_year = f"{prefix}{year}-"
-        
-        last_item = Invoice.objects.filter(
-            branch__isnull=True,
-            invoice_number__startswith=prefix_with_year
-        ).aggregate(Max('invoice_number'))['invoice_number__max']
-        
-        if last_item:
-            try:
-                sequence = int(last_item.split('-')[-1]) + 1
-            except ValueError:
-                sequence = 1
-        else:
-            sequence = 1
-            
-        return f"{prefix_with_year}{sequence:04d}"
+        sequence = SystemSequence.next_value(f'universal-invoice:{year}')
+        return f"{prefix}{year}-{sequence:04d}"
 
     def save(self, *args, **kwargs):
         # Keep the financial account link in sync for every creation path,
@@ -268,148 +251,34 @@ class Invoice(TimeStampedModel):
         Finalize the invoice, making it immutable.
         Only allowed for draft invoices.
         """
-        if self.is_finalized:
-            return
-        
-        if not self.line_items.exists():
-            from core.exceptions import BusinessRuleViolation
-            raise BusinessRuleViolation("Cannot finalize invoice without line items.")
-        
-        self.calculate_totals()
-        self.is_finalized = True
-        self.finalized_at = timezone.now()
-        self.finalized_by = user
-        self.status = InvoiceStatus.PENDING
-        self.save()
-        
-        # Log to audit
-        from audit.services import AuditLogService
-        AuditLogService.log(
-            user=user,
-            action='INVOICE_FINALIZED',
-            model_name='Invoice',
-            object_id=str(self.pk),
-            details={
-                'invoice_number': self.invoice_number,
-                'total_amount': str(self.total_amount),
-            }
-        )
+        from billing.application import BillingWorkflowService
 
-        # Automate Khata Credit Entry if there's a balance due
-        if self.balance_due > Decimal('0') and self.customer_id:
-            try:
-                from marketing.models import CustomerLedgerEntry
-                
-                last_entry = CustomerLedgerEntry.objects.filter(
-                    customer=self.customer
-                ).order_by('-entry_date', '-created_at').first()
-                
-                current_balance = last_entry.running_balance if last_entry else Decimal('0.00')
-                new_balance = current_balance + self.balance_due
+        return BillingWorkflowService.finalize(self, user)
 
-                CustomerLedgerEntry.objects.create(
-                    branch=self.branch,
-                    customer=self.customer,
-                    entry_type='CREDIT',
-                    amount=self.balance_due,
-                    description=f"Invoice generated - {self.invoice_number}",
-                    reference_type='INVOICE',
-                    reference_id=str(self.pk),
-                    entry_date=self.invoice_date,
-                    running_balance=new_balance,
-                    created_by=user,
-                    notes=f"Auto-generated from Invoice {self.invoice_number}"
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Failed to auto-generate Khata credit entry: {str(e)}")
-        
-        # Send Notification (Email/SMS) that invoice is generated
-        try:
-            from notifications.services import NotificationService
-            NotificationService.on_invoice_created(self)
-        except Exception as e:
-            # We don't want a notification failure to roll back the finalize transaction
-            import logging
-            logging.getLogger(__name__).error(f"Failed to send invoice notification: {str(e)}")
-
-    def record_payment(self, amount, payment_method, user, reference='', notes=''):
+    def record_payment(
+        self,
+        amount,
+        payment_method,
+        user,
+        reference='',
+        notes='',
+        idempotency_key=None,
+    ):
         """
         Record a payment against this invoice.
         Returns the created Payment object.
         """
-        from django.db import transaction
-        
-        if amount <= 0:
-            from core.exceptions import BusinessRuleViolation
-            raise BusinessRuleViolation("Payment amount must be positive.")
-        
-        if self.status == InvoiceStatus.CANCELLED:
-            from core.exceptions import BusinessRuleViolation
-            raise BusinessRuleViolation("Cannot record payment on cancelled invoice.")
-        
-        with transaction.atomic():
-            payment = Payment.objects.create(
-                invoice=self,
-                amount=amount,
-                payment_method=payment_method,
-                reference=reference,
-                notes=notes,
-                received_by=user
-            )
-            
-            self.paid_amount += amount
-            self._update_payment_status()
-            self.save(update_fields=['paid_amount', 'status', 'updated_at'])
-            
-            # Log to audit
-            from audit.services import AuditLogService
-            AuditLogService.log(
-                user=user,
-                action='PAYMENT_RECEIVED',
-                model_name='Payment',
-                object_id=str(payment.pk),
-                details={
-                    'invoice_number': self.invoice_number,
-                    'amount': str(amount),
-                    'method': payment_method,
-                    'new_balance': str(self.balance_due),
-                }
-            )
+        from billing.application import BillingWorkflowService
 
-            # Automate Khata Debit Entry
-            if not self.customer_id:
-                return payment
-
-            try:
-                from marketing.models import CustomerLedgerEntry
-                from django.utils import timezone
-                
-                last_entry = CustomerLedgerEntry.objects.filter(
-                    customer=self.customer
-                ).order_by('-entry_date', '-created_at').first()
-                
-                current_balance = last_entry.running_balance if last_entry else Decimal('0.00')
-                new_balance = current_balance - amount
-                
-                CustomerLedgerEntry.objects.create(
-                    branch=self.branch,
-                    customer=self.customer,
-                    entry_type='DEBIT',
-                    amount=amount,
-                    description=f"Payment received - {payment_method}",
-                    reference_type='PAYMENT',
-                    reference_id=str(payment.pk),
-                    entry_date=timezone.now().date(),
-                    running_balance=new_balance,
-                    created_by=user,
-                    notes=f"Auto-generated payment against Invoice {self.invoice_number}"
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Failed to auto-generate Khata debit entry: {str(e)}")
-            
-            return payment
+        return BillingWorkflowService.record_payment(
+            self,
+            amount,
+            payment_method,
+            user,
+            reference=reference,
+            notes=notes,
+            idempotency_key=idempotency_key,
+        )
 
 
 class InvoiceLineItem(TimeStampedModel):
@@ -576,6 +445,7 @@ class Payment(TimeStampedModel):
         blank=True,
         help_text="Transaction ID, UPI ref, Cheque number, etc."
     )
+    idempotency_key = models.CharField(max_length=128, null=True, blank=True)
     
     # Notes
     notes = models.TextField(blank=True)
@@ -595,6 +465,13 @@ class Payment(TimeStampedModel):
     
     class Meta:
         ordering = ['-payment_date']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['invoice', 'idempotency_key'],
+                condition=models.Q(idempotency_key__isnull=False),
+                name='unique_invoice_payment_idempotency_key',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.invoice.invoice_number} - ₹{self.amount} ({self.payment_method})"
@@ -612,6 +489,7 @@ class CreditNote(TimeStampedModel):
         related_name='credit_notes'
     )
     credit_note_number = models.CharField(max_length=50, unique=True)
+    idempotency_key = models.CharField(max_length=128, null=True, blank=True)
     
     # Original Invoice
     invoice = models.ForeignKey(
@@ -639,6 +517,13 @@ class CreditNote(TimeStampedModel):
     
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['invoice', 'idempotency_key'],
+                condition=models.Q(idempotency_key__isnull=False),
+                name='unique_invoice_credit_note_idempotency_key',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.credit_note_number} - ₹{self.total_amount}"

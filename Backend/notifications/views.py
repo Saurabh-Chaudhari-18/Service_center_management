@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from django.utils import timezone
+from django.db import transaction
 
 from notifications.models import (
     NotificationLog, NotificationTemplate, InternalAlert,
@@ -23,7 +24,6 @@ from notifications.serializers import (
 )
 from core.permissions import IsBranchMember, IsOwnerOrManager, BranchScopedMixin
 from core.serializers import KeyValueSerializer
-from core.serializers import KeyValueSerializer
 
 
 class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
@@ -34,15 +34,10 @@ class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     filterset_fields = ['notification_type', 'channel', 'is_active']
     branch_field = 'branch'
     pagination_class = None
+    queryset = NotificationTemplate.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return NotificationTemplate.objects.none()
-        
-        return NotificationTemplate.objects.filter(
-            branch__in=user.get_accessible_branches()
-        )
+        return super().get_queryset()
 
     @action(detail=False, methods=['post'], url_path='create-defaults')
     def create_defaults(self, request):
@@ -69,22 +64,18 @@ class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         })
 
 
-class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
+class NotificationLogViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only ViewSet for notification logs."""
     serializer_class = NotificationLogSerializer
     permission_classes = [IsAuthenticated, IsBranchMember]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['notification_type', 'channel', 'status']
     ordering = ['-created_at']
+    branch_field = 'branch'
+    queryset = NotificationLog.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return NotificationLog.objects.none()
-        
-        return NotificationLog.objects.filter(
-            branch__in=user.get_accessible_branches()
-        ).select_related('job', 'invoice')
+        return super().get_queryset().select_related('job', 'invoice')
 
     @action(detail=True, methods=['post'])
     def retry(self, request, pk=None):
@@ -97,21 +88,16 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
         if log.retry_count >= 3:
             raise ValidationError('Maximum retry attempts reached.')
         
-        # Retry sending
-        from notifications.services import NotificationService
-        
         log.status = 'PENDING'
         log.last_retry_at = timezone.now()
-        log.save()
-        
-        if log.channel == NotificationChannel.SMS:
-            NotificationService._send_sms(log.recipient_mobile, log.message, log)
-        elif log.channel == NotificationChannel.WHATSAPP:
-            NotificationService._send_whatsapp(log.recipient_mobile, log.message, log)
-        elif log.channel == NotificationChannel.EMAIL:
-            NotificationService._send_email(
-                log.recipient_email, log.subject, log.message, log
-            )
+        log.dispatched_at = None
+        log.error_message = ''
+        log.save(update_fields=[
+            'status', 'last_retry_at', 'dispatched_at', 'error_message', 'updated_at'
+        ])
+
+        from notifications.tasks import enqueue_notification
+        transaction.on_commit(lambda: enqueue_notification(log.pk), robust=True)
         
         return Response({'message': 'Notification retry initiated.'})
 
@@ -216,28 +202,13 @@ class SendNotificationView(APIView):
             status='PENDING'
         )
         
-        # Send notification
-        from notifications.services import NotificationService
-        
-        if data['channel'] == NotificationChannel.SMS:
-            NotificationService._send_sms(data['recipient_mobile'], data['message'], log)
-        elif data['channel'] == NotificationChannel.WHATSAPP:
-            NotificationService._send_whatsapp(data['recipient_mobile'], data['message'], log)
-        elif data['channel'] == NotificationChannel.EMAIL:
-            NotificationService._send_email(
-                data['recipient_email'], data.get('subject', ''), data['message'], log
-            )
-            
-        if log.status == 'FAILED':
-            return Response({
-                'error': f"Failed to send message: {log.error_message}",
-                'details': log.error_message
-            }, status=status.HTTP_400_BAD_REQUEST)
+        from notifications.tasks import enqueue_notification
+        transaction.on_commit(lambda: enqueue_notification(log.pk), robust=True)
         
         return Response({
-            'message': 'Notification sent successfully.',
+            'message': 'Notification queued successfully.',
             'log_id': str(log.id)
-        })
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class NotificationEnumsView(viewsets.ViewSet):

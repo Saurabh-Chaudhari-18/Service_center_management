@@ -384,6 +384,26 @@ class BranchSequence(models.Model):
         return f"{self.branch.code} / {self.kind} → {self.last_value}"
 
 
+class SystemSequence(models.Model):
+    """A narrow, row-locked counter for records without a branch owner."""
+
+    key = models.CharField(max_length=64, unique=True)
+    last_value = models.PositiveBigIntegerField(default=0)
+
+    @classmethod
+    def next_value(cls, key):
+        from django.db import transaction
+
+        with transaction.atomic():
+            sequence, _ = cls.objects.select_for_update().get_or_create(key=key)
+            sequence.last_value += 1
+            sequence.save(update_fields=['last_value'])
+            return sequence.last_value
+
+    def __str__(self):
+        return f"{self.key}: {self.last_value}"
+
+
 class Role(models.TextChoices):
     """
     System roles with predefined permissions.

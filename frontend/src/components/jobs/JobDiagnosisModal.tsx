@@ -65,7 +65,9 @@ export function JobDiagnosisModal({
         });
       } else {
         // Fresh open — start with one blank row so the combobox is visible
-        setParts([{ name: "", price: "", warranty_months: "0", quantity: "1" }]);
+        startTransition(() => {
+          setParts([{ name: "", price: "", warranty_months: "0", quantity: "1" }]);
+        });
       }
     } else if (!isOpen && prevIsOpenRef.current) {
       startTransition(() => {

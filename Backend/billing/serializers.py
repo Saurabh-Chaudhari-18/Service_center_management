@@ -534,6 +534,7 @@ class RecordPaymentSerializer(serializers.Serializer):
     payment_method = serializers.ChoiceField(choices=PaymentMethod.choices)
     reference = serializers.CharField(required=False, allow_blank=True, max_length=100)
     notes = serializers.CharField(required=False, allow_blank=True)
+    idempotency_key = serializers.CharField(required=False, max_length=128)
 
     def validate_amount(self, value):
         invoice = self.context.get('invoice')
@@ -565,6 +566,10 @@ class CreditNoteSerializer(serializers.ModelSerializer):
             branch = invoice.branch
             attrs['branch'] = branch
         request = self.context.get('request')
+        idempotency_key = attrs.get('idempotency_key')
+        if request and not idempotency_key:
+            idempotency_key = getattr(request, 'headers', {}).get('Idempotency-Key')
+        attrs['idempotency_key'] = idempotency_key or None
         if not branch:
             raise serializers.ValidationError({'branch': 'A branch is required.'})
         if request and not request.user.has_branch_access(branch):
@@ -576,6 +581,17 @@ class CreditNoteSerializer(serializers.ModelSerializer):
         amount = attrs.get('amount', getattr(self.instance, 'amount', None))
         if amount is not None and amount <= 0:
             raise serializers.ValidationError({'amount': 'Credit amount must be greater than zero.'})
+        if invoice and idempotency_key:
+            existing = CreditNote.objects.filter(
+                invoice=invoice,
+                idempotency_key=idempotency_key,
+            ).first()
+            if existing:
+                if amount != existing.amount or attrs.get('reason') != existing.reason:
+                    raise serializers.ValidationError({
+                        'idempotency_key': 'This key was already used with different credit-note data.'
+                    })
+                return attrs
         if invoice and amount is not None:
             already_credited = invoice.credit_notes.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
             projected_total = self._credit_amounts(invoice, amount)['total_amount']
@@ -588,6 +604,19 @@ class CreditNoteSerializer(serializers.ModelSerializer):
             branch = validated_data['branch']
             invoice = Invoice.objects.select_for_update().get(pk=validated_data['invoice'].pk)
             amount = validated_data['amount']
+            idempotency_key = validated_data.get('idempotency_key')
+            if idempotency_key:
+                existing = CreditNote.objects.filter(
+                    invoice=invoice,
+                    idempotency_key=idempotency_key,
+                ).first()
+                if existing:
+                    if amount != existing.amount or validated_data.get('reason') != existing.reason:
+                        raise serializers.ValidationError({
+                            'idempotency_key': 'This key was already used with different credit-note data.'
+                        })
+                    self._idempotent_replay = True
+                    return existing
             gst = self._credit_amounts(invoice, amount)
             already_credited = invoice.credit_notes.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
             if already_credited + gst['total_amount'] > invoice.total_amount:
@@ -601,13 +630,11 @@ class CreditNoteSerializer(serializers.ModelSerializer):
                 'total_amount': gst['total_amount'],
             })
             note = super().create(validated_data)
+            self._idempotent_replay = False
             if invoice.customer_id:
-                from marketing.models import CustomerLedgerEntry
-                last_entry = CustomerLedgerEntry.objects.filter(
-                    customer=invoice.customer,
-                ).order_by('-entry_date', '-created_at').first()
-                current_balance = last_entry.running_balance if last_entry else Decimal('0')
-                CustomerLedgerEntry.objects.create(
+                from marketing.services import append_customer_ledger_entry
+
+                append_customer_ledger_entry(
                     branch=branch,
                     customer=invoice.customer,
                     entry_type='DEBIT',
@@ -616,7 +643,6 @@ class CreditNoteSerializer(serializers.ModelSerializer):
                     reference_type='ADJUSTMENT',
                     reference_id=str(note.pk),
                     entry_date=note.created_at.date(),
-                    running_balance=current_balance - note.total_amount,
                     created_by=note.created_by,
                     notes=f"Auto-generated from credit note against {invoice.invoice_number}",
                 )
@@ -627,6 +653,17 @@ class CreditNoteSerializer(serializers.ModelSerializer):
             else:
                 invoice.status = InvoiceStatus.PENDING if invoice.is_finalized else InvoiceStatus.DRAFT
             invoice.save(update_fields=['status', 'updated_at'])
+
+            request = self.context.get('request')
+            from audit.services import AuditLogService
+            AuditLogService.log_create(
+                request.user if request else note.created_by,
+                note,
+                request=request,
+                strict=True,
+            )
+            from notifications.services import NotificationService
+            NotificationService.on_credit_note_issued(note)
             return note
 
     @staticmethod
@@ -653,7 +690,7 @@ class CreditNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditNote
         fields = [
-            'id', 'branch', 'credit_note_number', 'invoice', 'invoice_number',
+            'id', 'branch', 'credit_note_number', 'idempotency_key', 'invoice', 'invoice_number',
             'amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount',
             'reason', 'created_by', 'created_by_name', 'customer_delivery', 'created_at'
         ]

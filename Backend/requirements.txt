@@ -7,6 +7,7 @@ django-cors-headers==4.6.0
 
 # Authentication
 djangorestframework-simplejwt==5.5.0
+PyJWT==2.9.0
 
 # Database — psycopg3 (modern successor to psycopg2; Django 6 recommends it)
 # Binary protocol by default, ~2-3x faster for numeric data, async-ready.
@@ -28,8 +29,12 @@ openpyxl==3.1.2
 pandas==2.3.3
 
 # Other utilities
-python-dateutil==2.8.2
+python-dateutil==2.9.0.post0
 requests==2.32.3
+urllib3==2.2.3
+charset-normalizer==3.3.2
+chardet==5.2.0
+docutils==0.21.2
 
 # Production (WSGI server)
 gunicorn==23.0.0
@@ -50,6 +55,7 @@ boto3==1.35.34
 pytest==8.0.0
 pytest-django==4.7.0
 pytest-cov==4.1.0
+pytest-xdist==3.6.1
 factory-boy==3.3.0
 
 twilio==9.2.2

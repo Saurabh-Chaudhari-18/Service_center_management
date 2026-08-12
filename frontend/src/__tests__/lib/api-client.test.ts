@@ -25,15 +25,15 @@ describe("tokenManager", () => {
   });
 
 
-  it("setTokens stores only the access token in session storage", () => {
+  it("setTokens never exposes an access token to browser storage", () => {
     tokenManager.setTokens("access-abc");
-    expect(sessionStorage.getItem(ACCESS_KEY)).toBe("access-abc");
+    expect(sessionStorage.getItem(ACCESS_KEY)).toBeNull();
     expect(sessionStorage.getItem("scm_refresh_token")).toBeNull();
   });
 
-  it("getAccessToken returns stored token after setTokens", () => {
+  it("ignores legacy stored access tokens", () => {
     sessionStorage.setItem(ACCESS_KEY, "my-access");
-    expect(tokenManager.getAccessToken()).toBe("my-access");
+    expect(tokenManager.getAccessToken()).toBeNull();
   });
 
   it("clearTokens removes access and branch keys", () => {

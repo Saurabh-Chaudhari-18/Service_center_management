@@ -7,13 +7,12 @@ import axios, {
   AxiosRequestConfig,
   InternalAxiosRequestConfig,
 } from "axios";
+import { tokenRefreshCoordinator } from "./refreshCoordinator";
 
 // API Base URL - configurable via environment (export for direct fetch use)
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api";
+  process.env.NEXT_PUBLIC_API_URL || "/api";
 
-// Token storage keys (sessionStorage limits XSS persistence vs localStorage)
-const ACCESS_TOKEN_KEY = "scm_access_token";
 const CURRENT_BRANCH_KEY = "scm_current_branch";
 
 const storage =
@@ -36,40 +35,22 @@ export const apiClient: AxiosInstance = axios.create({
 
 export const tokenManager = {
   getAccessToken: (): string | null => {
-    if (!storage) return null;
-    const token = storage.getItem(ACCESS_TOKEN_KEY);
-    if (token) return token;
-    const legacy =
-      typeof localStorage !== "undefined"
-        ? localStorage.getItem(ACCESS_TOKEN_KEY)
-        : null;
-    if (legacy) {
-      storage.setItem(ACCESS_TOKEN_KEY, legacy);
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
-    }
-    return legacy;
+    return null;
   },
 
-  setTokens: (access: string): void => {
-    if (!storage) return;
-    storage.setItem(ACCESS_TOKEN_KEY, access);
-    if (typeof document !== "undefined") {
-      const secure = window.location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
-    }
+  setTokens: (...legacyTokens: string[]): void => {
+    void legacyTokens;
   },
 
   clearTokens: (): void => {
     if (!storage) return;
-    storage.removeItem(ACCESS_TOKEN_KEY);
     storage.removeItem(CURRENT_BRANCH_KEY);
-    if (typeof document !== "undefined") {
-      document.cookie = "scm_session=; path=/; max-age=0";
-    }
     if (typeof localStorage !== "undefined") {
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      // Remove tokens left by versions that predated HTTP-only cookies.
+      localStorage.removeItem("scm_access_token");
       localStorage.removeItem(CURRENT_BRANCH_KEY);
     }
+    storage.removeItem("scm_access_token");
   },
 
   getCurrentBranchId: (): string | null => {
@@ -111,17 +92,17 @@ apiClient.interceptors.request.use(
 // Response Interceptor - Handle errors & token refresh
 // =====================================================
 
-let isRefreshing = false;
-let refreshSubscribers: Array<(token: string) => void> = [];
-
-const subscribeTokenRefresh = (callback: (token: string) => void) => {
-  refreshSubscribers.push(callback);
-};
-
-const onTokenRefreshed = (token: string) => {
-  refreshSubscribers.forEach((callback) => callback(token));
-  refreshSubscribers = [];
-};
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly responseData?: unknown,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "ApiError";
+  }
+}
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -132,49 +113,36 @@ apiClient.interceptors.response.use(
 
     // Handle 401 Unauthorized - Token expired
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        // Wait for token refresh
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token: string) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            resolve(apiClient(originalRequest));
-          });
-        });
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/token/refresh/`,
-          {},
-          { timeout: 120000, withCredentials: true },
-        );
+        await tokenRefreshCoordinator.run(async () => {
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/token/refresh/`,
+            {},
+            { timeout: 120000, withCredentials: true },
+          );
+          if (!response.data.authenticated) {
+            throw new Error("Refresh did not establish an authenticated session.");
+          }
+          return "cookie-session";
+        });
 
-        const { access } = response.data;
-        tokenManager.setTokens(access);
-
-        isRefreshing = false;
-        onTokenRefreshed(access);
-
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access}`;
-        }
         return apiClient(originalRequest);
       } catch (refreshError) {
-        isRefreshing = false;
         tokenManager.clearTokens();
-        window.location.href = "/login";
+        if (typeof window !== "undefined") window.location.href = "/login";
         return Promise.reject(refreshError);
       }
     }
 
     // Format error message
     const errorMessage = formatErrorMessage(error);
-    return Promise.reject(new Error(errorMessage));
+    return Promise.reject(
+      new ApiError(errorMessage, error.response?.status, error.response?.data, {
+        cause: error,
+      }),
+    );
   },
 );
 
@@ -337,11 +305,9 @@ export async function apiUpload<T>(
     });
   }
 
-  const token = tokenManager.getAccessToken();
   const branchId = tokenManager.getCurrentBranchId();
 
   const headers: HeadersInit = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (branchId) headers["X-Branch-ID"] = branchId;
   // Do NOT set Content-Type. Browser sets it with the correct boundary.
 
@@ -349,6 +315,7 @@ export async function apiUpload<T>(
     method: "POST",
     headers,
     body: formData,
+    credentials: "include",
   });
 
   if (!response.ok) {

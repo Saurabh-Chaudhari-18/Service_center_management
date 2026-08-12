@@ -1,0 +1,218 @@
+"use client";
+
+// Focused interactive island below the server route boundary.
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { gstApi } from "@/lib/api/services";
+import { Hash, Plus, Search, Pencil } from "lucide-react";
+import { Modal, Button, Input, Select } from "@/components/ui";
+
+const DEFAULT_FORM = { code: "", code_type: "SAC", description: "", default_gst_rate: "18" };
+type HSNFormState = typeof DEFAULT_FORM;
+
+interface HSNCodeRecord {
+  id: string;
+  code: string;
+  code_type: string;
+  description: string;
+  default_gst_rate: number | string;
+}
+
+interface GSTFormModalProps {
+  isOpen: boolean;
+  title: string;
+  onSave: () => void;
+  onClose: () => void;
+  loading: boolean;
+  form: HSNFormState;
+  setForm: React.Dispatch<React.SetStateAction<HSNFormState>>;
+}
+
+function GSTFormModal({ isOpen, title, onSave, onClose, loading, form, setForm }: GSTFormModalProps) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} isLoading={loading}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Code *"
+            value={form.code}
+            onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            placeholder="e.g. 998711"
+            className="font-mono"
+          />
+          <Select
+            label="Type"
+            value={form.code_type}
+            onChange={(e) => setForm((p) => ({ ...p, code_type: e.target.value }))}
+            options={[
+              { value: "SAC", label: "SAC (Service)" },
+              { value: "HSN", label: "HSN (Goods)" },
+            ]}
+          />
+        </div>
+        <Input
+          label="Description *"
+          value={form.description}
+          onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+          placeholder="e.g. Repair of computers and peripherals"
+        />
+        <Input
+          label="Default GST Rate (%)"
+          type="number"
+          value={String(form.default_gst_rate)}
+          onChange={(e) => setForm((p) => ({ ...p, default_gst_rate: e.target.value }))}
+        />
+      </div>
+    </Modal>
+  );
+}
+
+export default function HSNPage() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<HSNCodeRecord | null>(null);
+  const [form, setForm] = useState<HSNFormState>(DEFAULT_FORM);
+
+  const { data = [], isLoading } = useQuery<HSNCodeRecord[]>({
+    queryKey: ["hsn-codes", search],
+    queryFn: async () => {
+      const res = await gstApi.getHSNCodes(search ? { q: search } : undefined);
+      return Array.isArray(res) ? (res as HSNCodeRecord[]) : [];
+    },
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () => gstApi.addHSNCode(form),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hsn-codes"] }); setShowForm(false); setForm(DEFAULT_FORM); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      if (!editing) throw new Error("No code selected");
+      return gstApi.updateHSNCode(editing.id, form);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hsn-codes"] }); setEditing(null); setForm(DEFAULT_FORM); },
+  });
+
+  const codes = Array.isArray(data) ? data : [];
+
+  const openEdit = (hsn: HSNCodeRecord) => {
+    setEditing(hsn);
+    setForm({ code: hsn.code, code_type: hsn.code_type, description: hsn.description, default_gst_rate: String(hsn.default_gst_rate) });
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900 flex items-center gap-2">
+            <Hash className="w-6 h-6 text-neutral-700" /> HSN / SAC Code Master
+          </h1>
+          <p className="text-sm text-neutral-500 mt-1">Manage HSN (goods) and SAC (service) codes used in invoices</p>
+        </div>
+        <Button
+          onClick={() => { setForm(DEFAULT_FORM); setShowForm(true); }}
+          leftIcon={<Plus className="w-4 h-4" />}
+        >
+          Add Code
+        </Button>
+      </div>
+
+      {/* Search */}
+      <Input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search by code or description..."
+        leftIcon={<Search className="w-4 h-4" />}
+        aria-label="Search HSN/SAC codes"
+        className="py-2.5 text-sm"
+      />
+
+      {/* Table */}
+      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-50 border-b border-neutral-200">
+            <tr>
+              {["Code", "Type", "Description", "GST Rate", ""].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100">
+            {isLoading ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-neutral-400">Loading...</td></tr>
+            ) : !codes.length ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-neutral-400">
+                {search ? "No codes found." : "No HSN/SAC codes yet. Add your first one!"}
+              </td></tr>
+            ) : (
+              codes.map((c) => (
+                <tr key={c.id} className="hover:bg-neutral-50">
+                  <td className="px-4 py-3 font-mono font-bold text-neutral-900">{c.code}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      c.code_type === "SAC" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"
+                    }`}>{c.code_type}</span>
+                  </td>
+                  <td className="px-4 py-3 text-neutral-700">{c.description}</td>
+                  <td className="px-4 py-3 font-semibold">{c.default_gst_rate}%</td>
+                  <td className="px-4 py-3">
+                    <button type="button" onClick={() => openEdit(c)} className="text-neutral-400 hover:text-neutral-700">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Common service center codes helper */}
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm">
+        <p className="font-semibold text-neutral-700 mb-2">Common codes for computer service centers:</p>
+        <div className="grid grid-cols-2 gap-1 text-neutral-600 text-xs font-mono">
+          <span>998711 — SAC — Repair of computers (18%)</span>
+          <span>998713 — SAC — Maintenance of computers (18%)</span>
+          <span>84733099 — HSN — Computer parts, other (18%)</span>
+          <span>85171890 — HSN — Laptop parts (18%)</span>
+        </div>
+      </div>
+
+      <GSTFormModal
+        isOpen={showForm}
+        title="Add HSN/SAC Code"
+        onSave={() => addMutation.mutate()}
+        onClose={() => setShowForm(false)}
+        loading={addMutation.isPending}
+        form={form}
+        setForm={setForm}
+      />
+      <GSTFormModal
+        isOpen={!!editing}
+        title="Edit HSN/SAC Code"
+        onSave={() => updateMutation.mutate()}
+        onClose={() => setEditing(null)}
+        loading={updateMutation.isPending}
+        form={form}
+        setForm={setForm}
+      />
+    </div>
+  );
+}

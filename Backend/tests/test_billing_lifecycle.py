@@ -126,6 +126,35 @@ class TestCreditNotes:
         assert response.status_code == 400
         assert response.data['delivery']['reason'] == 'no_customer_channel'
 
+    def test_idempotency_key_prevents_duplicate_credit_note(
+        self, auth_client, invoice, branch
+    ):
+        invoice.total_amount = Decimal('118.00')
+        invoice.subtotal = Decimal('100.00')
+        invoice.cgst_total = Decimal('9.00')
+        invoice.sgst_total = Decimal('9.00')
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
+        invoice.save()
+        headers = {**bh(branch), 'HTTP_IDEMPOTENCY_KEY': 'credit-attempt-1'}
+        payload = {
+            'invoice': str(invoice.id),
+            'amount': '50.00',
+            'reason': 'Service correction',
+        }
+
+        first = auth_client.post(
+            '/api/billing/credit-notes/', payload, format='json', **headers
+        )
+        second = auth_client.post(
+            '/api/billing/credit-notes/', payload, format='json', **headers
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 200
+        assert first.data['id'] == second.data['id']
+        assert CreditNote.objects.filter(invoice=invoice).count() == 1
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Create invoice
@@ -296,12 +325,36 @@ class TestInvoiceFinalization:
         assert entry.amount == Decimal('1180.00')
         assert entry.running_balance == Decimal('1180.00')
 
-    def test_finalize_already_finalized_invoice_returns_400(self, auth_client, make_invoice, branch):
-        inv = make_invoice()
+    def test_finalize_is_idempotent(self, auth_client, make_invoice, branch, customer):
+        inv = make_invoice(customer=customer)
         _add_line(auth_client, inv, branch)
         auth_client.post(f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch))
         resp = auth_client.post(f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch))
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        assert CustomerLedgerEntry.objects.filter(
+            reference_type='INVOICE', reference_id=str(inv.id)
+        ).count() == 1
+
+    def test_finalize_rolls_back_if_notification_outbox_fails(
+        self, auth_client, make_invoice, branch, customer, monkeypatch
+    ):
+        inv = make_invoice(customer=customer, customer_email='notify@example.com')
+        _add_line(auth_client, inv, branch, unit_price='100.00')
+        monkeypatch.setattr(
+            'notifications.models.NotificationLog.objects.create',
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError('outbox unavailable')),
+        )
+
+        response = auth_client.post(
+            f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch)
+        )
+
+        assert response.status_code >= 400
+        inv.refresh_from_db()
+        assert inv.is_finalized is False
+        assert not CustomerLedgerEntry.objects.filter(
+            reference_type='INVOICE', reference_id=str(inv.id)
+        ).exists()
 
     def test_add_line_item_to_finalized_invoice_is_blocked(self, auth_client, make_invoice, branch):
         inv = make_invoice()
@@ -414,6 +467,28 @@ class TestPayments:
         )
         inv.refresh_from_db()
         assert inv.paid_amount >= amount
+
+    def test_payment_idempotency_key_prevents_duplicate_charge(
+        self, auth_client, make_invoice, branch
+    ):
+        inv = self._finalized_invoice(auth_client, make_invoice, branch)
+        headers = {**bh(branch), 'HTTP_IDEMPOTENCY_KEY': 'payment-attempt-1'}
+        payload = {'amount': '100.00', 'payment_method': 'UPI'}
+
+        first = auth_client.post(
+            f'{INVOICES_URL}{inv.id}/record-payment/', payload,
+            format='json', **headers,
+        )
+        second = auth_client.post(
+            f'{INVOICES_URL}{inv.id}/record-payment/', payload,
+            format='json', **headers,
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        inv.refresh_from_db()
+        assert inv.payments.count() == 1
+        assert inv.paid_amount == Decimal('100.00')
 
     def test_payments_endpoint_lists_payments(self, auth_client, make_invoice, branch):
         inv = self._finalized_invoice(auth_client, make_invoice, branch)

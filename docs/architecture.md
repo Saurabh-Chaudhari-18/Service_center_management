@@ -15,7 +15,7 @@
          ┌─────────────────────┴──────────────────────┐
          │                                            │
 ┌────────▼────────┐                        ┌─────────▼────────┐
-│  Next.js 14     │                        │  Django 6 + DRF  │
+│  Next.js 16     │                        │  Django 6 + DRF  │
 │  (App Router)   │  ◄── REST API (JWT) ──►│  Gunicorn WSGI   │
 │  Port 3000      │                        │  Port 8000       │
 └─────────────────┘                        └─────────┬────────┘
@@ -27,10 +27,12 @@
                │  (primary DB) │         │  (cache+queue) │ │  (S3/local) │
                └───────────────┘         └───────┬───────┘ └─────────────┘
                                                   │
-                                         ┌────────▼────────┐
-                                         │  Celery Workers  │
-                                         │  (SMS/WA/Email)  │
-                                         └─────────────────┘
+                              ┌───────────┴───────────┐
+                              │                       │
+                     ┌────────▼────────┐     ┌────────▼────────┐
+                     │ Celery Workers  │     │   Celery Beat   │
+                     │ (SMS/WA/Email)  │     │ outbox/reminders│
+                     └─────────────────┘     └─────────────────┘
 ```
 
 ---
@@ -40,12 +42,16 @@
 ```
 Backend/
 ├── config/
-│   ├── settings.py          # All settings (single file, env-driven)
+│   ├── settings.py          # Settings composition (env-driven)
 │   ├── urls.py              # Root URL conf
 │   ├── wsgi.py
 │   └── celery.py            # Celery app + autodiscover
-├── core/                    # Auth, RBAC, Organisation/Branch/User models
-├── jobs/                    # Job card lifecycle + pickups + dropdown options
+├── core/                    # Compatibility facades + stable persisted models
+├── identity/                # Authentication, user/role views, RBAC permissions
+├── tenancy/                 # Branch policy, DB tenant context, PostgreSQL RLS
+├── platform_health/         # Liveness and readiness endpoints
+├── platform_runtime/        # Request/runtime middleware
+├── jobs/                    # Facades over focused model/serializer/view modules
 ├── billing/                 # GST invoices, payments, credit notes
 ├── inventory/               # Stock management, purchases, adjustments
 ├── customers/               # Customer master data
@@ -63,7 +69,7 @@ Backend/
 
 ## Multi-Tenancy Model
 
-The system uses a **shared-database, shared-schema** multi-tenancy model. Every data table includes a `branch` foreign key. Tenant isolation is enforced at the application layer:
+The system uses a **shared-database, shared-schema** multi-tenancy model. Tenant-owned business tables have a required `branch` foreign key. A short, explicit allowlist covers resources that intentionally support universal rows.
 
 ```
 Organization (root tenant — one per business group)
@@ -82,7 +88,18 @@ Organization (root tenant — one per business group)
 
 ### Branch isolation enforcement
 
-**Server side** — `BranchScopedMixin` (core/permissions.py):
+**Application boundary** — `BranchScopedMixin` delegates to the canonical
+`BranchScopePolicy` in `tenancy/policy.py`. It resolves branch selectors,
+filters reads, validates write ownership, and permits universal rows only for
+opted-in resource types.
+
+**Database boundary** — PostgreSQL row-level security is enabled and forced on
+every direct branch-owned table. Authentication establishes a transaction-local
+tenant context; worker and migration connections use an explicit system
+context. This protects data even if an application queryset accidentally omits
+its tenant filter.
+
+Simplified application policy:
 ```python
 class BranchScopedMixin:
     def get_queryset(self):
@@ -100,7 +117,10 @@ class BranchScopedMixin:
         serializer.save(branch=resolved_branch, created_by=request.user)
 ```
 
-**Client side** — every API request includes `X-Branch-ID` header, set by the Axios interceptor from `localStorage('scm_current_branch')`.
+**Client side** — every API request includes `X-Branch-ID`, set by the shared API client from `sessionStorage('scm_current_branch')`. The server resolves URL/body/query/header branch inputs through one policy. Universal rows are opt-in per resource; only super administrators may select or create them, and `X-Branch-ID: universal` returns universal rows only.
+
+Before upgrading an existing database to required branch fields,
+`manage.py audit_tenant_integrity` must report no legacy unscoped tenant rows.
 
 ---
 
@@ -110,20 +130,25 @@ class BranchScopedMixin:
 POST /api/auth/token/   {email, password}
     │
     ▼  Returns:
-    { access: "<JWT, 5-min TTL>", refresh: "<JWT, 7-day TTL>" }
+    { authenticated: true } plus access and refresh cookies
     │
-    ├── access stored in localStorage('scm_access_token')
-    └── refresh stored in localStorage('scm_refresh_token')
+    ├── access stored in a Secure, HTTP-only cookie (30-minute TTL)
+    └── refresh stored in a Secure, HTTP-only cookie (7-day TTL)
 
 Every subsequent request:
-    Authorization: Bearer <access_token>
+    Cookies sent automatically by the browser
     X-Branch-ID: <current_branch_uuid>
 
 On 401 response:
-    POST /api/auth/token/refresh/   {refresh: "<token>"}
-    → new access token stored, original request retried
+    POST /api/auth/token/refresh/   (refresh cookie sent automatically)
+    → new access cookie set, original request retried
     → On failure: redirect to /login
 ```
+
+Protected Next.js route entries are server components. The proxy validates the
+HTTP-only session with the backend and forwards the verified user to the root
+layout, which hydrates authentication before interactive client islands render.
+Public login and tracking routes remain client-driven where appropriate.
 
 ---
 
@@ -189,7 +214,9 @@ APPROVED
           DELIVERED (terminal — job becomes read-only)
 ```
 
-Transitions are enforced by `ALLOWED_STATUS_TRANSITIONS` dict in `jobs/models.py`. Invalid transitions raise `InvalidStatusTransition` (HTTP 400). Owner/Manager can force any transition via `is_override=True`.
+Transitions are enforced by the job lifecycle service and the focused
+`jobs/model_modules/job_card.py` model module. Invalid transitions raise
+`InvalidStatusTransition` (HTTP 400); privileged overrides remain explicit.
 
 ---
 
@@ -253,14 +280,15 @@ Business event occurs (job status change, invoice finalized, etc.)
     ▼
 NotificationService.on_*() called synchronously
     │
-    ├── Creates NotificationLog row (status=PENDING)
-    └── Dispatches Celery task (deliver_sms / deliver_whatsapp / deliver_email)
+    ├── Creates NotificationLog outbox row in the business transaction
+    └── Publishes only after database commit
                 │
                 ▼ (async, in Celery worker)
-        Fetch NotificationLog by ID
+        Lock and claim NotificationLog (status=SENDING)
         Call provider API (TextBee / WA Cloud / SMTP)
         Update NotificationLog status (SENT / FAILED)
         On failure: retry up to 3 times (60s delay)
+        Beat scans committed-but-unpublished rows every minute
 ```
 
 `CELERY_TASK_ACKS_LATE=True` + `REJECT_ON_WORKER_LOST=True` ensures tasks are re-queued if a worker crashes mid-execution.
@@ -303,7 +331,7 @@ Redis `IGNORE_EXCEPTIONS=True` ensures the app degrades gracefully (DB fallback)
 
 | Decision | Rationale |
 |----------|-----------|
-| Single `settings.py` | Simpler than `settings/base.py` + environment splits; all env-driven via `django-environ` |
+| Composed runtime settings | Keeps environment parsing in `settings.py` while cache, security, monitoring, and scheduling policies live in focused modules |
 | `BranchSequence` not `Branch.current_number` | Avoids locking the entire Branch row on every invoice/job creation in busy branches |
 | Immutable audit records | `JobStatusHistory`, `InventoryAdjustment`, `InvoiceEditHistory` raise `ValueError` on update — enforced in `save()` |
 | `CELERY_TASK_ACKS_LATE` | Tasks acknowledged only after completion — prevents silent data loss if worker dies |

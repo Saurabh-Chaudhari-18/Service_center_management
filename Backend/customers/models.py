@@ -19,9 +19,7 @@ class Customer(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='customers',
-        null=True,
-        blank=True
+        related_name='customers'
     )
     
     # Personal Information

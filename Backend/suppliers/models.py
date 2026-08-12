@@ -22,9 +22,7 @@ class Supplier(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='suppliers',
-        null=True,
-        blank=True
+        related_name='suppliers'
     )
 
     # Company Info
@@ -99,9 +97,7 @@ class PurchaseOrder(TimeStampedModel):
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name='purchase_orders',
-        null=True,
-        blank=True
+        related_name='purchase_orders'
     )
     supplier = models.ForeignKey(
         Supplier,

@@ -1,64 +1,45 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/track"];
+const PUBLIC_PATHS = ["/", "/login", "/track"];
 
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/organizations",
-  "/jobs",
-  "/my-jobs",
-  "/customers",
-  "/enquiries",
-  "/inventory",
-  "/suppliers",
-  "/billing",
-  "/purchases",
-  "/payments",
-  "/expenses",
-  "/receipts",
-  "/ledger",
-  "/gst",
-  "/reports",
-  "/branches",
-  "/users",
-  "/pickups",
-  "/notifications",
-  "/settings",
-];
-
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (
-    PUBLIC_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`),
-    )
-  ) {
-    return NextResponse.next();
-  }
-
-  const isProtected = PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  const isPublic = PUBLIC_PATHS.some(
+    (path) => pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)),
   );
+  if (isPublic) return NextResponse.next();
 
-  if (!isProtected) {
-    return NextResponse.next();
+  const accessCookie = request.cookies.get("scm_access_token");
+  if (!accessCookie) return redirectToLogin(request);
+
+  const apiBase = process.env.BACKEND_API_URL || `${request.nextUrl.origin}/api`;
+  try {
+    const response = await fetch(`${apiBase}/core/users/me/`, {
+      headers: { cookie: request.headers.get("cookie") || "" },
+      cache: "no-store",
+    });
+    if (response.ok) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set(
+        "x-scm-auth-user",
+        encodeURIComponent(await response.text()),
+      );
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+    }
+  } catch {
+    // Treat an unverifiable session as unauthenticated.
   }
+  return redirectToLogin(request);
+}
 
-  const hasSession = request.cookies.get("scm_session")?.value === "1";
-
-  if (!hasSession) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
+function redirectToLogin(request: NextRequest) {
+  const login = new URL("/login", request.url);
+  login.searchParams.set("next", request.nextUrl.pathname);
+  return NextResponse.redirect(login);
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|robots.txt|media).*)"],
 };

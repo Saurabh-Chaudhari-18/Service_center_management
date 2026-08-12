@@ -103,13 +103,13 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         """Finalize an invoice, making it immutable."""
         invoice = self.get_object()
         
-        if invoice.is_finalized:
-            raise ValidationError('Invoice is already finalized.')
-
         try:
-            invoice.finalize(request.user)
+            changed = invoice.finalize(request.user)
             return Response({
-                'message': 'Invoice finalized successfully.',
+                'message': (
+                    'Invoice finalized successfully.'
+                    if changed else 'Invoice was already finalized.'
+                ),
                 'invoice_number': invoice.invoice_number,
                 'total_amount': str(invoice.total_amount)
             })
@@ -197,6 +197,34 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     def record_payment(self, request, pk=None):
         """Record a payment against this invoice."""
         invoice = self.get_object()
+        idempotency_key = (
+            request.headers.get('Idempotency-Key')
+            or request.data.get('idempotency_key')
+        )
+        if idempotency_key:
+            existing = invoice.payments.filter(idempotency_key=idempotency_key).first()
+            if existing:
+                try:
+                    requested_amount = Decimal(str(request.data.get('amount')))
+                except Exception as exc:
+                    raise ValidationError({'amount': 'A valid amount is required.'}) from exc
+                if (
+                    existing.amount != requested_amount
+                    or existing.payment_method != request.data.get('payment_method')
+                    or existing.reference != request.data.get('reference', '')
+                    or existing.notes != request.data.get('notes', '')
+                ):
+                    raise ValidationError({
+                        'idempotency_key': 'This key was already used with different payment data.'
+                    })
+                invoice.refresh_from_db()
+                return Response({
+                    'message': 'Payment already recorded.',
+                    'payment': PaymentSerializer(existing).data,
+                    'balance_due': str(invoice.balance_due),
+                    'status': invoice.status,
+                    'replayed': True,
+                })
         
         serializer = RecordPaymentSerializer(
             data=request.data,
@@ -210,7 +238,8 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 payment_method=serializer.validated_data['payment_method'],
                 user=request.user,
                 reference=serializer.validated_data.get('reference', ''),
-                notes=serializer.validated_data.get('notes', '')
+                notes=serializer.validated_data.get('notes', ''),
+                idempotency_key=idempotency_key,
             )
             
             return Response({
@@ -352,68 +381,45 @@ class InvoiceViewSet(BranchScopedMixin, viewsets.ModelViewSet):
 
 
 
-class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+class PaymentViewSet(BranchScopedMixin, viewsets.ReadOnlyModelViewSet):
     """Read-only ViewSet for payments."""
     serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated, CanManageBilling]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageBilling]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['payment_method', 'is_verified']
     ordering = ['-payment_date']
+    branch_field = 'invoice__branch'
+    queryset = Payment.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return Payment.objects.none()
-        
-        queryset = Payment.objects.select_related('invoice', 'received_by')
-        
-        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
-        
-        if branch_id:
-            from core.models import Branch
-            try:
-                requested_branch = Branch.objects.get(pk=branch_id)
-                if user.has_branch_access(requested_branch):
-                    queryset = queryset.filter(invoice__branch_id=branch_id)
-                else:
-                    return Payment.objects.none()
-            except Branch.DoesNotExist:
-                return Payment.objects.none()
-        else:
-            queryset = queryset.filter(
-                invoice__branch__in=user.get_accessible_branches()
-            )
-            
-        return queryset
+        return super().get_queryset().select_related('invoice', 'received_by')
 
 
-class CreditNoteViewSet(viewsets.ModelViewSet):
+class CreditNoteViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """ViewSet for credit notes."""
     serializer_class = CreditNoteSerializer
-    permission_classes = [IsAuthenticated, CanManageFinance]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageFinance]
     http_method_names = ['get', 'post', 'head', 'options']
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering = ['-created_at']
+    branch_field = 'branch'
+    queryset = CreditNote.objects.all()
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return CreditNote.objects.none()
-        
-        return CreditNote.objects.filter(
-            branch__in=user.get_accessible_branches()
-        ).select_related('invoice', 'created_by').prefetch_related('notifications')
+        return super().get_queryset().select_related(
+            'invoice', 'created_by'
+        ).prefetch_related('notifications')
 
-    def perform_create(self, serializer):
-        note = serializer.save(created_by=self.request.user)
-        from audit.services import AuditLogService
-        AuditLogService.log_create(self.request.user, note, request=self.request)
-        from notifications.services import NotificationService
-        try:
-            note._delivery_result = NotificationService.on_credit_note_issued(note)
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).exception('Credit note created, but customer delivery setup failed: %s', exc)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(created_by=request.user)
+        response_status = (
+            status.HTTP_200_OK
+            if getattr(serializer, '_idempotent_replay', False)
+            else status.HTTP_201_CREATED
+        )
+        return Response(serializer.data, status=response_status)
 
     @action(detail=False, methods=['get'], url_path='eligible-invoices')
     def eligible_invoices(self, request):

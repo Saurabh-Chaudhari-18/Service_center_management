@@ -22,7 +22,7 @@ from datetime import timedelta
 from decimal import Decimal
 import io
 
-from core.permissions import CanViewReports
+from core.permissions import CanViewReports, get_scoped_branches
 from core.models import Branch
 
 
@@ -40,11 +40,7 @@ class ReportsViewSet(viewsets.ViewSet):
 
     def get_accessible_branches(self):
         """Get branches accessible to current user."""
-        accessible = self.request.user.get_accessible_branches()
-        branch_id = self.request.query_params.get('branch') or self.request.headers.get('X-Branch-ID')
-        if branch_id:
-            return accessible.filter(pk=branch_id)
-        return accessible
+        return get_scoped_branches(self.request, self)
 
     def get_date_range(self):
         """Parse date range from query params."""

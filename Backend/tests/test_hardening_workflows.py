@@ -57,6 +57,30 @@ def test_delivery_schedules_three_service_reminders(job):
 
 
 @pytest.mark.django_db
+def test_due_reminder_is_queued_without_provider_io(job):
+    from marketing.tasks import process_due_service_reminders
+    from notifications.models import NotificationLog
+
+    job.delivery_date = timezone.now() - timedelta(days=180)
+    job.save(update_fields=['delivery_date'])
+    reminder = schedule_service_reminders(job)[0]
+    ServiceReminder.objects.filter(job=job).exclude(pk=reminder.pk).update(
+        status='CANCELLED'
+    )
+    reminder.scheduled_date = timezone.localdate()
+    reminder.save(update_fields=['scheduled_date'])
+
+    assert process_due_service_reminders.run() == 1
+
+    reminder.refresh_from_db()
+    assert reminder.status == 'QUEUED'
+    log = NotificationLog.objects.get(
+        delivery_context__service_reminder_id=str(reminder.pk)
+    )
+    assert log.status == 'PENDING'
+
+
+@pytest.mark.django_db
 def test_purchase_order_lifecycle_and_permanence(auth_client, branch):
     supplier = Supplier.objects.create(branch=branch, name='Parts Partner', phone='9876543210')
     response = auth_client.post('/api/suppliers/purchase-orders/', {

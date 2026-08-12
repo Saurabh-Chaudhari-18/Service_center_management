@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Button, Input } from "@/components/ui";
+import { Modal, Button, Checkbox, Input, Radio } from "@/components/ui";
 import type { Branch } from "@/types";
 import { Building2, MapPin } from "lucide-react";
 
@@ -82,25 +82,20 @@ export function PrintJobCardOptionsModal({
               {branches.map((branch) => {
                 const isSelected = selectedBranchId === branch.id;
                 return (
-                  <label
+                  <Radio
                     key={branch.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    containerClassName={`rounded-lg border p-3 transition-colors ${
                       isSelected
                         ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-400"
                         : "border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-800"
                     }`}
-                  >
-                    <input
-                      type="radio"
-                      name="branchOption"
-                      checked={isSelected}
-                      onChange={() => {
-                        setSelectedBranchId(branch.id);
-                        setUseCustomName(false);
-                      }}
-                      className="h-4 w-4 mt-0.5 text-primary-600 border-neutral-300 flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
+                    name="branchOption"
+                    checked={isSelected}
+                    onChange={() => {
+                      setSelectedBranchId(branch.id);
+                      setUseCustomName(false);
+                    }}
+                    label={<div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />
                         <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">
@@ -132,8 +127,8 @@ export function PrintJobCardOptionsModal({
                           GSTIN: {branch.gstin}
                         </p>
                       )}
-                    </div>
-                  </label>
+                    </div>}
+                  />
                 );
               })}
             </div>
@@ -142,17 +137,12 @@ export function PrintJobCardOptionsModal({
 
         {/* Optional: override just the printed name */}
         <div className="border-t border-neutral-100 dark:border-slate-700 pt-4 space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={useCustomName}
-              onChange={(e) => setUseCustomName(e.target.checked)}
-              className="h-4 w-4 text-primary-600 border-neutral-300 rounded"
-            />
-            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-              Override shop name only (keep address/GSTIN from selected branch)
-            </span>
-          </label>
+          <Checkbox
+            label="Override shop name only"
+            description="Keep the address and GSTIN from the selected branch"
+            checked={useCustomName}
+            onChange={(e) => setUseCustomName(e.target.checked)}
+          />
 
           {useCustomName && (
             <Input

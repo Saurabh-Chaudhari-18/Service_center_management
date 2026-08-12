@@ -42,6 +42,11 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             'price_with_gst', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'quantity', 'created_at', 'updated_at']
+        extra_kwargs = {
+            # BranchScopedMixin resolves and injects the authenticated request
+            # branch during creation.
+            'branch': {'required': False},
+        }
 
     def get_price_with_gst(self, obj) -> Decimal:
         gst_calc = obj.get_price_with_gst(is_interstate=False)

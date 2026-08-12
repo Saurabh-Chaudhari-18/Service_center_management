@@ -115,6 +115,17 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
             'company_name', 'sms_enabled', 'whatsapp_enabled', 'notes'
         ]
         read_only_fields = ['id']
+        # Duplicate detection is request-branch aware in validate(); DRF's
+        # generated UniqueTogetherValidator would incorrectly require branch
+        # in the JSON body before the scoped header can be resolved.
+        validators = []
+        extra_kwargs = {
+            # The authoritative branch comes from the scoped request header and
+            # is injected by CustomerViewSet.perform_create(). Keeping this
+            # optional also prevents a client-supplied body value from being
+            # required when the request is already tenant scoped.
+            'branch': {'required': False},
+        }
 
     def validate_mobile(self, value):
         """Normalize mobile number."""

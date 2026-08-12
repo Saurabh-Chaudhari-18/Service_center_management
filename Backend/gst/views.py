@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.permissions import IsAuthenticated
 
-from core.permissions import CanViewReports
+from core.permissions import CanViewReports, get_scoped_branches
 from core.models import Branch
 from .models import HSNCode, GSTPayment, GSTReturnStatus
 from .serializers import HSNCodeSerializer, GSTPaymentSerializer, GSTReturnStatusSerializer
@@ -32,11 +32,7 @@ def get_date_range(request):
 
 
 def get_branches(request):
-    accessible = request.user.get_accessible_branches()
-    branch_id = request.query_params.get('branch') or request.headers.get('X-Branch-ID')
-    if branch_id:
-        return accessible.filter(pk=branch_id)
-    return accessible
+    return get_scoped_branches(request)
 
 
 class GSTViewSet(viewsets.ViewSet):

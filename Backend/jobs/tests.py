@@ -6,20 +6,6 @@ from jobs.models import ALLOWED_STATUS_TRANSITIONS, JobCard, JobStatus
 from jobs.services import apply_diagnosis
 
 
-def _transition_procedure_installed():
-    from django.db import connection
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT 1 FROM pg_proc p
-            JOIN pg_namespace n ON p.pronamespace = n.oid
-            WHERE p.proname = 'transition_job_status' AND n.nspname = 'public'
-            """
-        )
-        return cursor.fetchone() is not None
-
-
 @pytest.mark.django_db
 class TestStatusTransitions:
     """Allowed transitions succeed; invalid transitions raise."""
@@ -44,11 +30,6 @@ class TestStatusTransitions:
         )
 
     def test_received_to_diagnosis(self, branch, owner):
-        if not _transition_procedure_installed():
-            pytest.skip(
-                'PostgreSQL procedure transition_job_status is missing; '
-                'run Backend/db_setup_script.sql after migrate.'
-            )
         job = self._make_job(branch, owner)
         job.transition_status(JobStatus.DIAGNOSIS, owner, 'Starting diagnosis')
         assert job.status == JobStatus.DIAGNOSIS
@@ -75,11 +56,6 @@ class TestStatusTransitions:
             assert status in ALLOWED_STATUS_TRANSITIONS
 
     def test_apply_diagnosis_transitions_to_diagnosis(self, branch, owner):
-        if not _transition_procedure_installed():
-            pytest.skip(
-                'PostgreSQL procedure transition_job_status is missing; '
-                'run Backend/db_setup_script.sql after migrate.'
-            )
         job = self._make_job(branch, owner)
         apply_diagnosis(job, {'diagnosis_notes': 'Screen crack detected'}, owner)
         job.refresh_from_db()
@@ -92,6 +68,32 @@ class TestStatusTransitions:
         job.save(update_fields=['status'])
         with pytest.raises(ValueError, match='completed'):
             apply_diagnosis(job, {'diagnosis_notes': 'Late fix'}, technician)
+
+    def test_transition_revalidates_the_locked_database_state(self, branch, owner):
+        job = self._make_job(branch, owner)
+        stale_job = JobCard.objects.get(pk=job.pk)
+
+        job.transition_status(JobStatus.DIAGNOSIS, owner, 'First request')
+
+        with pytest.raises(InvalidStatusTransition):
+            stale_job.transition_status(JobStatus.DIAGNOSIS, owner, 'Stale request')
+
+        job.refresh_from_db()
+        assert job.status == JobStatus.DIAGNOSIS
+        assert list(job.status_history.values_list('to_status', flat=True)) == [
+            JobStatus.DIAGNOSIS,
+        ]
+
+    def test_override_requires_an_authorized_role(self, branch, technician):
+        job = self._make_job(branch, technician)
+
+        with pytest.raises(InvalidStatusTransition, match='Only OWNER'):
+            job.transition_status(
+                JobStatus.DELIVERED,
+                technician,
+                'Unauthorized override',
+                is_override=True,
+            )
 
 
 @pytest.mark.django_db

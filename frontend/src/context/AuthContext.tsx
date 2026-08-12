@@ -49,35 +49,32 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 // Auth Provider Component
 // =====================================================
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: React.ReactNode;
+  initialUser?: AuthUser | null;
+}) {
   const [state, setState] = useState<AuthState>({
-    user: null,
-    isLoading: true,
-    isAuthenticated: false,
-    currentBranch: null,
-    accessibleBranches: [],
+    user: initialUser,
+    isLoading: !initialUser,
+    isAuthenticated: Boolean(initialUser),
+    currentBranch: initialUser?.current_branch ?? null,
+    accessibleBranches: initialUser?.accessible_branches ?? [],
     organizationBranding: null,
   });
 
-  // Initialize auth state from stored tokens
+  // Restore the signed HTTP-only cookie session without exposing tokens to JS.
   useEffect(() => {
+    if (initialUser) {
+      return;
+    }
     let isMounted = true;
 
     const initializeAuth = async () => {
-      const token = tokenManager.getAccessToken();
-      if (token && typeof document !== "undefined" && !document.cookie.includes("scm_session=")) {
-        const secure = window.location.protocol === "https:" ? "; Secure" : "";
-        document.cookie = `scm_session=1; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
-      }
-
-      if (!token) {
-        if (isMounted) {
-          setState((prev) => ({ ...prev, isLoading: false }));
-        }
-        return;
-      }
-
       try {
+        await authApi.refreshToken();
         // Fetch current user
         const user = await authApi.getMe();
         const branches = await authApi.getMyBranches();
@@ -139,16 +136,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialUser]);
 
   // Login function
   const login = useCallback(async (email: string, password: string) => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const tokens = await authApi.login(email, password);
-      tokenManager.setTokens(tokens.access);
-      // scm_session cookie set inside setTokens for edge middleware
+      await authApi.login(email, password);
 
       const user = await authApi.getMe();
       const branches = await authApi.getMyBranches();

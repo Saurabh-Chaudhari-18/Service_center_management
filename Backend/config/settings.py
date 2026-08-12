@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     
     # Local apps
     'core.apps.CoreConfig',
+    'tenancy.apps.TenancyConfig',
     'customers.apps.CustomersConfig',
     'jobs.apps.JobsConfig',
     'inventory.apps.InventoryConfig',
@@ -76,7 +77,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'core.middleware.RequestIDMiddleware',  # must be early so request_id is available to all later middleware
+    'platform_runtime.middleware.RequestIDMiddleware',  # request correlation infrastructure
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -137,8 +138,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        'identity.authentication.CookieJWTAuthentication',
+        'identity.authentication.TenantSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -156,6 +157,7 @@ REST_FRAMEWORK = {
 
 # Refresh token httpOnly cookie (set on API domain; sent with credentials on refresh)
 JWT_REFRESH_COOKIE_NAME = 'scm_refresh_token'
+JWT_ACCESS_COOKIE_NAME = 'scm_access_token'
 
 # JWT Settings
 SIMPLE_JWT = {
@@ -259,6 +261,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Media storage — S3-compatible (AWS S3, MinIO, Cloudflare R2).
 # -----------------------------------------------------------------------
 USE_S3 = env.bool('USE_S3', default=False)
+REQUIRE_S3_MEDIA = env.bool('REQUIRE_S3_MEDIA', default=False)
 
 if USE_S3:
     INSTALLED_APPS.append('storages')
@@ -415,125 +418,8 @@ DATABASES['default']['CONN_MAX_AGE'] = env.int('CONN_MAX_AGE', default=60)
 # Cache — Redis when reachable; LocMemCache as automatic fallback.
 #
 # WHY: every DRF UserRateThrottle check and every RolePermission cache
-# lookup goes through the cache backend.  If Django tries to reach a
-# Redis instance that accepts the TCP connection but never responds,
-# each operation blocks for SOCKET_TIMEOUT seconds — turning a 50 ms
-# API call into an 8-15 s one.  IGNORE_EXCEPTIONS only fires *after*
-# the timeout expires, so it does not help with latency.
-#
-# The robust solution is to probe Redis at startup with an actual PING
-# command (not just a TCP connect — a slow Redis can accept the socket
-# but never send a reply).  If the probe fails for any reason the app
-# falls back to LocMemCache automatically, in *every* environment.
-# -----------------------------------------------------------------------
-# -----------------------------------------------------------------------
-# Cache — Redis with automatic TLS fix + startup probe + LocMemCache fallback
-# -----------------------------------------------------------------------
-
-REDIS_URL = env('REDIS_URL', default='')
-
-# ── Auto-correct Upstash TLS scheme ──────────────────────────────────
-# Upstash (and most managed Redis providers) require TLS.  The correct
-# URL scheme is  rediss://  (double-s).  If the env var was set with
-# redis://  by mistake Django-redis will open a plain TCP socket and
-# Upstash will close it immediately — the connection silently fails.
-# We normalise the URL here so a mis-configured env-var still works.
-if REDIS_URL and REDIS_URL.startswith('redis://') and 'upstash.io' in REDIS_URL.lower():
-    import logging as _logging
-    _logging.getLogger(__name__).warning(
-        "REDIS_URL uses 'redis://' scheme — Upstash requires TLS. "
-        "Auto-correcting to 'rediss://'. Fix the env var to suppress this warning."
-    )
-    REDIS_URL = 'rediss://' + REDIS_URL[len('redis://'):]
-
-def _build_redis_caches(url: str) -> dict:
-    """Return a RedisCache CACHES dict if url is non-empty, else LocMemCache."""
-    if not url:
-        return {
-            'default': {
-                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-                'LOCATION': 'default',
-            }
-        }
-    options = {
-        'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        'SOCKET_CONNECT_TIMEOUT': 5,
-        'SOCKET_TIMEOUT': 5,
-        'IGNORE_EXCEPTIONS': True,
-    }
-    if url.startswith('rediss://'):
-        options['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
-    return {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': url,
-            'OPTIONS': options,
-            'KEY_PREFIX': 'scm',
-            'TIMEOUT': 300,
-        }
-    }
-
-def _probe_redis(url: str) -> bool:
-    """
-    Send an actual PING to Redis and return True if it succeeds.
-
-    Why not just try a TCP connect?  A slow Redis can accept the socket
-    but never send a reply — the PING forces an actual round-trip within
-    SOCKET_CONNECT_TIMEOUT seconds so startup latency stays bounded.
-    """
-    import logging
-    _logger = logging.getLogger(__name__)
-    try:
-        import redis as _redis  # type: ignore
-        kwargs = {'socket_connect_timeout': 3, 'socket_timeout': 3}
-        if url.startswith('rediss://'):
-            kwargs['ssl_cert_reqs'] = None
-        client = _redis.from_url(url, **kwargs)
-        client.ping()
-        _logger.info("Redis startup probe: OK (%s)", url.split('@')[-1])
-        return True
-    except Exception as exc:
-        _logger.warning(
-            "Redis startup probe FAILED — falling back to LocMemCache. "
-            "Reason: %s", exc
-        )
-        return False
-
-if REDIS_URL and _probe_redis(REDIS_URL):
-    CACHES = _build_redis_caches(REDIS_URL)
-    REDIS_AVAILABLE = True
-else:
-    CACHES = _build_redis_caches('')  # LocMemCache fallback
-    REDIS_AVAILABLE = False
-
-# -----------------------------------------------------------------------
-# Celery — async task queue backed by Redis.
-# Workers are started separately: celery -A config worker -l info
-# -----------------------------------------------------------------------
-# Use the already TLS-corrected REDIS_URL so Celery always connects over TLS.
-CELERY_BROKER_URL = env('CELERY_BROKER_URL', default=REDIS_URL or 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default=REDIS_URL or 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_ACKS_LATE = True           # re-queue if worker dies mid-task
-CELERY_TASK_REJECT_ON_WORKER_LOST = True
-CELERY_TASK_SOFT_TIME_LIMIT = 120      # SoftTimeLimitExceeded after 2 min
-CELERY_TASK_TIME_LIMIT = 180           # SIGKILL after 3 min (safety net)
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # fair dispatch for long-running tasks
-CELERY_RESULT_EXPIRES = 60 * 60 * 24  # keep results for 24 h
-
-# Fail fast when broker is unreachable — prevents request threads from hanging
-# while waiting for a TCP connection to a Redis that isn't running locally.
-CELERY_BROKER_CONNECTION_TIMEOUT = 3        # seconds before giving up on connect
-CELERY_BROKER_CONNECTION_RETRY = False      # don't retry on the request thread
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False  # suppress noisy startup warning
-CELERY_BROKER_TRANSPORT_OPTIONS = {
-    'socket_connect_timeout': 3,
-    'socket_timeout': 3,
-    'max_retries': 1,
-}
+from config.runtime_settings import build_runtime_settings
+globals().update(build_runtime_settings(env, TIME_ZONE))
 
 
 # -----------------------------------------------------------------------
@@ -542,7 +428,7 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 # -----------------------------------------------------------------------
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
@@ -571,12 +457,6 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
     'token_refresh': '30/min',
     'otp': '5/min',
     'public_track': '30/min',
-}
-CELERY_BEAT_SCHEDULE = {
-    'service-reminders-hourly': {
-        'task': 'marketing.process_due_service_reminders',
-        'schedule': 60 * 60,
-    },
 }
 DELIVERY_OTP_TTL_MINUTES = env.int('DELIVERY_OTP_TTL_MINUTES', default=10)
 DELIVERY_OTP_MAX_ATTEMPTS = env.int('DELIVERY_OTP_MAX_ATTEMPTS', default=5)

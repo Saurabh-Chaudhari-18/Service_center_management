@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { Button, Input, Select } from "@/components/ui";
+import { Button, Checkbox, Input, Select } from "@/components/ui";
 import { useToast } from "@/context/ToastContext";
 import { customersApi, branchesApi } from "@/lib/api";
 import type { Customer } from "@/types";
@@ -178,8 +178,16 @@ export function CustomerCreateForm({
         <Input label="State Code" {...register("state_code")} error={errors.state_code?.message} placeholder="e.g. 27" />
         <Input label="GSTIN" {...register("gstin")} error={errors.gstin?.message} placeholder="15-character GSTIN" />
         <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2 rounded-lg border border-neutral-200 p-3 text-sm dark:border-slate-700"><input type="checkbox" {...register("sms_enabled")} /> Allow service updates by SMS</label>
-          <label className="flex items-center gap-2 rounded-lg border border-neutral-200 p-3 text-sm dark:border-slate-700"><input type="checkbox" {...register("whatsapp_enabled")} /> Allow service updates by WhatsApp</label>
+          <Checkbox
+            label="Allow service updates by SMS"
+            containerClassName="rounded-lg border border-neutral-200 p-3 dark:border-slate-700"
+            {...register("sms_enabled")}
+          />
+          <Checkbox
+            label="Allow service updates by WhatsApp"
+            containerClassName="rounded-lg border border-neutral-200 p-3 dark:border-slate-700"
+            {...register("whatsapp_enabled")}
+          />
         </div>
         <div className="md:col-span-2">
           <Input
