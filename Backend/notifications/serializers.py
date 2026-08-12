@@ -47,6 +47,7 @@ class NotificationLogSerializer(serializers.ModelSerializer):
             'recipient_mobile', 'recipient_email', 'recipient_name',
             'subject', 'message',
             'job', 'job_number', 'invoice', 'invoice_number',
+            'credit_note',
             'status', 'error_message', 'retry_count',
             'created_at'
         ]

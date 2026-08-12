@@ -14,7 +14,7 @@ vi.mock("@/components/layout/Layout", () => ({ AppLayout: ({ children }: { child
 vi.mock("@/lib/api/services", () => ({
   branchesApi: { list: vi.fn(() => Promise.resolve([])) }, inventoryApi: { list: vi.fn(() => Promise.resolve({ results: [] })), listTransfers: vi.fn(() => Promise.resolve({ results: [] })) },
   suppliersApi: { listPurchaseOrders: vi.fn(() => Promise.resolve({ results: [] })), list: vi.fn(() => Promise.resolve({ results: [] })) },
-  billingApi: { listCreditNotes: vi.fn(() => Promise.resolve({ results: [] })), listCreditEligibleInvoices: vi.fn(() => Promise.resolve([])), downloadCreditNote: vi.fn() },
+  billingApi: { listCreditNotes: vi.fn(() => Promise.resolve({ results: [] })), listCreditEligibleInvoices: vi.fn(() => Promise.resolve([])), downloadCreditNote: vi.fn(), sendCreditNoteToCustomer: vi.fn() },
   auditApi: { listLogs: vi.fn(() => Promise.resolve({ results: [], next: null, previous: null })) },
 }));
 

@@ -48,6 +48,11 @@ DEFAULT_NOTIFICATION_TEMPLATES = [
         "Dear {customer_name}, ₹{amount} remains due for Invoice {invoice_number}. "
         "Please contact {branch_name} if you need assistance.",
     ),
+    (
+        NotificationType.CREDIT_NOTE_ISSUED,
+        "Credit Note {credit_note_number} for ₹{amount} has been issued "
+        "against Invoice {invoice_number}. Please contact {branch_name} if you have questions.",
+    ),
 ]
 
 

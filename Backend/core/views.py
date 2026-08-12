@@ -56,19 +56,40 @@ class ReadinessCheckView(APIView):
             checks['database'] = {'ok': False, 'detail': type(exc).__name__}
         try:
             cache.set('readiness-probe', 'ok', 5)
-            checks['cache'] = {'ok': cache.get('readiness-probe') == 'ok', 'backend': cache.__class__.__name__}
+            cache_operational = cache.get('readiness-probe') == 'ok'
+            shared_cache = bool(getattr(settings, 'REDIS_AVAILABLE', False))
+            checks['cache'] = {
+                'ok': cache_operational and (settings.DEBUG or shared_cache),
+                'backend': cache.__class__.__name__,
+                'shared': shared_cache,
+                'required': not settings.DEBUG,
+            }
         except Exception as exc:
-            checks['cache'] = {'ok': False, 'detail': type(exc).__name__}
+            checks['cache'] = {'ok': False, 'detail': type(exc).__name__, 'required': not settings.DEBUG}
+
+        checks['task_queue'] = {
+            'ok': bool(getattr(settings, 'REDIS_AVAILABLE', False)),
+            'required': not settings.DEBUG,
+        }
 
         if settings.WHATSAPP_PROVIDER == 'twilio':
             whatsapp_ok = bool(settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_WHATSAPP_FROM)
         else:
             whatsapp_ok = bool(settings.WHATSAPP_CLOUD_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID)
-        checks['whatsapp'] = {'ok': whatsapp_ok, 'required': False}
-        checks['email'] = {'ok': bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD), 'required': False}
+        sms_ok = bool(settings.TEXTBEE_API_KEY and settings.TEXTBEE_DEVICE_ID)
+        email_ok = bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+        checks['customer_notifications'] = {
+            'ok': whatsapp_ok or sms_ok or email_ok,
+            'required': not settings.DEBUG,
+            'channels': {'whatsapp': whatsapp_ok, 'sms': sms_ok, 'email': email_ok},
+        }
         checks['media_storage'] = {'ok': bool(settings.USE_S3), 'required': not settings.DEBUG}
         checks['error_tracking'] = {'ok': bool(settings.SENTRY_DSN), 'required': False}
-        checks['backup_configuration'] = {'ok': bool(settings.DATABASES['default'].get('HOST')), 'required': not settings.DEBUG}
+        checks['backup_configuration'] = {
+            'ok': bool(getattr(settings, 'BACKUP_VERIFICATION_TOKEN', '')),
+            'required': not settings.DEBUG,
+            'detail': 'Set after a successful restore drill; database hosting alone is not backup verification.',
+        }
 
         required_failures = [name for name, value in checks.items() if value.get('required', True) and not value['ok']]
         response_status = 503 if required_failures else 200

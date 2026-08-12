@@ -438,7 +438,7 @@ REDIS_URL = env('REDIS_URL', default='')
 # redis://  by mistake Django-redis will open a plain TCP socket and
 # Upstash will close it immediately — the connection silently fails.
 # We normalise the URL here so a mis-configured env-var still works.
-if REDIS_URL and REDIS_URL.startswith('redis://'):
+if REDIS_URL and REDIS_URL.startswith('redis://') and 'upstash.io' in REDIS_URL.lower():
     import logging as _logging
     _logging.getLogger(__name__).warning(
         "REDIS_URL uses 'redis://' scheme — Upstash requires TLS. "
@@ -455,19 +455,19 @@ def _build_redis_caches(url: str) -> dict:
                 'LOCATION': 'default',
             }
         }
+    options = {
+        'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        'SOCKET_CONNECT_TIMEOUT': 5,
+        'SOCKET_TIMEOUT': 5,
+        'IGNORE_EXCEPTIONS': True,
+    }
+    if url.startswith('rediss://'):
+        options['CONNECTION_POOL_KWARGS'] = {'ssl_cert_reqs': None}
     return {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
             'LOCATION': url,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
-                'IGNORE_EXCEPTIONS': True,
-                'CONNECTION_POOL_KWARGS': {
-                    'ssl_cert_reqs': None,  # required for Upstash / managed TLS
-                },
-            },
+            'OPTIONS': options,
             'KEY_PREFIX': 'scm',
             'TIMEOUT': 300,
         }
@@ -485,12 +485,10 @@ def _probe_redis(url: str) -> bool:
     _logger = logging.getLogger(__name__)
     try:
         import redis as _redis  # type: ignore
-        client = _redis.from_url(
-            url,
-            socket_connect_timeout=3,
-            socket_timeout=3,
-            ssl_cert_reqs=None,
-        )
+        kwargs = {'socket_connect_timeout': 3, 'socket_timeout': 3}
+        if url.startswith('rediss://'):
+            kwargs['ssl_cert_reqs'] = None
+        client = _redis.from_url(url, **kwargs)
         client.ping()
         _logger.info("Redis startup probe: OK (%s)", url.split('@')[-1])
         return True
@@ -503,8 +501,10 @@ def _probe_redis(url: str) -> bool:
 
 if REDIS_URL and _probe_redis(REDIS_URL):
     CACHES = _build_redis_caches(REDIS_URL)
+    REDIS_AVAILABLE = True
 else:
     CACHES = _build_redis_caches('')  # LocMemCache fallback
+    REDIS_AVAILABLE = False
 
 # -----------------------------------------------------------------------
 # Celery — async task queue backed by Redis.
@@ -593,6 +593,7 @@ if not DEBUG:
 # Get DSN from https://sentry.io (free account → New Project → Django).
 # -----------------------------------------------------------------------
 SENTRY_DSN = env('SENTRY_DSN', default='')
+BACKUP_VERIFICATION_TOKEN = env('BACKUP_VERIFICATION_TOKEN', default='')
 if SENTRY_DSN:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration

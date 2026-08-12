@@ -2,8 +2,8 @@ name: Neon Database Backup to Cloudflare R2
 
 on:
   schedule:
-    # Runs at 00:00 UTC every 6 days
-    - cron: '0 0 */6 * *'
+    # Runs daily at 00:00 UTC
+    - cron: '0 0 * * *'
   workflow_dispatch:
     # Allows manual triggering from the GitHub Actions tab
 
@@ -41,7 +41,12 @@ jobs:
         run: |
           # Format the filename with a UTC timestamp
           FILENAME="backup_$(date -u +%Y-%m-%d_%H-%M-%S).sql.gz"
-          
+          gzip -t backup.sql.gz
+          test "$(wc -c < backup.sql.gz)" -gt 1024
           # Upload using the AWS CLI pre-installed on the runner (compatible with R2)
           aws s3 cp backup.sql.gz "s3://$R2_BUCKET_NAME/db-backups/$FILENAME" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3api head-object \
+            --bucket "$R2_BUCKET_NAME" \
+            --key "db-backups/$FILENAME" \
             --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"

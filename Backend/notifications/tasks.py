@@ -68,5 +68,11 @@ def deliver_email(self, log_id, email_address, subject, html_message=None):
         return
     from notifications.services import NotificationService
     NotificationService._send_email(
-        email_address, subject, log.message, log, html_message=html_message
+        email_address,
+        subject,
+        log.message,
+        log,
+        html_message=html_message,
+        invoice=log.invoice if not log.credit_note_id else None,
+        credit_note=log.credit_note,
     )

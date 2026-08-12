@@ -191,16 +191,46 @@ class NotificationService:
         )
 
     @staticmethod
-    def _send_customer_notification(job, notification_type, context, invoice=None, job_pdf=None, job_pdf_filename=None):
+    def on_credit_note_issued(credit_note):
+        """Notify the customer and attach the credit-note PDF to email."""
+        invoice = credit_note.invoice
+        return NotificationService._send_customer_notification(
+            job=invoice.job,
+            notification_type=NotificationType.CREDIT_NOTE_ISSUED,
+            invoice=invoice,
+            credit_note=credit_note,
+            context={
+                'customer_name': invoice.customer_name,
+                'job_number': invoice.job.job_number if invoice.job else '',
+                'invoice_number': invoice.invoice_number,
+                'credit_note_number': credit_note.credit_note_number,
+                'amount': str(credit_note.total_amount),
+                'branch_name': credit_note.branch.name,
+            },
+        )
+
+    @staticmethod
+    def _send_customer_notification(
+        job,
+        notification_type,
+        context,
+        invoice=None,
+        credit_note=None,
+        job_pdf=None,
+        job_pdf_filename=None,
+    ):
         """
         Internal method to send notification to customer.
         Tries WhatsApp first (if enabled), then SMS.
         """
         customer = job.customer if job else getattr(invoice, 'customer', None)
         branch = job.branch if job else getattr(invoice, 'branch', None)
-        if customer is None:
-            logger.info("Notification skipped because no customer account is linked.")
-            return {'queued': 0, 'failed': 0, 'channels': [], 'reason': 'no_customer'}
+        recipient_name = customer.get_full_name() if customer else getattr(invoice, 'customer_name', '')
+        recipient_mobile = customer.mobile if customer else getattr(invoice, 'customer_mobile', '')
+        recipient_email = customer.email if customer else getattr(invoice, 'customer_email', '')
+        if customer is None and not recipient_email:
+            logger.info("Notification skipped because no linked customer or invoice email is available.")
+            return {'queued': 0, 'failed': 0, 'channels': [], 'reason': 'no_customer_channel'}
 
         # Universal records (branch=null) have no branch settings — skip mobile notifications
         if branch is None:
@@ -209,14 +239,14 @@ class NotificationService:
                 f"Record {reference} has no branch assigned (Universal). "
                 "Skipping mobile notifications; email-only if customer has email."
             )
-            channels_to_try = [NotificationChannel.EMAIL] if customer.email else []
+            channels_to_try = [NotificationChannel.EMAIL] if recipient_email else []
         else:
             channels_to_try = []
-            if branch.whatsapp_enabled and customer.whatsapp_enabled:
+            if customer and branch.whatsapp_enabled and customer.whatsapp_enabled:
                 channels_to_try.append(NotificationChannel.WHATSAPP)
-            if branch.sms_enabled and customer.sms_enabled:
+            if customer and branch.sms_enabled and customer.sms_enabled:
                 channels_to_try.append(NotificationChannel.SMS)
-            if customer.email:
+            if recipient_email:
                 channels_to_try.append(NotificationChannel.EMAIL)
         
         result = {'queued': 0, 'failed': 0, 'channels': [], 'reason': ''}
@@ -225,6 +255,16 @@ class NotificationService:
 
         for channel in channels_to_try:
             try:
+                existing = NotificationLog.objects.filter(
+                    credit_note=credit_note,
+                    notification_type=notification_type,
+                    channel=channel,
+                ).order_by('-created_at').first() if credit_note else None
+                if existing and existing.status in ('PENDING', 'SENT'):
+                    result['channels'].append(channel)
+                    result['queued'] += int(existing.status == 'PENDING')
+                    continue
+
                 # Get template
                 template = NotificationTemplate.objects.filter(
                     branch=branch,
@@ -248,11 +288,13 @@ class NotificationService:
                     branch=branch,
                     notification_type=notification_type,
                     channel=channel,
-                    recipient_mobile=customer.mobile,
-                    recipient_name=customer.get_full_name(),
+                    recipient_mobile=recipient_mobile,
+                    recipient_email=recipient_email if channel == NotificationChannel.EMAIL else '',
+                    recipient_name=recipient_name,
                     message=message,
                     job=job,
                     invoice=invoice,
+                    credit_note=credit_note,
                     status='PENDING'
                 )
                 result['channels'].append(channel)
@@ -294,7 +336,9 @@ class NotificationService:
                         f"Job Card {job.job_number} — Device Received"
                         if notification_type == NotificationType.JOB_CREATED and job
                         else (
-                            f"Invoice {invoice.invoice_number}"
+                            f"Credit Note {credit_note.credit_note_number}"
+                            if credit_note
+                            else f"Invoice {invoice.invoice_number}"
                             if invoice and not job
                             else f"Update on Job {job.job_number}"
                         )
@@ -312,7 +356,7 @@ class NotificationService:
                     html_message = render_to_string('emails/job_notification.html', html_context)
 
                     try:
-                        deliver_email.delay(str(log.id), customer.email, subject, html_message)
+                        deliver_email.delay(str(log.id), recipient_email, subject, html_message)
                     except Exception as celery_err:
                         logger.warning(
                             f"Could not queue EMAIL task (Celery/Redis unavailable): {celery_err}. "
@@ -375,6 +419,10 @@ class NotificationService:
             NotificationType.PAYMENT_REMINDER: (
                 "Dear {customer_name}, payment reminder for Invoice {invoice_number}. "
                 "Outstanding amount: Rs.{amount}. Please clear at your earliest."
+            ),
+            NotificationType.CREDIT_NOTE_ISSUED: (
+                "Dear {customer_name}, Credit Note {credit_note_number} for Rs.{amount} "
+                "has been issued against Invoice {invoice_number}. Contact {branch_name} if you have questions."
             ),
         }
         
@@ -552,7 +600,17 @@ class NotificationService:
             log.mark_failed(str(e))
 
     @staticmethod
-    def _send_email(email_address, subject, message, log, html_message=None, invoice=None, job_pdf=None, job_pdf_filename=None):
+    def _send_email(
+        email_address,
+        subject,
+        message,
+        log,
+        html_message=None,
+        invoice=None,
+        credit_note=None,
+        job_pdf=None,
+        job_pdf_filename=None,
+    ):
         """Send Email via Django SMTP with optional HTML formatting and attachments."""
         if not settings.EMAIL_HOST_USER:
             logger.warning("Email credentials not configured. Message logged but not sent.")
@@ -578,6 +636,11 @@ class NotificationService:
                 from billing.services import InvoiceService
                 pdf_content = InvoiceService.generate_invoice_pdf(invoice)
                 email.attach(f"{invoice.invoice_number}.pdf", pdf_content, 'application/pdf')
+
+            if credit_note:
+                from billing.services import CreditNoteService
+                pdf_content = CreditNoteService.generate_pdf(credit_note)
+                email.attach(f"{credit_note.credit_note_number}.pdf", pdf_content, 'application/pdf')
             
             # Attach Job Card PDF if present
             if job_pdf:

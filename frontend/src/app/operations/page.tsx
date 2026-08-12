@@ -91,7 +91,13 @@ function OperationsContent() {
   });
   const createCredit = useMutation({
     mutationFn: () => billingApi.createCreditNote({ invoice: form.invoice, amount: Number(form.amount), reason: form.reason }),
-    onSuccess: () => { toast.success("Credit note created and the customer balance was adjusted."); closeModal(); refresh("credit-notes"); },
+    onSuccess: (note) => {
+      const delivery = ["QUEUED", "SENT"].includes(note.customer_delivery?.status || "")
+        ? " Customer delivery was queued."
+        : " Add a customer email or enable a consented message channel to deliver it.";
+      toast.success(`Credit note created and the customer balance was adjusted.${delivery}`);
+      closeModal(); refresh("credit-notes");
+    },
     onError: (e: Error) => toast.error(e.message || "Could not create credit note."),
   });
   const transferAction = useMutation({
@@ -114,6 +120,11 @@ function OperationsContent() {
     ),
     onSuccess: () => { toast.success("Selected stock received and inventory updated."); closeModal(); refresh("purchase-orders"); },
     onError: (e: Error) => toast.error(e.message || "Could not receive the order."),
+  });
+  const sendCredit = useMutation({
+    mutationFn: (id: string) => billingApi.sendCreditNoteToCustomer(id),
+    onSuccess: () => { toast.success("Credit note delivery queued."); refresh("credit-notes"); },
+    onError: (e: Error) => toast.error(e.message || "No customer delivery channel is available."),
   });
 
   const closeModal = () => { setModal(null); setForm({}); setReceivingOrder(null); };
@@ -149,7 +160,7 @@ function OperationsContent() {
       {currentLoading ? <LoadingState message="Loading operational records…" /> : <Card padding="none">
         {section === "transfers" && <TransferList items={rows<StockTransfer>(transfers.data)} onAction={(id, action) => transferAction.mutate({ id, action })} />}
         {section === "orders" && <OrderList items={rows<PurchaseOrder>(orders.data)} onAction={(id, action) => orderAction.mutate({ id, action })} onReceive={openReceipt} />}
-        {section === "credits" && <CreditList items={rows<CreditNote>(credits.data)} />}
+        {section === "credits" && <CreditList items={rows<CreditNote>(credits.data)} onSend={id => sendCredit.mutate(id)} />}
         {section === "audit" && isOwner && <AuditList items={rows<any>(audit.data)} />}
       </Card>}
       {section === "audit" && isOwner && <Pagination page={auditPage} previous={Boolean(audit.data?.previous)} next={Boolean(audit.data?.next)} onChange={setAuditPage} />}
@@ -196,9 +207,9 @@ function OrderList({ items, onAction, onReceive }: { items: PurchaseOrder[]; onA
   if (!items.length) return <EmptyState title="No purchase orders" description="Create an order before buying stock from a supplier." />;
   return <div className="divide-y divide-neutral-100 dark:divide-slate-700">{items.map(item => <div key={item.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"><div><p className="font-semibold"><ShoppingCart className="mr-2 inline h-4 w-4" />{item.po_number} · {item.supplier_name}</p><p className="mt-1 text-sm text-neutral-500">{(item.items || []).map(line => `${line.description} × ${line.quantity}`).join(", ") || `Ordered ${item.order_date}`}</p></div><div className="flex flex-wrap items-center gap-2"><Badge>{item.status_display}</Badge><span className="font-semibold">{money(item.total_amount)}</span>{item.status === "DRAFT" && <Button size="sm" onClick={() => onAction(item.id, "send")}>Send</Button>}{item.status === "SENT" && <Button size="sm" onClick={() => onAction(item.id, "confirm")}>Confirm</Button>}{["SENT", "CONFIRMED", "PARTIAL"].includes(item.status) && <Button size="sm" onClick={() => onReceive(item)}>Receive</Button>}{["DRAFT", "SENT", "CONFIRMED"].includes(item.status) && <Button size="sm" variant="secondary" onClick={() => onAction(item.id, "cancel")}>Cancel</Button>}</div></div>)}</div>;
 }
-function CreditList({ items }: { items: CreditNote[] }) {
+function CreditList({ items, onSend }: { items: CreditNote[]; onSend: (id: string) => void }) {
   if (!items.length) return <EmptyState title="No credit notes" description="Credits issued against invoices will appear here." />;
-  return <div className="divide-y divide-neutral-100 dark:divide-slate-700">{items.map(item => <div key={item.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold"><FileMinus2 className="mr-2 inline h-4 w-4" />{item.credit_note_number}</p><p className="mt-1 text-sm text-neutral-500">Invoice {item.invoice_number} · {item.reason}</p></div><div className="flex items-center gap-3"><p className="font-semibold">{money(item.total_amount)}</p><Button size="sm" variant="secondary" aria-label={`Download ${item.credit_note_number}`} onClick={() => billingApi.downloadCreditNote(item.id, item.credit_note_number)}><Download className="h-4 w-4" /></Button></div></div>)}</div>;
+  return <div className="divide-y divide-neutral-100 dark:divide-slate-700">{items.map(item => <div key={item.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold"><FileMinus2 className="mr-2 inline h-4 w-4" />{item.credit_note_number}</p><p className="mt-1 text-sm text-neutral-500">Invoice {item.invoice_number} · {item.reason}</p><p className="mt-1 text-xs text-neutral-500">Customer delivery: {(item.customer_delivery?.status || "NOT_AVAILABLE").replaceAll("_", " ").toLowerCase()}</p></div><div className="flex flex-wrap items-center justify-end gap-2"><p className="font-semibold">{money(item.total_amount)}</p><Button size="sm" variant="secondary" onClick={() => onSend(item.id)}>Send to customer</Button><Button size="sm" variant="secondary" aria-label={`Download ${item.credit_note_number}`} onClick={() => billingApi.downloadCreditNote(item.id, item.credit_note_number)}><Download className="h-4 w-4" /></Button></div></div>)}</div>;
 }
 function AuditList({ items }: { items: any[] }) {
   if (!items.length) return <EmptyState title="No audit events" description="Accountable changes will appear here." />;

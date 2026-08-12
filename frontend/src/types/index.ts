@@ -653,6 +653,10 @@ export interface CreditNote extends BaseEntity {
   total_amount: number;
   reason: string;
   created_by_name: string;
+  customer_delivery?: {
+    status: "NOT_AVAILABLE" | "QUEUED" | "SENT" | "FAILED";
+    channels: string[];
+  };
 }
 
 // =====================================================

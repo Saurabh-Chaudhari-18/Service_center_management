@@ -328,3 +328,50 @@ class InvoiceService:
         invoice.save()
         
         return invoice
+
+
+class CreditNoteService:
+    """Generate the customer-facing credit-note document."""
+
+    @staticmethod
+    def generate_pdf(note):
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+        except ImportError:
+            return CreditNoteService._generate_text(note)
+
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        lines = [
+            note.branch.name,
+            'CREDIT NOTE',
+            note.credit_note_number,
+            f'Against invoice: {note.invoice.invoice_number}',
+            f'Customer: {note.invoice.customer_name}',
+            f'Reason: {note.reason}',
+            f'Credit before tax: {note.amount}',
+            f'CGST: {note.cgst_amount}',
+            f'SGST: {note.sgst_amount}',
+            f'IGST: {note.igst_amount}',
+            f'Total credit: {note.total_amount}',
+        ]
+        y = 800
+        for line in lines:
+            pdf.drawString(60, y, str(line))
+            y -= 28
+        pdf.save()
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    @staticmethod
+    def _generate_text(note):
+        return ('\n'.join([
+            note.branch.name,
+            'CREDIT NOTE',
+            note.credit_note_number,
+            f'Against invoice: {note.invoice.invoice_number}',
+            f'Customer: {note.invoice.customer_name}',
+            f'Reason: {note.reason}',
+            f'Total credit: {note.total_amount}',
+        ])).encode('utf-8')

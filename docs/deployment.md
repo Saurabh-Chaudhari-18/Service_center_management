@@ -248,8 +248,10 @@ Configure your domain in Vercel project settings. Update `CORS_ALLOWED_ORIGINS` 
 
 ### Operational
 - [ ] Health check endpoint responding: `GET /api/healthz/` → 200
+- [ ] Readiness endpoint responding: `GET /api/readyz/` → 200 (shared cache, task queue, customer delivery, media, and verified backups)
 - [ ] Celery worker running and processing tasks
 - [ ] Daily database backup scheduled
+- [ ] A backup has been restored into an isolated database and `BACKUP_VERIFICATION_TOKEN` records that successful drill
 - [ ] Log rotation configured (handled by `RotatingFileHandler` — 10MB × 10 files)
 - [ ] Redis `maxmemory` policy set (prevents Redis from consuming all RAM)
 
@@ -279,6 +281,7 @@ CELERY_BROKER_URL=redis://host:6379/0
 CELERY_RESULT_BACKEND=redis://host:6379/0
 ALLOWED_HOSTS=api.yourapp.com
 CORS_ALLOWED_ORIGINS=https://yourapp.com
+BACKUP_VERIFICATION_TOKEN=<latest-successful-restore-drill-id>
 ```
 
 ---

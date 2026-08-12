@@ -402,12 +402,18 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
         
         return CreditNote.objects.filter(
             branch__in=user.get_accessible_branches()
-        ).select_related('invoice', 'created_by')
+        ).select_related('invoice', 'created_by').prefetch_related('notifications')
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        note = serializer.save(created_by=self.request.user)
         from audit.services import AuditLogService
-        AuditLogService.log_create(self.request.user, serializer.instance, request=self.request)
+        AuditLogService.log_create(self.request.user, note, request=self.request)
+        from notifications.services import NotificationService
+        try:
+            note._delivery_result = NotificationService.on_credit_note_issued(note)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception('Credit note created, but customer delivery setup failed: %s', exc)
 
     @action(detail=False, methods=['get'], url_path='eligible-invoices')
     def eligible_invoices(self, request):
@@ -425,30 +431,24 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='download-pdf')
     def download_pdf(self, request, pk=None):
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas
-        from io import BytesIO
+        from billing.services import CreditNoteService
 
         note = self.get_object()
-        buffer = BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=A4)
-        lines = [
-            note.branch.name, 'CREDIT NOTE', note.credit_note_number,
-            f'Against invoice: {note.invoice.invoice_number}',
-            f'Customer: {note.invoice.customer_name}',
-            f'Reason: {note.reason}', f'Credit before tax: {note.amount}',
-            f'CGST: {note.cgst_amount}', f'SGST: {note.sgst_amount}',
-            f'IGST: {note.igst_amount}', f'Total credit: {note.total_amount}',
-        ]
-        y = 800
-        for line in lines:
-            pdf.drawString(60, y, str(line))
-            y -= 28
-        pdf.save()
-        buffer.seek(0)
-        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response = HttpResponse(CreditNoteService.generate_pdf(note), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{note.credit_note_number}.pdf"'
         return response
+
+    @action(detail=True, methods=['post'], url_path='send-to-customer')
+    def send_to_customer(self, request, pk=None):
+        from notifications.services import NotificationService
+        note = self.get_object()
+        result = NotificationService.on_credit_note_issued(note)
+        if not result['channels']:
+            return Response(
+                {'message': 'No customer delivery channel is available.', 'delivery': result},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({'message': 'Credit note delivery queued.', 'delivery': result})
 
 
 class PaymentMethodsView(APIView):

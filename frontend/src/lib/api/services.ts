@@ -979,6 +979,9 @@ export const billingApi = {
 
   downloadCreditNote: async (id: string, number: string): Promise<void> =>
     apiDownload(`/billing/credit-notes/${id}/download-pdf/`, `${number}.pdf`),
+
+  sendCreditNoteToCustomer: async (id: string): Promise<{ message: string }> =>
+    apiPost(`/billing/credit-notes/${id}/send-to-customer/`, {}),
 };
 
 // =====================================================

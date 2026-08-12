@@ -19,6 +19,7 @@ from decimal import Decimal
 from billing.models import Invoice, InvoiceLineItem, InvoiceStatus, Payment, CreditNote
 from billing.serializers import InvoiceListSerializer, CreditNoteSerializer
 from marketing.models import CustomerLedgerEntry
+from notifications.models import NotificationLog, NotificationType
 from tests.conftest import bh
 
 INVOICES_URL = '/api/billing/invoices/'
@@ -77,6 +78,53 @@ class TestCreditNotes:
         }, context={'request': type('Request', (), {'user': owner})()})
         assert not serializer.is_valid()
         assert 'amount' in serializer.errors
+
+    def test_creation_queues_customer_delivery_and_pdf(self, auth_client, invoice, customer, branch, monkeypatch):
+        invoice.customer = customer
+        invoice.customer_email = 'customer@example.com'
+        invoice.total_amount = Decimal('118.00')
+        invoice.subtotal = Decimal('100.00')
+        invoice.cgst_total = Decimal('9.00')
+        invoice.sgst_total = Decimal('9.00')
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
+        invoice.save()
+        monkeypatch.setattr('notifications.tasks.deliver_whatsapp.delay', lambda *args: None)
+        monkeypatch.setattr('notifications.tasks.deliver_email.delay', lambda *args: None)
+
+        response = auth_client.post('/api/billing/credit-notes/', {
+            'invoice': str(invoice.id), 'amount': '50.00', 'reason': 'Service correction',
+        }, format='json', **bh(branch))
+
+        assert response.status_code == 201
+        note = CreditNote.objects.get(pk=response.data['id'])
+        assert response.data['customer_delivery']['status'] == 'QUEUED'
+        assert NotificationLog.objects.filter(
+            credit_note=note, notification_type=NotificationType.CREDIT_NOTE_ISSUED,
+        ).exists()
+        pdf = auth_client.get(f'/api/billing/credit-notes/{note.id}/download-pdf/', **bh(branch))
+        assert pdf.status_code == 200
+        assert pdf['Content-Type'] == 'application/pdf'
+
+    def test_manual_customer_delivery_explains_missing_channel(self, auth_client, invoice, branch):
+        invoice.total_amount = Decimal('118.00')
+        invoice.subtotal = Decimal('100.00')
+        invoice.cgst_total = Decimal('9.00')
+        invoice.sgst_total = Decimal('9.00')
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
+        invoice.save()
+        note = CreditNote.objects.create(
+            branch=branch, invoice=invoice, credit_note_number='CN-NO-CHANNEL',
+            amount=Decimal('50.00'), total_amount=Decimal('59.00'),
+            reason='Correction', created_by=invoice.created_by,
+        )
+
+        response = auth_client.post(
+            f'/api/billing/credit-notes/{note.id}/send-to-customer/', {}, format='json', **bh(branch),
+        )
+        assert response.status_code == 400
+        assert response.data['delivery']['reason'] == 'no_customer_channel'
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -77,3 +77,6 @@ def test_readiness_endpoint_reports_checks(client):
     assert response.status_code in (200, 503)
     assert 'database' in response.json()['checks']
     assert 'media_storage' in response.json()['checks']
+    assert 'task_queue' in response.json()['checks']
+    assert 'customer_notifications' in response.json()['checks']
+    assert response.json()['checks']['backup_configuration']['detail'].startswith('Set after')

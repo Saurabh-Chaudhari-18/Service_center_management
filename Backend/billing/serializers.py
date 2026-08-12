@@ -548,6 +548,15 @@ class CreditNoteSerializer(serializers.ModelSerializer):
     """Serializer for credit notes."""
     invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    customer_delivery = serializers.SerializerMethodField()
+
+    def get_customer_delivery(self, obj):
+        logs = list(obj.notifications.all())
+        if not logs:
+            return {'status': 'NOT_AVAILABLE', 'channels': []}
+        statuses = {log.status for log in logs}
+        delivery_status = 'SENT' if 'SENT' in statuses else 'QUEUED' if 'PENDING' in statuses else 'FAILED'
+        return {'status': delivery_status, 'channels': [log.channel for log in logs]}
     
     def validate(self, attrs):
         invoice = attrs.get('invoice', getattr(self.instance, 'invoice', None))
@@ -646,7 +655,7 @@ class CreditNoteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'branch', 'credit_note_number', 'invoice', 'invoice_number',
             'amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount',
-            'reason', 'created_by', 'created_by_name', 'created_at'
+            'reason', 'created_by', 'created_by_name', 'customer_delivery', 'created_at'
         ]
         read_only_fields = [
             'id', 'credit_note_number', 'cgst_amount', 'sgst_amount',

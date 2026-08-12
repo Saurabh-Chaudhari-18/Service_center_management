@@ -22,6 +22,7 @@ class NotificationType(models.TextChoices):
     JOB_DELIVERED = 'JOB_DELIVERED', 'Job Delivered'
     PAYMENT_RECEIVED = 'PAYMENT_RECEIVED', 'Payment Received'
     PAYMENT_REMINDER = 'PAYMENT_REMINDER', 'Payment Reminder'
+    CREDIT_NOTE_ISSUED = 'CREDIT_NOTE_ISSUED', 'Credit Note Issued'
     LOW_STOCK_ALERT = 'LOW_STOCK_ALERT', 'Low Stock Alert'
     CUSTOM = 'CUSTOM', 'Custom Message'
 
@@ -127,6 +128,13 @@ class NotificationLog(TimeStampedModel):
     )
     invoice = models.ForeignKey(
         'billing.Invoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
+    credit_note = models.ForeignKey(
+        'billing.CreditNote',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
