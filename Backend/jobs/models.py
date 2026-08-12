@@ -241,10 +241,13 @@ class JobCard(TimeStampedModel):
         blank=True
     )
     delivery_otp = models.CharField(
-        max_length=6,
+        max_length=128,
         blank=True,
-        help_text="OTP for device delivery"
+        help_text="Hashed OTP for device delivery"
     )
+    delivery_otp_created_at = models.DateTimeField(null=True, blank=True)
+    delivery_otp_expires_at = models.DateTimeField(null=True, blank=True)
+    delivery_otp_attempts = models.PositiveSmallIntegerField(default=0)
     delivery_signature = models.ImageField(
         upload_to='delivery_signatures/',
         null=True,
@@ -391,20 +394,47 @@ class JobCard(TimeStampedModel):
         NotificationService.on_job_status_change(self, old_status, new_status)
 
     def generate_delivery_otp(self):
-        """Generate OTP for delivery."""
+        """Generate, hash and send a short-lived delivery OTP."""
+        from datetime import timedelta
+        from django.conf import settings
+        from django.contrib.auth.hashers import make_password
         from core.utils import generate_otp
-        self.delivery_otp = generate_otp()
-        self.save(update_fields=['delivery_otp', 'updated_at'])
+        raw_otp = generate_otp()
+        now = timezone.now()
+        self.delivery_otp = make_password(raw_otp)
+        self.delivery_otp_created_at = now
+        self.delivery_otp_expires_at = now + timedelta(
+            minutes=getattr(settings, 'DELIVERY_OTP_TTL_MINUTES', 10)
+        )
+        self.delivery_otp_attempts = 0
+        self.save(update_fields=[
+            'delivery_otp', 'delivery_otp_created_at',
+            'delivery_otp_expires_at', 'delivery_otp_attempts', 'updated_at',
+        ])
         
         # Send OTP to customer
         from notifications.services import NotificationService
-        NotificationService.send_delivery_otp(self)
+        delivery_result = NotificationService.send_delivery_otp(self, raw_otp)
         
-        return self.delivery_otp
+        return raw_otp, delivery_result
 
     def verify_delivery_otp(self, otp):
-        """Verify delivery OTP."""
-        return self.delivery_otp == otp
+        """Verify an unexpired OTP and count failed attempts."""
+        from django.conf import settings
+        from django.contrib.auth.hashers import check_password
+
+        max_attempts = getattr(settings, 'DELIVERY_OTP_MAX_ATTEMPTS', 5)
+        if not self.delivery_otp or not self.delivery_otp_expires_at:
+            return False, 'missing'
+        if self.delivery_otp_attempts >= max_attempts:
+            return False, 'locked'
+        if timezone.now() > self.delivery_otp_expires_at:
+            return False, 'expired'
+        if not check_password(str(otp), self.delivery_otp):
+            self.delivery_otp_attempts += 1
+            self.save(update_fields=['delivery_otp_attempts', 'updated_at'])
+            return False, 'locked' if self.delivery_otp_attempts >= max_attempts else 'incorrect'
+        return True, 'valid'
 
     def get_total_parts_cost(self):
         """Calculate total cost of diagnosis parts."""
@@ -1076,4 +1106,3 @@ class OutsourcedRepair(TimeStampedModel):
 
     def __str__(self):
         return f"{self.job.job_number} → {self.vendor.name} ({self.get_status_display()})"
-

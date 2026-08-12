@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useParams } from "next/navigation";
 import { Wrench, Phone, AlertCircle, FileText, MapPin, Camera, RotateCcw, ImageOff } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Textarea } from "@/components/ui";
 import { JOB_STATUS_CONFIG, JobStatus } from "@/types";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
 import { API_BASE_URL } from "@/lib/api";
@@ -30,6 +30,9 @@ interface TrackingData {
   current_status_display: string;
   estimated_cost: number | null;
   estimated_completion_date: string | null;
+  customer_response_allowed: boolean;
+  customer_approval_date: string | null;
+  customer_rejection_reason: string;
   timeline: TimelineItem[];
   photos: PhotoItem[];
 }
@@ -43,6 +46,9 @@ export default function TrackJobPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<TrackingData | null>(null);
+  const [responsePending, setResponsePending] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [responseMessage, setResponseMessage] = useState("");
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +94,30 @@ export default function TrackJobPage() {
     setPhone("");
     setPin("");
     setError(null);
+  };
+
+  const respondToEstimate = async (approved: boolean) => {
+    if (!approved && !rejectionReason.trim()) {
+      setError("Please tell the service center why you are declining the estimate.");
+      return;
+    }
+    setResponsePending(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/public/track/${jobNumber}/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, "").slice(-10), pin, approved, rejection_reason: rejectionReason }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not record your response.");
+      setResponseMessage(payload.message);
+      setData(current => current ? { ...current, current_status: payload.status, current_status_display: payload.status, customer_response_allowed: false } : current);
+    } catch (responseError) {
+      setError(responseError instanceof Error ? responseError.message : "Could not record your response.");
+    } finally {
+      setResponsePending(false);
+    }
   };
 
   const getStatusColor = (status: JobStatus) => {
@@ -172,6 +202,16 @@ export default function TrackJobPage() {
         ) : (
           /* Tracking Information */
           <div className="space-y-6">
+            {data.customer_response_allowed && (
+              <div className="rounded-2xl border border-primary-200 bg-white p-6 shadow-xl">
+                <h2 className="text-lg font-semibold text-neutral-900">Approve repair estimate</h2>
+                <p className="mt-1 text-sm text-neutral-600">The service center has shared an estimate of <strong>₹{Number(data.estimated_cost || 0).toLocaleString("en-IN")}</strong>. Approve it to begin repair, or decline with a reason.</p>
+                {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+                <div className="mt-4"><Textarea label="Reason if declining" value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} /></div>
+                <div className="mt-4 flex flex-wrap gap-3"><Button isLoading={responsePending} onClick={() => respondToEstimate(true)}>Approve estimate</Button><Button variant="secondary" disabled={responsePending} onClick={() => respondToEstimate(false)}>Decline estimate</Button></div>
+              </div>
+            )}
+            {responseMessage && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{responseMessage}</div>}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-neutral-100">
               {/* Header Status Bar */}
               <div className="border-b border-neutral-100 p-6 bg-gradient-to-r from-neutral-50 to-white">

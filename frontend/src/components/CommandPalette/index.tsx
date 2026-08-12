@@ -129,21 +129,21 @@ export function CommandPalette() {
       },
       {
         id: "create-customer",
-        name: "New Customer (In-Place)",
+        name: "New Customer",
         icon: <UserPlus className="w-5 h-5 text-blue-500" />,
         show: isRole("OWNER", "MANAGER", "RECEPTIONIST"),
         action: () => setCustomerModalOpen(true),
       },
       {
         id: "create-inventory",
-        name: "New Inventory Item (In-Place)",
+        name: "New Inventory Item",
         icon: <PackagePlus className="w-5 h-5 text-violet-500" />,
         show: hasPermission("canManageInventory"),
         action: () => setInventoryModalOpen(true),
       },
       {
         id: "create-pickup",
-        name: "Request Pickup (In-Place)",
+        name: "Request Pickup",
         icon: <Truck className="w-5 h-5 text-orange-500" />,
         show: hasPermission("canViewPickups"),
         action: () => setPickupModalOpen(true),
@@ -191,9 +191,13 @@ export function CommandPalette() {
           id: j.id,
           label: j.job_number,
           sub: [
-            j.customer
-              ? `${(j.customer as { first_name?: string }).first_name ?? ""} ${(j.customer as { last_name?: string }).last_name ?? ""}`.trim()
-              : "",
+            j.customer_name ||
+              (j.customer
+                ? [
+                    (j.customer as { first_name?: string }).first_name,
+                    (j.customer as { last_name?: string }).last_name,
+                  ].filter(Boolean).join(" ")
+                : ""),
             j.brand,
             j.model,
           ]
@@ -315,17 +319,24 @@ export function CommandPalette() {
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm"
+            aria-hidden="true"
             onClick={close}
           />
 
           {/* Palette panel */}
-          <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/50 dark:border-slate-700/50 transform animate-slide-up mx-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search and quick actions"
+            className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/50 dark:border-slate-700/50 transform animate-slide-up mx-4"
+          >
 
             {/* Search input */}
             <div className="flex items-center px-4 py-3 border-b border-neutral-100 dark:border-slate-800 gap-2">
               <Search className="w-5 h-5 text-neutral-400 shrink-0" />
               <input
                 type="text"
+                aria-label="Search jobs, customers, and actions"
                 autoFocus
                 className="flex-1 py-1 bg-transparent text-neutral-900 dark:text-white placeholder-neutral-400 text-base outline-none"
                 placeholder="Search jobs, customers, or type a command…"

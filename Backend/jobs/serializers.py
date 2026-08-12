@@ -452,14 +452,15 @@ class JobStatusUpdateSerializer(serializers.Serializer):
                     "Only owners and managers can override status transitions."
                 )
             return value
-        
-        # User requested to allow all status transitions, removing strict validation
-        # if not job.can_transition_to(value):
-        #     allowed = [s.label for s in ALLOWED_STATUS_TRANSITIONS.get(job.status, [])]
-        #     raise serializers.ValidationError(
-        #         f"Cannot transition from {job.get_status_display()} to this status. "
-        #         f"Allowed: {', '.join(allowed)}"
-        #     )
+
+        new_status = JobStatus(value)
+        if not job.can_transition_to(new_status):
+            allowed = [s.label for s in ALLOWED_STATUS_TRANSITIONS.get(job.status, [])]
+            allowed_text = ', '.join(allowed) if allowed else 'no further transitions'
+            raise serializers.ValidationError(
+                f"Cannot transition from {job.get_status_display()} to {new_status.label}. "
+                f"Allowed: {allowed_text}."
+            )
         
         return value
 
@@ -523,7 +524,28 @@ class JobDeliverySerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate(self, data):
-        # Verification disabled for now (bypass OTP/Signature check)
+        job = self.context.get('job')
+        otp = (data.get('otp') or '').strip()
+        signature = data.get('signature')
+
+        if not otp and not signature:
+            raise serializers.ValidationError(
+                'Enter the customer delivery OTP or capture a customer signature.'
+            )
+
+        if otp:
+            if not job or not job.delivery_otp:
+                raise serializers.ValidationError({'otp': 'No active delivery OTP exists. Resend the OTP and try again.'})
+            valid, reason = job.verify_delivery_otp(otp)
+            if not valid:
+                messages = {
+                    'missing': 'No active delivery OTP exists. Resend the OTP and try again.',
+                    'expired': 'The delivery OTP has expired. Resend it and try again.',
+                    'locked': 'Too many incorrect attempts. Resend the OTP to continue.',
+                    'incorrect': 'The delivery OTP is incorrect.',
+                }
+                raise serializers.ValidationError({'otp': messages[reason]})
+
         return data
 
 

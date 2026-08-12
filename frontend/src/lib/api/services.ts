@@ -23,7 +23,9 @@ import type {
   CreateJobCardData,
   InventoryItem,
   StockAdjustment,
+  StockTransfer,
   Invoice,
+  CreditNote,
   InvoiceLineItem,
   Payment,
   NotificationLog,
@@ -35,6 +37,7 @@ import type {
   Purchase,
   OutsourceVendor,
   OutsourcedRepair,
+  PurchaseOrder,
 } from "@/types";
 
 // =====================================================
@@ -92,6 +95,12 @@ export const authApi = {
   }): Promise<AuthUser> => {
     return apiPatch<AuthUser>("/core/users/update-me/", data);
   },
+
+  getOnboarding: async (branch?: string): Promise<{ dismissed: boolean; steps: Array<{ label: string; done: boolean; href: string }> }> =>
+    apiGet("/core/users/onboarding/", { branch }),
+
+  dismissOnboarding: async (): Promise<void> =>
+    apiPost("/core/users/onboarding/", { dismissed: true }),
 };
 
 // =====================================================
@@ -233,8 +242,12 @@ export const customersApi = {
     });
   },
 
-  getServiceHistory: async (id: string): Promise<JobCard[]> => {
-    return apiGet<JobCard[]>(`/customers/${id}/service-history/`);
+  getServiceHistory: async (id: string, page = 1): Promise<PaginatedResponse<JobCard>> => {
+    const response = await apiGet<JobCard[] | PaginatedResponse<JobCard>>(
+      `/customers/${id}/service-history/`,
+      { page },
+    );
+    return Array.isArray(response) ? { count: response.length, next: null, previous: null, results: response } : response;
   },
 
   requestDeletion: async (id: string): Promise<{ message: string }> => {
@@ -247,6 +260,9 @@ export const customersApi = {
 // =====================================================
 
 export const jobsApi = {
+  schedule: async (branch?: string): Promise<{ jobs: JobCard[]; technician_load: Array<{ id: string; name: string; job_count: number }>; unassigned_count: number }> =>
+    apiGet("/jobs/schedule/", { branch }),
+
   list: async (params?: {
     branch?: string;
     status?: string;
@@ -256,6 +272,9 @@ export const jobsApi = {
     page?: number;
     page_size?: number;
     is_urgent?: boolean;
+    is_overdue?: boolean;
+    ordering?: string;
+    is_pending?: boolean;
   }): Promise<PaginatedResponse<JobCard>> => {
     return apiGet<PaginatedResponse<JobCard>>("/jobs/", params);
   },
@@ -333,7 +352,7 @@ export const jobsApi = {
     return apiPost<JobCard>(`/jobs/${jobId}/update-status/`, {
       new_status: newStatus,
       notes,
-      is_override: true,
+      is_override: false,
     });
   },
 
@@ -346,12 +365,14 @@ export const jobsApi = {
     });
   },
 
-  deliver: async (
-    jobId: string,
-    otp: string,
-    notes?: string,
-  ): Promise<JobCard> => {
-    return apiPost<JobCard>(`/jobs/${jobId}/deliver/`, { otp, notes });
+  deliver: async (jobId: string, data: { otp?: string; signature?: File; notes?: string }): Promise<JobCard> => {
+    if (data.signature) {
+      return apiUpload<JobCard>(`/jobs/${jobId}/deliver/`, data.signature, "signature", {
+        otp: data.otp || "",
+        notes: data.notes || "",
+      });
+    }
+    return apiPost<JobCard>(`/jobs/${jobId}/deliver/`, { otp: data.otp, notes: data.notes });
   },
 
   resendDeliveryOtp: async (jobId: string): Promise<{ message: string; otp?: string }> => {
@@ -709,6 +730,26 @@ export const inventoryApi = {
     return apiGet("/inventory/items/category-stats/", { branch: branchId });
   },
 
+  listTransfers: async (): Promise<PaginatedResponse<StockTransfer>> => {
+    return apiGet("/inventory/transfers/");
+  },
+
+  createTransfer: async (data: {
+    from_branch: string;
+    to_branch: string;
+    notes?: string;
+    items: Array<{ inventory_item: string; quantity: number }>;
+  }): Promise<StockTransfer> => apiPost("/inventory/transfers/", data),
+
+  dispatchTransfer: async (id: string): Promise<StockTransfer> =>
+    apiPost(`/inventory/transfers/${id}/dispatch/`),
+
+  completeTransfer: async (id: string): Promise<{ message: string }> =>
+    apiPost(`/inventory/transfers/${id}/complete/`),
+
+  cancelTransfer: async (id: string): Promise<StockTransfer> =>
+    apiPost(`/inventory/transfers/${id}/cancel/`),
+
   listCategories: async (
     branchId: string,
   ): Promise<Array<{ id: string; name: string; description: string }>> => {
@@ -923,6 +964,21 @@ export const billingApi = {
   > => {
     return apiGet("/billing/payment-methods/");
   },
+
+  listCreditNotes: async (): Promise<PaginatedResponse<CreditNote>> =>
+    apiGet("/billing/credit-notes/"),
+
+  createCreditNote: async (data: {
+    invoice: string;
+    amount: number;
+    reason: string;
+  }): Promise<CreditNote> => apiPost("/billing/credit-notes/", data),
+
+  listCreditEligibleInvoices: async () =>
+    apiGet<Array<{ id: string; invoice_number: string; customer_name: string; total_amount: number; balance_due: number }>>("/billing/credit-notes/eligible-invoices/"),
+
+  downloadCreditNote: async (id: string, number: string): Promise<void> =>
+    apiDownload(`/billing/credit-notes/${id}/download-pdf/`, `${number}.pdf`),
 };
 
 // =====================================================
@@ -1202,20 +1258,20 @@ export const auditApi = {
     return apiGet("/audit/logs/for-object/", { model, id });
   },
 
-  listPasswordAccess: async () => {
-    return apiGet("/audit/password-access/");
+  listPasswordAccess: async (page?: number) => {
+    return apiGet<any>("/audit/password-access/", { page });
   },
 
   getPasswordAccessForJob: async (jobId: string) => {
     return apiGet("/audit/password-access/for-job/", { job_id: jobId });
   },
 
-  listLogins: async () => {
-    return apiGet("/audit/logins/");
+  listLogins: async (page?: number) => {
+    return apiGet<any>("/audit/logins/", { page });
   },
 
-  listExports: async () => {
-    return apiGet("/audit/exports/");
+  listExports: async (page?: number) => {
+    return apiGet<any>("/audit/exports/", { page });
   },
 };
 
@@ -1444,6 +1500,29 @@ export const suppliersApi = {
   delete: async (id: string) => {
     return apiDelete(`/suppliers/${id}/`);
   },
+
+  listPurchaseOrders: async (): Promise<PaginatedResponse<PurchaseOrder>> =>
+    apiGet("/suppliers/purchase-orders/"),
+
+  getPurchaseOrder: async (id: string): Promise<PurchaseOrder> =>
+    apiGet(`/suppliers/purchase-orders/${id}/`),
+
+  createPurchaseOrder: async (data: Record<string, unknown>): Promise<PurchaseOrder> =>
+    apiPost("/suppliers/purchase-orders/", data),
+
+  sendPurchaseOrder: async (id: string): Promise<PurchaseOrder> =>
+    apiPost(`/suppliers/purchase-orders/${id}/send/`, {}),
+
+  confirmPurchaseOrder: async (id: string): Promise<PurchaseOrder> =>
+    apiPost(`/suppliers/purchase-orders/${id}/confirm/`, {}),
+
+  cancelPurchaseOrder: async (id: string): Promise<PurchaseOrder> =>
+    apiPost(`/suppliers/purchase-orders/${id}/cancel/`, {}),
+
+  receivePurchaseOrder: async (
+    id: string,
+    items: Array<{ id: string; quantity: number }>,
+  ): Promise<PurchaseOrder> => apiPost(`/suppliers/purchase-orders/${id}/receive/`, { items }),
 };
 
 // =====================================================
@@ -1517,4 +1596,3 @@ export const gstApi = {
   markFiled: (data: { period_month: string; return_type: "gstr1" | "gstr3b" }) =>
     apiPost("/gst/mark-filed/", data),
 };
-

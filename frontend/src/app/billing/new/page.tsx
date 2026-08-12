@@ -240,7 +240,7 @@ function CreateInvoiceContent() {
         ...data,
         job_id: data.job_id || null,
         customer_id: data.customer_id || null,
-        branch: selectedBranchId === "universal" ? null : selectedBranchId,
+        branch: selectedBranchId,
       };
       return billingApi.createInvoice(payload as any);
     },
@@ -387,10 +387,6 @@ function CreateInvoiceContent() {
                       setValue("branch", e.target.value);
                     }}
                     options={[
-                      {
-                        value: "universal",
-                        label: "🌍 Universal / All Branches",
-                      },
                       ...(Array.isArray(branches)
                         ? branches
                         : Object.hasOwn(branches, "results")
@@ -399,9 +395,6 @@ function CreateInvoiceContent() {
                       ).map((b: any) => ({ value: b.id, label: b.name })),
                     ]}
                   />
-                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
-                    Universal invoices are visible across all branches.
-                  </p>
                 </div>
               </Card>
             )}
@@ -486,6 +479,7 @@ function CreateInvoiceContent() {
                       {/* Category Dropdown */}
                       <div>
                         <Select
+                          aria-label={`Item ${index + 1} category`}
                           value={rowState.categoryId}
                           onChange={(e) =>
                             handleCategoryChange(index, e.target.value)
@@ -501,6 +495,7 @@ function CreateInvoiceContent() {
                       {/* Item Dropdown */}
                       <div>
                         <Select
+                          aria-label={`Item ${index + 1} inventory item`}
                           value={rowState.itemId}
                           onChange={(e) =>
                             handleItemSelect(index, e.target.value)
@@ -516,6 +511,7 @@ function CreateInvoiceContent() {
                       {/* Description + Type */}
                       <div className="space-y-1">
                         <Input
+                          aria-label={`Item ${index + 1} description`}
                           {...register(
                             `line_items.${index}.description` as const,
                           )}
@@ -526,6 +522,7 @@ function CreateInvoiceContent() {
                         />
                         <div className="flex gap-2 items-center">
                           <Select
+                            aria-label={`Item ${index + 1} type`}
                             {...register(
                               `line_items.${index}.item_type` as const,
                             )}
@@ -548,6 +545,7 @@ function CreateInvoiceContent() {
                       {/* Qty */}
                       <div className="space-y-1">
                         <Input
+                          aria-label={`Item ${index + 1} quantity`}
                           type="number"
                           {...register(
                             `line_items.${index}.quantity` as const,
@@ -564,6 +562,7 @@ function CreateInvoiceContent() {
                       {/* Price */}
                       <div className="space-y-1">
                         <Input
+                          aria-label={`Item ${index + 1} unit price`}
                           type="number"
                           {...register(
                             `line_items.${index}.unit_price` as const,
@@ -583,6 +582,7 @@ function CreateInvoiceContent() {
                       {/* GST */}
                       <div className="space-y-1">
                         <Input
+                          aria-label={`Item ${index + 1} GST rate`}
                           type="number"
                           {...register(
                             `line_items.${index}.gst_rate` as const,
@@ -603,6 +603,7 @@ function CreateInvoiceContent() {
                         className="mt-2 text-red-400 hover:text-red-600 disabled:opacity-30 transition-colors"
                         disabled={fields.length === 1}
                         title="Remove item"
+                        aria-label={`Remove item ${index + 1}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

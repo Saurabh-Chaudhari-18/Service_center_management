@@ -356,6 +356,14 @@ class StockTransferViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'from_branch', 'to_branch']
     ordering = ['-created_at']
 
+    def perform_destroy(self, instance):
+        raise ValidationError('Stock transfers are permanent inventory records. Cancel a pending transfer instead.')
+
+    def perform_update(self, serializer):
+        if serializer.instance.status != 'PENDING':
+            raise ValidationError('A dispatched transfer cannot be edited.')
+        serializer.save()
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -385,6 +393,41 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         AuditLogService.log_create(self.request.user, serializer.instance, request=self.request)
 
     @action(detail=True, methods=['post'])
+    def dispatch(self, request, pk=None):
+        """Reserve stock at the source branch and send the transfer."""
+        transfer = self.get_object()
+        if transfer.status != 'PENDING':
+            raise ValidationError('Only a pending transfer can be dispatched.')
+
+        from django.db import transaction
+        with transaction.atomic():
+            transfer = StockTransfer.objects.select_for_update().get(pk=transfer.pk)
+            if transfer.status != 'PENDING':
+                raise ValidationError('Only a pending transfer can be dispatched.')
+            for item in transfer.items.select_related('inventory_item'):
+                item.inventory_item.deduct_stock(
+                    item.quantity,
+                    f"Transfer to {transfer.to_branch.name}",
+                    request.user,
+                )
+            transfer.status = 'IN_TRANSIT'
+            transfer.save(update_fields=['status', 'updated_at'])
+
+        return Response(self.get_serializer(transfer).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        transfer = self.get_object()
+        from django.db import transaction
+        with transaction.atomic():
+            transfer = StockTransfer.objects.select_for_update().get(pk=transfer.pk)
+            if transfer.status != 'PENDING':
+                raise ValidationError('Only a pending transfer can be cancelled.')
+            transfer.status = 'CANCELLED'
+            transfer.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(transfer).data)
+
+    @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """Complete a stock transfer."""
         transfer = self.get_object()
@@ -396,12 +439,17 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         from django.db import transaction
         
         with transaction.atomic():
+            transfer = StockTransfer.objects.select_for_update().get(pk=transfer.pk)
+            if transfer.status != 'IN_TRANSIT':
+                raise ValidationError('Transfer must be in transit to complete.')
             for item in transfer.items.all():
                 # Create corresponding item in destination branch or add to existing
+                identity = {'sku': item.inventory_item.sku} if item.inventory_item.sku else {'name': item.inventory_item.name}
                 dest_item, created = InventoryItem.objects.get_or_create(
                     branch=transfer.to_branch,
-                    name=item.inventory_item.name,
+                    **identity,
                     defaults={
+                        'name': item.inventory_item.name,
                         'sku': item.inventory_item.sku,
                         'cost_price': item.inventory_item.cost_price,
                         'selling_price': item.inventory_item.selling_price,

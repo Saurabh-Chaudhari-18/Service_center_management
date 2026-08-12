@@ -431,8 +431,8 @@ export function InvoiceTemplate({
                     not be taken back.
                   </p>
                   <p className="text-[#000000]">
-                    <span className="font-bold text-black">3. </span>Subject to Pune
-                    jurisdiction only.
+                    <span className="font-bold text-black">3. </span>Subject to{" "}
+                    {branch?.city || "local"} jurisdiction only.
                   </p>
                   <p className="text-[#000000]">
                     <span className="font-bold text-black">4. </span>Interest @ 24% p.a.

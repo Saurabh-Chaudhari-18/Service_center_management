@@ -71,10 +71,11 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
     """Lightweight PO list serializer."""
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    items = PurchaseOrderItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = PurchaseOrder
         fields = [
-            'id', 'po_number', 'supplier_name', 'order_date',
-            'total_amount', 'paid_amount', 'status', 'status_display'
+            'id', 'po_number', 'supplier_name', 'order_date', 'expected_delivery_date',
+            'total_amount', 'paid_amount', 'status', 'status_display', 'items'
         ]

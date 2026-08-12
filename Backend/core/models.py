@@ -344,6 +344,13 @@ class Branch(TimeStampedModel):
         next_seq = self._next_sequence(BranchSequence.Kind.PURCHASE_ORDER, fy)
         return f"PO/{fy}/{self.code}/{next_seq:05d}"
 
+    def get_next_credit_note_number(self):
+        """Generate a collision-safe credit-note number within the financial year."""
+        fy = self.get_current_financial_year()
+        next_seq = self._next_sequence(BranchSequence.Kind.CREDIT_NOTE, fy)
+        code = re.sub(r'[^A-Za-z0-9]', '', self.code or 'BR')[:3].upper() or 'BR'
+        return f"CN{fy[2:4]}-{code}-{next_seq:05d}"
+
 class BranchSequence(models.Model):
     """
     Per-branch, per-kind auto-incrementing counter.
@@ -359,6 +366,7 @@ class BranchSequence(models.Model):
         JOBCARD = 'jobcard', 'Job Card'
         PICKUP = 'pickup', 'Pickup'
         PURCHASE_ORDER = 'purchase_order', 'Purchase Order'
+        CREDIT_NOTE = 'credit_note', 'Credit Note'
 
     branch = models.ForeignKey(
         Branch,
@@ -559,6 +567,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     # Status
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    onboarding_dismissed = models.BooleanField(default=False)
     
     # Live Tracking
     last_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)

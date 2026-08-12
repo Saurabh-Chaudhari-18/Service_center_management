@@ -153,7 +153,7 @@ class StockTransferSerializer(serializers.ModelSerializer):
     initiated_by_name = serializers.CharField(
         source='initiated_by.get_full_name', read_only=True
     )
-    items = StockTransferItemSerializer(many=True, read_only=True)
+    items = StockTransferItemSerializer(many=True)
     
     def validate(self, attrs):
         from_branch = attrs.get('from_branch', getattr(self.instance, 'from_branch', None))
@@ -169,6 +169,24 @@ class StockTransferSerializer(serializers.ModelSerializer):
         ):
             raise serializers.ValidationError('Both transfer branches must be accessible.')
         return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction
+
+        items_data = validated_data.pop('items', [])
+        if not items_data:
+            raise serializers.ValidationError({'items': 'Add at least one item to the transfer.'})
+
+        with transaction.atomic():
+            transfer = StockTransfer.objects.create(**validated_data)
+            for item_data in items_data:
+                inventory_item = item_data['inventory_item']
+                if inventory_item.branch_id != transfer.from_branch_id:
+                    raise serializers.ValidationError({
+                        'items': f'{inventory_item.name} is not stocked at the source branch.'
+                    })
+                StockTransferItem.objects.create(transfer=transfer, **item_data)
+        return transfer
 
     class Meta:
         model = StockTransfer

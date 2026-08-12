@@ -36,6 +36,8 @@ import {
   BookOpen,
   BadgePercent,
   ExternalLink,
+  ClipboardCheck,
+  CalendarClock,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
@@ -61,7 +63,8 @@ const navigationItems: NavItem[] = [
   { name: "Dashboard",     href: "/dashboard",     icon: LayoutDashboard, permission: "canViewDashboard" },
   { name: "Organizations", href: "/organizations", icon: Building2,       roles: ["SUPER_ADMIN"] },
   { name: "Job Cards",     href: "/jobs",          icon: FileText,        permission: "canViewJobCards" },
-  { name: "Outsourcing",    href: "/outsourcing",   icon: ExternalLink,    permission: "canViewJobCards" },
+  { name: "Work Schedule", href: "/schedule",      icon: CalendarClock,   permission: "canViewJobCards" },
+  { name: "Outsourcing",    href: "/outsourcing",   icon: ExternalLink,    roles: ["OWNER", "MANAGER"] },
   { name: "My Jobs",       href: "/my-jobs",       icon: Wrench,          roles: ["TECHNICIAN"] },
   { name: "Customers",     href: "/customers",     icon: Users,           roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
   { name: "Enquiries",     href: "/enquiries",     icon: UserSearch,      roles: ["OWNER", "MANAGER", "RECEPTIONIST"] },
@@ -74,7 +77,7 @@ const navigationItems: NavItem[] = [
     children: [
       { name: "New Invoice", href: "/billing/new", icon: Receipt },
       { name: "New Purchase", href: "/purchases/new", icon: ShoppingCart },
-      { name: "Record Payment", href: "/payments", icon: IndianRupee },
+      { name: "Vendor Payments", href: "/payments", icon: IndianRupee },
       { name: "Expenses", href: "/expenses", icon: IndianRupee },
     ],
   },
@@ -91,6 +94,7 @@ const navigationItems: NavItem[] = [
     ],
   },
   { name: "Business Reports", href: "/reports",    icon: BarChart3,       permission: "canViewReports" },
+  { name: "Operations",      href: "/operations", icon: ClipboardCheck, roles: ["OWNER", "MANAGER", "ACCOUNTANT"] },
   { name: "Branches",      href: "/branches",      icon: Building2,       permission: "canManageBranches" },
   { name: "Staff",         href: "/users",         icon: UserPlus,        permission: "canManageUsers" },
   { name: "Pickup & Drop", href: "/pickups",       icon: Truck,           permission: "canViewPickups" },
@@ -148,11 +152,16 @@ export function Sidebar() {
     if (item.roles)      return isRole(...item.roles);
     return true;
   }).map((item) => {
-    // Filter out gstOnly children when GST is disabled
-    if (!gstEnabled && item.children) {
-      return { ...item, children: item.children.filter((c) => !c.gstOnly) };
-    }
-    return item;
+    if (!item.children) return item;
+    return {
+      ...item,
+      children: item.children.filter((child) => {
+        if (child.gstOnly && !gstEnabled) return false;
+        if (child.permission && !hasPermission(child.permission)) return false;
+        if (child.roles && !isRole(...child.roles)) return false;
+        return true;
+      }),
+    };
   });
 
   const handleBranchSwitch = async (branchId: string) => {
@@ -333,13 +342,15 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
-  const { currentBranch, organizationBranding } = useAuth();
+  const { currentBranch, organizationBranding, hasPermission } = useAuth();
   const { toggle } = useMobileSidebar();
+  const canManageNotifications = hasPermission("canManageBranches");
 
   const { data: notifData } = useQuery({
     queryKey: ["notification-unread-count"],
     queryFn: () => notificationsApi.getUnreadCount(),
     refetchInterval: 60_000,
+    enabled: canManageNotifications,
   });
   const notificationCount = notifData?.count ?? 0;
 
@@ -416,19 +427,21 @@ export function Header({ title, subtitle, actions, breadcrumbs }: HeaderProps) {
         </button>
 
         {/* Notifications */}
-        <Link
-          href="/notifications"
-          aria-label="Notifications"
-          title="Notifications"
-          className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
-        >
-          <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
-          {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium">
-              {notificationCount > 9 ? "9+" : notificationCount}
-            </span>
-          )}
-        </Link>
+        {canManageNotifications && (
+          <Link
+            href="/notifications"
+            aria-label="Notifications"
+            title="Notifications"
+            className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-white/80 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-neutral-200/60 dark:hover:border-white/10"
+          >
+            <Bell className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium">
+                {notificationCount > 9 ? "9+" : notificationCount}
+              </span>
+            )}
+          </Link>
+        )}
 
         {/* Branch Badge */}
         {currentBranch && (

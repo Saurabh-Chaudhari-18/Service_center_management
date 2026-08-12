@@ -148,6 +148,7 @@ export default function CustomerDetailPage() {
   const { isRole } = useAuth();
   const { toast } = useToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ["customer", id],
@@ -156,8 +157,8 @@ export default function CustomerDetailPage() {
   });
 
   const { data: serviceHistory, isLoading: loadingHistory } = useQuery({
-    queryKey: ["customer-history", id],
-    queryFn: () => customersApi.getServiceHistory(id),
+    queryKey: ["customer-history", id, historyPage],
+    queryFn: () => customersApi.getServiceHistory(id, historyPage),
     enabled: !!id,
   });
 
@@ -190,7 +191,7 @@ export default function CustomerDetailPage() {
   const canErase = isRole("OWNER", "MANAGER");
 
   return (
-    <ProtectedRoute requiredPermission="canViewPickups">
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER", "RECEPTIONIST"]}>
       <AppLayout>
         <Header
           title={loadingCustomer ? "Loading…" : fullName}
@@ -259,20 +260,21 @@ export default function CustomerDetailPage() {
                       <CardTitle icon={<FileText className="h-4 w-4 text-primary-500" />}>
                         Service History
                       </CardTitle>
-                      {serviceHistory && serviceHistory.length > 0 && (
+                      {serviceHistory && serviceHistory.count > 0 && (
                         <span className="text-sm text-neutral-400 dark:text-neutral-500">
-                          {serviceHistory.length} job{serviceHistory.length !== 1 ? "s" : ""}
+                          {serviceHistory.count} job{serviceHistory.count !== 1 ? "s" : ""}
                         </span>
                       )}
                     </div>
 
                     {loadingHistory ? (
                       <LoadingState message="Loading jobs…" />
-                    ) : serviceHistory && serviceHistory.length > 0 ? (
-                      <div className="space-y-2">
-                        {serviceHistory.map((job) => (
+                    ) : serviceHistory && serviceHistory.results.length > 0 ? (
+                      <div className="space-y-3">
+                        {serviceHistory.results.map((job) => (
                           <ServiceHistoryRow key={job.id} job={job} />
                         ))}
+                        <div className="flex items-center justify-end gap-3 pt-2"><Button size="sm" variant="secondary" disabled={!serviceHistory.previous} onClick={() => setHistoryPage(page => page - 1)}>Previous</Button><span className="text-xs text-neutral-500">Page {historyPage}</span><Button size="sm" variant="secondary" disabled={!serviceHistory.next} onClick={() => setHistoryPage(page => page + 1)}>Next</Button></div>
                       </div>
                     ) : (
                       <EmptyState

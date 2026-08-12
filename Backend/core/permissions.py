@@ -164,8 +164,10 @@ class CanManageJobs(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return _has_perm(request.user, 'canViewJobCards')
         
-        # Create jobs
-        if request.method == 'POST':
+        # DRF custom actions also use POST. Only the actual collection create
+        # action should require create permission; lifecycle actions require
+        # edit permission.
+        if getattr(view, 'action', None) == 'create':
             return _has_perm(request.user, 'canCreateJobCards')
         
         # Update jobs
@@ -174,6 +176,17 @@ class CanManageJobs(permissions.BasePermission):
         
         # Delete: Only Super Admin, Owner and Manager
         return request.user.role in [Role.SUPER_ADMIN, Role.OWNER, Role.MANAGER]
+
+
+class CanManageCustomerApproval(permissions.BasePermission):
+    """Front-desk or managerial staff may communicate and record estimates."""
+    message = "Only owners, managers, and receptionists can manage customer estimates."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST]
+        )
 
 
 class CanManageBilling(permissions.BasePermission):
@@ -253,6 +266,17 @@ class CanManageEnquiries(permissions.BasePermission):
         ]
 
 
+class CanManageOutsourcing(permissions.BasePermission):
+    """Outsource vendors, costs, and repair handoffs are managerial actions."""
+    message = "Only owners and managers can manage outsourced repairs."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in [Role.OWNER, Role.MANAGER]
+        )
+
+
 class CanManageCustomers(permissions.BasePermission):
     """Permission for customer management."""
     message = "You do not have permission to manage customers."
@@ -261,9 +285,12 @@ class CanManageCustomers(permissions.BasePermission):
         if not request.user.is_authenticated:
             return False
         
-        # All roles can read customers
+        # Customer records contain personal information. Keep direct customer
+        # access to roles whose operational work requires it.
         if request.method in permissions.SAFE_METHODS:
-            return True
+            return request.user.role in [
+                Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.ACCOUNTANT,
+            ]
         
         # Write access (Super Admin excluded — no customer management)
         return request.user.role in [

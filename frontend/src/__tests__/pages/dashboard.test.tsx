@@ -46,6 +46,7 @@ vi.mock("@/lib/api", () => ({
   jobsApi: {
     list: vi.fn(() => Promise.resolve({ count: 0, results: [], next: null, previous: null })),
     getStats: vi.fn(() => Promise.resolve({ total: 0, pending: 0, completed: 0 })),
+    getPending: vi.fn(() => Promise.resolve({ count: 0, results: [] })),
   },
   billingApi: {
     getStats: vi.fn(() =>
@@ -60,6 +61,7 @@ vi.mock("@/lib/api", () => ({
   },
   pickupsApi: {
     list: vi.fn(() => Promise.resolve({ count: 0, results: [], next: null, previous: null })),
+    getStats: vi.fn(() => Promise.resolve({ pending: 0 })),
   },
   reportsApi: {
     getRevenue: vi.fn(() =>
@@ -74,6 +76,11 @@ vi.mock("@/lib/api", () => ({
         igst_collected: 0,
         daily_breakdown: [],
       }),
+    ),    getPendingJobs: vi.fn(() =>
+      Promise.resolve({ total_pending: 0, by_status: [] }),
+    ),
+    getNetProfit: vi.fn(() =>
+      Promise.resolve({ from_date: "2026-08-01", to_date: "2026-08-02", revenue: 0, expenses: 0, net_profit: 0, profit_margin: 0 }),
     ),
   },
   inventoryApi: {
@@ -119,6 +126,7 @@ vi.mock("recharts", () => ({
 
 import DashboardPage from "@/app/dashboard/page";
 import { useAuth } from "@/context/AuthContext";
+import { billingApi, jobsApi, pickupsApi, reportsApi } from "@/lib/api";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -166,5 +174,44 @@ describe("Dashboard page smoke tests", () => {
     await waitFor(() => {
       expect(screen.getByTestId("app-layout")).toBeInTheDocument();
     });
+  });
+  it("shows only role-accessible overview links for technicians", async () => {
+    vi.clearAllMocks();
+    renderDashboard("TECHNICIAN");
+
+    await waitFor(() => expect(screen.getByText("Pending Jobs")).toBeInTheDocument());
+    expect(screen.queryByText("Total Revenue")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending Payments")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jobs by Status")).not.toBeInTheDocument();
+    expect(billingApi.getStats).not.toHaveBeenCalled();
+    expect(reportsApi.getPendingJobs).not.toHaveBeenCalled();
+    expect(jobsApi.getPending).toHaveBeenCalled();
+  });
+
+  it("shows billing stats without inaccessible job or pickup links for accountants", async () => {
+    vi.clearAllMocks();
+    renderDashboard("ACCOUNTANT");
+
+    await waitFor(() => expect(screen.getByText("Total Revenue")).toBeInTheDocument());
+    expect(screen.getByText("Pending Payments")).toBeInTheDocument();
+    expect(screen.queryByText("Pending Jobs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending Pickups")).not.toBeInTheDocument();
+    expect(jobsApi.getPending).not.toHaveBeenCalled();
+    expect(pickupsApi.getStats).not.toHaveBeenCalled();
+  });
+
+  it("labels and signs a negative result as a net loss", async () => {
+    vi.mocked(reportsApi.getNetProfit).mockResolvedValueOnce({
+      from_date: "2026-08-01",
+      to_date: "2026-08-02",
+      revenue: 1000,
+      expenses: 11299,
+      net_profit: -10299,
+      profit_margin: -1029.9,
+    });
+    renderDashboard("OWNER");
+
+    await waitFor(() => expect(screen.getByText("Net Loss")).toBeInTheDocument());
+    expect(screen.getByText("-₹10,299")).toBeInTheDocument();
   });
 });

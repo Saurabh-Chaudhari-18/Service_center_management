@@ -578,6 +578,7 @@ class Command(BaseCommand):
         inv = Invoice(
             branch=branch,
             job=None,
+            customer=customer,
             customer_name=customer.get_full_name(),
             customer_mobile=customer.mobile,
             customer_email=customer.email or "",
@@ -616,6 +617,7 @@ class Command(BaseCommand):
             gst_rate=Decimal("18.00"),
         )
 
+        inv.finalize(owner)
         inv.refresh_from_db()
         self.stdout.write(
             self.style.SUCCESS(
@@ -1007,6 +1009,11 @@ class Command(BaseCommand):
         ref = "[DEMO SEED LEDGER]"
         if CustomerLedgerEntry.objects.filter(description__startswith=ref).exists():
             return
+        last_entry = CustomerLedgerEntry.objects.filter(
+            customer=customer,
+        ).order_by("-entry_date", "-created_at").first()
+        current_balance = last_entry.running_balance if last_entry else Decimal("0.00")
+
         CustomerLedgerEntry.objects.create(
             branch=branch,
             customer=customer,
@@ -1016,7 +1023,7 @@ class Command(BaseCommand):
             reference_type="ADJUSTMENT",
             reference_id="SEED-KHATA-OPEN",
             entry_date=timezone.now().date(),
-            running_balance=Decimal("1500"),
+            running_balance=current_balance + Decimal("1500"),
             created_by=owner,
         )
         self.stdout.write(self.style.SUCCESS("Customer ledger opening entry"))

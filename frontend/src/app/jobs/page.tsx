@@ -69,8 +69,8 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
   const hasQuickAction = Boolean(onQuickUpdate && QUICK_ACTIONS[job.status]);
 
   return (
-    <div className="card p-5 hover:shadow-lg transition-all duration-200">
-      <div className="flex items-start justify-between gap-4">
+    <div className="card min-w-0 max-w-full overflow-hidden p-4 hover:shadow-lg transition-all duration-200 sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-3 sm:gap-4">
         <Link href={`/jobs/${job.id}`} className="flex-1 min-w-0">
             {/* Header Row */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -132,6 +132,12 @@ function JobCardItem({ job, isUpdating, onQuickUpdate }: JobCardItemProps) {
                 <div className="flex items-center gap-1">
                   <User className="w-3.5 h-3.5" />
                   <span>{job.assigned_technician_name}</span>
+                </div>
+              )}
+              {job.estimated_completion_date && (
+                <div className={`flex items-center gap-1 ${new Date(`${job.estimated_completion_date}T23:59:59`) < new Date() && !["DELIVERED", "CANCELLED", "REJECTED"].includes(job.status) ? "font-semibold text-red-600" : ""}`}>
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Promised {formatDate(job.estimated_completion_date)}</span>
                 </div>
               )}
             </div>
@@ -201,6 +207,7 @@ function QuickStatusButton({
 
 const PENDING_TAB = "PENDING";
 const URGENT_TAB = "URGENT";
+const OVERDUE_TAB = "OVERDUE";
 
 interface StatusTabsProps {
   selectedStatus: string | null;
@@ -232,8 +239,8 @@ function StatusTabs({
   ];
 
   return (
-    <div className="relative">
-      <div className="flex gap-2 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory scrollbar-hide [-webkit-overflow-scrolling:touch]">
+    <div className="relative min-w-0 max-w-full overflow-hidden">
+      <div className="flex max-w-full gap-2 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory scrollbar-hide [-webkit-overflow-scrolling:touch]">
       {showMyJobs && (
         <button
           key="my-jobs"
@@ -275,6 +282,14 @@ function StatusTabs({
           </button>
         );
       })}
+      <button
+        key="overdue"
+        type="button"
+        onClick={() => onStatusChange(OVERDUE_TAB)}
+        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${selectedStatus === OVERDUE_TAB ? "bg-red-600 text-white shadow-md" : "text-neutral-600 hover:text-red-600"}`}
+      >
+        <AlertCircle className="w-3.5 h-3.5" /> Overdue
+      </button>
       <button
         key="pending"
         type="button"
@@ -469,6 +484,8 @@ export default function JobsPage() {
         if (user?.id) params.assigned_technician = user.id;
       } else if (statusFilter === URGENT_TAB) {
         params.is_urgent = true;
+      } else if (statusFilter === OVERDUE_TAB) {
+        params.is_overdue = true;
       } else if (statusFilter === PENDING_TAB) {
         (params as any).is_pending = true;
       } else if (statusFilter) {
@@ -489,7 +506,7 @@ export default function JobsPage() {
   // Fetch lightweight per-status counts from the dedicated stats endpoint.
   // Previously this fetched the entire jobs list (potentially thousands of records)
   // just to count statuses client-side — a major performance anti-pattern.
-  const { data: statsData } = useQuery({
+  const { data: statsData, isLoading: isStatsLoading } = useQuery({
     queryKey: ["jobs-stats", currentBranch?.id],
     queryFn: () => jobsApi.getStats({ branch: currentBranch?.id }),
     enabled: !!currentBranch,
@@ -516,7 +533,7 @@ export default function JobsPage() {
       <AppLayout>
         <Header
           title="Job Cards"
-          subtitle={`${totalJobsStat} total job cards`}
+          subtitle={isStatsLoading ? "Loading job cards…" : `${totalJobsStat} total job cards`}
           actions={
             hasPermission("canCreateJobCards") && (
               <Button
@@ -529,7 +546,7 @@ export default function JobsPage() {
           }
         />
 
-        <PageShell width="fluid">
+        <PageShell width="fluid" className="min-w-0 max-w-full overflow-x-hidden">
           <RegisterToolbar
             search={
               <div className="flex flex-col sm:flex-row gap-3 w-full items-center">
@@ -549,6 +566,7 @@ export default function JobsPage() {
                 {isManagerOrOwner && (
                   <div className="w-full sm:w-64 shrink-0">
                     <Select
+                      aria-label="Filter by technician"
                       value={selectedTechnician}
                       onChange={(e) => {
                         setSelectedTechnician(e.target.value);
@@ -579,7 +597,7 @@ export default function JobsPage() {
             showMyJobs={isRole("TECHNICIAN", "MANAGER", "OWNER")}
           />
 
-          <WorkspaceSurface>
+          <WorkspaceSurface className="min-w-0 max-w-full overflow-hidden">
             {isLoading ? (
               <div className="p-8">
                 <LoadingState message="Loading job cards…" />

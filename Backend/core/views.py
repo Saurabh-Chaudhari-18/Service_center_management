@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from core.serializers import HealthCheckSerializer
+from core.serializers import HealthCheckSerializer, ReadinessCheckSerializer
 
 
 class HealthCheckView(APIView):
@@ -35,6 +35,44 @@ class HealthCheckView(APIView):
             return Response({'status': 'unhealthy', 'db': False}, status=503)
 
         return Response({'status': 'ok', 'db': True})
+
+
+class ReadinessCheckView(APIView):
+    """Report whether required production dependencies are configured and reachable."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = ReadinessCheckSerializer
+
+    def get(self, request):
+        from django.conf import settings
+        from django.core.cache import cache
+        from django.db import connection
+
+        checks = {}
+        try:
+            connection.ensure_connection()
+            checks['database'] = {'ok': True}
+        except Exception as exc:
+            checks['database'] = {'ok': False, 'detail': type(exc).__name__}
+        try:
+            cache.set('readiness-probe', 'ok', 5)
+            checks['cache'] = {'ok': cache.get('readiness-probe') == 'ok', 'backend': cache.__class__.__name__}
+        except Exception as exc:
+            checks['cache'] = {'ok': False, 'detail': type(exc).__name__}
+
+        if settings.WHATSAPP_PROVIDER == 'twilio':
+            whatsapp_ok = bool(settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_WHATSAPP_FROM)
+        else:
+            whatsapp_ok = bool(settings.WHATSAPP_CLOUD_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID)
+        checks['whatsapp'] = {'ok': whatsapp_ok, 'required': False}
+        checks['email'] = {'ok': bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD), 'required': False}
+        checks['media_storage'] = {'ok': bool(settings.USE_S3), 'required': not settings.DEBUG}
+        checks['error_tracking'] = {'ok': bool(settings.SENTRY_DSN), 'required': False}
+        checks['backup_configuration'] = {'ok': bool(settings.DATABASES['default'].get('HOST')), 'required': not settings.DEBUG}
+
+        required_failures = [name for name, value in checks.items() if value.get('required', True) and not value['ok']]
+        response_status = 503 if required_failures else 200
+        return Response({'status': 'ready' if not required_failures else 'not_ready', 'checks': checks}, status=response_status)
 
 from core.models import Organization, Branch, User, Role
 from core.serializers import (
@@ -130,6 +168,11 @@ class BranchViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwner()]
         return super().get_permissions()
+
+    def perform_create(self, serializer):
+        branch = serializer.save()
+        from notifications.defaults import ensure_default_notification_templates
+        ensure_default_notification_templates(branch)
 
     def perform_destroy(self, instance):
         """Soft delete - deactivate instead of deleting."""
@@ -373,6 +416,34 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated], url_path='onboarding')
+    def onboarding(self, request):
+        """Persist setup-guide state and calculate real completion signals."""
+        if request.method == 'POST':
+            request.user.onboarding_dismissed = bool(request.data.get('dismissed', True))
+            request.user.save(update_fields=['onboarding_dismissed', 'updated_at'])
+
+        branch_id = request.headers.get('X-Branch-ID') or request.query_params.get('branch')
+        branches = request.user.get_accessible_branches()
+        branch = branches.filter(pk=branch_id).first() if branch_id and branch_id != 'universal' else branches.first()
+        from jobs.models import JobCard
+        from notifications.models import NotificationTemplate
+        has_shop_details = bool(branch and branch.address_line1 and branch.phone and branch.email)
+        has_notifications = bool(branch and NotificationTemplate.objects.filter(branch=branch, is_active=True).exists())
+        has_staff = request.user.organization_id and User.objects.filter(
+            organization=request.user.organization, is_active=True
+        ).exclude(pk=request.user.pk).exists()
+        has_job = bool(branch and JobCard.objects.filter(branch=branch).exists())
+        return Response({
+            'dismissed': request.user.onboarding_dismissed,
+            'steps': [
+                {'label': 'Add shop contact and address details', 'done': has_shop_details, 'href': '/branches'},
+                {'label': 'Set up notification templates', 'done': has_notifications, 'href': '/notifications'},
+                {'label': 'Add your staff', 'done': bool(has_staff), 'href': '/users'},
+                {'label': 'Create your first job card', 'done': has_job, 'href': '/jobs/new'},
+            ],
+        })
 
     @action(detail=False, methods=['post'], url_path='change-password')
     def change_password(self, request):

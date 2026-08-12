@@ -4,6 +4,7 @@ Billing serializers for invoices and payments.
 
 from rest_framework import serializers
 from django.db import transaction
+from django.db.models import Sum
 from billing.models import (
     Invoice, InvoiceLineItem, Payment, CreditNote,
     InvoiceStatus, PaymentMethod, InvoiceEditHistory, InvoiceEditType
@@ -98,7 +99,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = [
             'id', 'branch', 'branch_name', 'branch_details', 'invoice_number',
-            'job', 'job_number',
+            'job', 'job_number', 'customer',
             'customer_name', 'customer_mobile', 'customer_email',
             'customer_address', 'customer_gstin', 'customer_state_code',
             'place_of_supply', 'invoice_date', 'due_date', 'is_interstate',
@@ -130,6 +131,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
 class InvoiceListSerializer(serializers.ModelSerializer):
     """Lightweight invoice serializer for listings."""
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
     job_number = serializers.CharField(source='job.job_number', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     balance_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -137,7 +139,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = [
-            'id', 'invoice_number', 'job_number', 'customer_name',
+            'id', 'invoice_number', 'branch_name', 'job_number', 'customer_name',
             'customer_mobile', 'invoice_date', 'total_amount',
             'paid_amount', 'balance_due', 'status', 'status_display',
             'is_finalized', 'total_tax'
@@ -269,6 +271,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 customer.state, customer.pincode,
             ])))
             validated_data['job'] = job
+            validated_data['customer'] = customer
         elif customer_id:
             from customers.models import Customer
             customer = Customer.objects.get(pk=customer_id)
@@ -281,6 +284,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 customer.address_line1, customer.city,
                 customer.state, customer.pincode,
             ])))
+            validated_data['customer'] = customer
 
         validated_data.setdefault('customer_mobile', '')
         validated_data.setdefault('customer_address', '')
@@ -558,7 +562,84 @@ class CreditNoteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'branch': 'You do not have access to this branch.'})
         if invoice and invoice.branch_id != branch.id:
             raise serializers.ValidationError({'invoice': 'Credit note and invoice must belong to the same branch.'})
+        if invoice and (not invoice.is_finalized or invoice.status == InvoiceStatus.CANCELLED):
+            raise serializers.ValidationError({'invoice': 'Credit notes can only be issued against finalized, active invoices.'})
+        amount = attrs.get('amount', getattr(self.instance, 'amount', None))
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount': 'Credit amount must be greater than zero.'})
+        if invoice and amount is not None:
+            already_credited = invoice.credit_notes.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+            projected_total = self._credit_amounts(invoice, amount)['total_amount']
+            if already_credited + projected_total > invoice.total_amount:
+                raise serializers.ValidationError({'amount': 'Credits cannot exceed the invoice total.'})
         return attrs
+
+    def create(self, validated_data):
+        with transaction.atomic():
+            branch = validated_data['branch']
+            invoice = Invoice.objects.select_for_update().get(pk=validated_data['invoice'].pk)
+            amount = validated_data['amount']
+            gst = self._credit_amounts(invoice, amount)
+            already_credited = invoice.credit_notes.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+            if already_credited + gst['total_amount'] > invoice.total_amount:
+                raise serializers.ValidationError({'amount': 'Credits cannot exceed the invoice total.'})
+            validated_data.update({
+                'invoice': invoice,
+                'credit_note_number': branch.get_next_credit_note_number(),
+                'cgst_amount': gst['cgst_amount'],
+                'sgst_amount': gst['sgst_amount'],
+                'igst_amount': gst['igst_amount'],
+                'total_amount': gst['total_amount'],
+            })
+            note = super().create(validated_data)
+            if invoice.customer_id:
+                from marketing.models import CustomerLedgerEntry
+                last_entry = CustomerLedgerEntry.objects.filter(
+                    customer=invoice.customer,
+                ).order_by('-entry_date', '-created_at').first()
+                current_balance = last_entry.running_balance if last_entry else Decimal('0')
+                CustomerLedgerEntry.objects.create(
+                    branch=branch,
+                    customer=invoice.customer,
+                    entry_type='DEBIT',
+                    amount=note.total_amount,
+                    description=f"Credit note issued - {note.credit_note_number}",
+                    reference_type='ADJUSTMENT',
+                    reference_id=str(note.pk),
+                    entry_date=note.created_at.date(),
+                    running_balance=current_balance - note.total_amount,
+                    created_by=note.created_by,
+                    notes=f"Auto-generated from credit note against {invoice.invoice_number}",
+                )
+            if invoice.balance_due <= 0:
+                invoice.status = InvoiceStatus.PAID
+            elif invoice.paid_amount > 0:
+                invoice.status = InvoiceStatus.PARTIAL
+            else:
+                invoice.status = InvoiceStatus.PENDING if invoice.is_finalized else InvoiceStatus.DRAFT
+            invoice.save(update_fields=['status', 'updated_at'])
+            return note
+
+    @staticmethod
+    def _credit_amounts(invoice, amount):
+        """Allocate tax proportionally using the original invoice totals/rates."""
+        two_places = Decimal('0.01')
+        taxable_base = invoice.subtotal - invoice.discount_amount
+        if taxable_base <= 0:
+            return {
+                'cgst_amount': Decimal('0'), 'sgst_amount': Decimal('0'),
+                'igst_amount': Decimal('0'), 'total_amount': amount.quantize(two_places),
+            }
+        ratio = min(amount / taxable_base, Decimal('1'))
+        cgst = (invoice.cgst_total * ratio).quantize(two_places)
+        sgst = (invoice.sgst_total * ratio).quantize(two_places)
+        igst = (invoice.igst_total * ratio).quantize(two_places)
+        return {
+            'cgst_amount': cgst,
+            'sgst_amount': sgst,
+            'igst_amount': igst,
+            'total_amount': (amount + cgst + sgst + igst).quantize(two_places),
+        }
 
     class Meta:
         model = CreditNote
@@ -571,6 +652,7 @@ class CreditNoteSerializer(serializers.ModelSerializer):
             'id', 'credit_note_number', 'cgst_amount', 'sgst_amount',
             'igst_amount', 'total_amount', 'created_by', 'created_at'
         ]
+        extra_kwargs = {'branch': {'required': False}}
 
 
 class InvoiceStatsSerializer(serializers.Serializer):

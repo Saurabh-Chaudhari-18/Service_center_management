@@ -792,7 +792,7 @@ export default function ReportsContent() {
           title="Reports & Analytics"
           subtitle="Business insights and performance metrics"
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
               {gstEnabled && (
                 <Button
                   variant="secondary"
@@ -813,9 +813,9 @@ export default function ReportsContent() {
           }
         />
 
-        <PageShell>
+        <PageShell className="min-w-0 max-w-full overflow-x-hidden [&>*]:min-w-0">
           {/* Section Navigation */}
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1">
             {[
               { label: "Revenue",      href: "#rpt-revenue" },
               { label: "Jobs",         href: "#rpt-jobs" },
@@ -893,7 +893,7 @@ export default function ReportsContent() {
           </Card>
 
           {/* Revenue + Jobs by Status */}
-          <div id="rpt-revenue" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
+          <div id="rpt-revenue" className="grid min-w-0 grid-cols-1 gap-6 scroll-mt-4 lg:grid-cols-2 [&>*]:min-w-0">
             <RevenueChart fromDate={dateRange.from} toDate={dateRange.to} />
             <div id="rpt-jobs" className="scroll-mt-4">
               <JobsByStatusChart />
@@ -901,7 +901,7 @@ export default function ReportsContent() {
           </div>
 
           {/* Technicians + Customers */}
-          <div id="rpt-technicians" className="grid grid-cols-1 lg:grid-cols-2 gap-6 scroll-mt-4">
+          <div id="rpt-technicians" className="grid min-w-0 grid-cols-1 gap-6 scroll-mt-4 lg:grid-cols-2 [&>*]:min-w-0">
             <TechnicianProductivity fromDate={dateRange.from} toDate={dateRange.to} />
             <div id="rpt-customers" className="scroll-mt-4">
               <CustomerInsights fromDate={dateRange.from} toDate={dateRange.to} />
@@ -914,7 +914,7 @@ export default function ReportsContent() {
           </div>
 
           {/* GST Summary + Low Stock */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             {gstEnabled && (
               <div id="rpt-gst" className="scroll-mt-4">
                 <GstSummary fromDate={dateRange.from} toDate={dateRange.to} />

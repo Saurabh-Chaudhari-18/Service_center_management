@@ -10,13 +10,16 @@ import { useAuth } from "@/context/AuthContext";
 import { Button, Input, Select } from "@/components/ui";
 import { useToast } from "@/context/ToastContext";
 import { customersApi, branchesApi } from "@/lib/api";
+import type { Customer } from "@/types";
 
 const customerSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().optional(),
   mobile: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit mobile number"),
+  alternate_mobile: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit mobile number").optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
   address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z
@@ -24,6 +27,11 @@ const customerSchema = z.object({
     .regex(/^\d{6}$/, "Enter valid 6-digit pincode")
     .optional()
     .or(z.literal("")),
+  state_code: z.string().regex(/^\d{2}$/, "Enter a 2-digit state code").optional().or(z.literal("")),
+  company_name: z.string().optional(),
+  gstin: z.string().regex(/^[0-9A-Z]{15}$/, "Enter a valid 15-character GSTIN").optional().or(z.literal("")),
+  sms_enabled: z.boolean(),
+  whatsapp_enabled: z.boolean(),
   notes: z.string().optional(),
   branch: z.string().optional(),
 });
@@ -37,6 +45,8 @@ interface CustomerCreateFormProps {
   onSuccess: () => void;
   actionsMode: ActionsMode;
   onCancel?: () => void;
+  customerId?: string;
+  initialValues?: Partial<CustomerFormData>;
 }
 
 export function CustomerCreateForm({
@@ -44,10 +54,12 @@ export function CustomerCreateForm({
   onSuccess,
   actionsMode,
   onCancel,
+  customerId,
+  initialValues,
 }: CustomerCreateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isRole } = useAuth();
   const { toast } = useToast();
   const [selectedBranchId, setSelectedBranchId] = useState<string>(initialBranchId);
 
@@ -59,6 +71,9 @@ export function CustomerCreateForm({
   } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
+      sms_enabled: true,
+      whatsapp_enabled: true,
+      ...initialValues,
       branch: initialBranchId,
     },
   });
@@ -71,19 +86,27 @@ export function CustomerCreateForm({
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: CustomerFormData) =>
-      customersApi.create({
-        ...data,
-        branch: selectedBranchId === "universal" ? undefined : selectedBranchId,
-      }),
+      customerId
+        ? customersApi.update(customerId, {
+            ...data,
+            branch: selectedBranchId === "universal" ? undefined : selectedBranchId,
+          } as Partial<Customer>)
+        : customersApi.create({
+            ...data,
+            branch: selectedBranchId === "universal" ? undefined : selectedBranchId,
+          }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Customer created successfully.");
+      if (customerId) {
+        queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
+      }
+      toast.success(customerId ? "Customer updated successfully." : "Customer created successfully.");
       reset();
       onSuccess();
     },
     onError: (error: { response?: { data?: { detail?: string } }; message?: string }) => {
       toast.error(
-        "Failed to create customer: " +
+        `Failed to ${customerId ? "update" : "create"} customer: ` +
           (error.response?.data?.detail || error.message || "Unknown error"),
       );
     },
@@ -99,7 +122,7 @@ export function CustomerCreateForm({
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
               options={[
-                { value: "universal", label: "🌍 Universal / All Branches" },
+                ...(isRole("SUPER_ADMIN") ? [{ value: "universal", label: "🌍 Universal / All Branches" }] : []),
                 ...(Array.isArray(branches)
                   ? branches
                   : Object.hasOwn(branches, "results")
@@ -133,9 +156,17 @@ export function CustomerCreateForm({
           {...register("email")}
           error={errors.email?.message}
         />
+        <Input
+          label="Alternate Mobile"
+          {...register("alternate_mobile")}
+          error={errors.alternate_mobile?.message}
+          placeholder="10-digit number"
+        />
+        <Input label="Company Name" {...register("company_name")} />
         <div className="md:col-span-2">
-          <Input label="Address" {...register("address_line1")} />
+          <Input label="Address line 1" {...register("address_line1")} />
         </div>
+        <div className="md:col-span-2"><Input label="Address line 2" {...register("address_line2")} /></div>
         <Input label="City" {...register("city")} />
         <Input label="State" {...register("state")} />
         <Input
@@ -144,6 +175,12 @@ export function CustomerCreateForm({
           error={errors.pincode?.message}
           placeholder="6-digit pincode"
         />
+        <Input label="State Code" {...register("state_code")} error={errors.state_code?.message} placeholder="e.g. 27" />
+        <Input label="GSTIN" {...register("gstin")} error={errors.gstin?.message} placeholder="15-character GSTIN" />
+        <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 rounded-lg border border-neutral-200 p-3 text-sm dark:border-slate-700"><input type="checkbox" {...register("sms_enabled")} /> Allow service updates by SMS</label>
+          <label className="flex items-center gap-2 rounded-lg border border-neutral-200 p-3 text-sm dark:border-slate-700"><input type="checkbox" {...register("whatsapp_enabled")} /> Allow service updates by WhatsApp</label>
+        </div>
         <div className="md:col-span-2">
           <Input
             label="Notes"
@@ -168,12 +205,12 @@ export function CustomerCreateForm({
             <Button
               variant="secondary"
               type="button"
-              onClick={() => router.push("/customers")}
+              onClick={() => customerId ? router.push(`/customers/${customerId}`) : router.push("/customers")}
             >
               Cancel
             </Button>
             <Button type="submit" isLoading={isPending}>
-              Add Customer
+              {customerId ? "Save Changes" : "Add Customer"}
             </Button>
           </>
         )}

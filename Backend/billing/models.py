@@ -60,6 +60,14 @@ class Invoice(TimeStampedModel):
         null=True,
         blank=True
     )
+    customer = models.ForeignKey(
+        'customers.Customer',
+        on_delete=models.PROTECT,
+        related_name='invoices',
+        null=True,
+        blank=True,
+        help_text='Customer account linked to this invoice',
+    )
     
     # Customer Details (snapshot at invoice time)
     customer_name = models.CharField(max_length=255)
@@ -173,7 +181,8 @@ class Invoice(TimeStampedModel):
     @property
     def balance_due(self):
         """Calculate outstanding balance."""
-        return self.total_amount - self.paid_amount
+        credited = self.credit_notes.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+        return max(self.total_amount - self.paid_amount - credited, Decimal('0'))
 
     @property
     def is_fully_paid(self):
@@ -205,6 +214,11 @@ class Invoice(TimeStampedModel):
         return f"{prefix_with_year}{sequence:04d}"
 
     def save(self, *args, **kwargs):
+        # Keep the financial account link in sync for every creation path,
+        # including imports, admin actions, and demo data.
+        if not self.customer_id and self.job_id:
+            self.customer_id = self.job.customer_id
+
         # Generate invoice number if not set
         if not self.invoice_number:
             if self.branch:
@@ -282,7 +296,7 @@ class Invoice(TimeStampedModel):
         )
 
         # Automate Khata Credit Entry if there's a balance due
-        if self.balance_due > Decimal('0'):
+        if self.balance_due > Decimal('0') and self.customer_id:
             try:
                 from marketing.models import CustomerLedgerEntry
                 
@@ -364,6 +378,9 @@ class Invoice(TimeStampedModel):
             )
 
             # Automate Khata Debit Entry
+            if not self.customer_id:
+                return payment
+
             try:
                 from marketing.models import CustomerLedgerEntry
                 from django.utils import timezone

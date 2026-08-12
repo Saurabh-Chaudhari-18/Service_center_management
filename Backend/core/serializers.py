@@ -199,7 +199,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'phone', 'organization', 'organization_name', 'role',
             'branches', 'branch_ids', 'is_active', 'last_login',
-            'date_joined', 'created_at', 'updated_at', 'permissions'
+            'date_joined', 'created_at', 'updated_at', 'permissions', 'onboarding_dismissed'
         ]
         read_only_fields = [
             'id', 'organization', 'last_login', 'date_joined',
@@ -476,6 +476,12 @@ class HealthCheckSerializer(serializers.Serializer):
     """Schema for the service health endpoint."""
     status = serializers.CharField()
     db = serializers.BooleanField()
+
+
+class ReadinessCheckSerializer(serializers.Serializer):
+    """Schema for deployment dependency readiness."""
+    status = serializers.CharField()
+    checks = serializers.DictField()
 
 
 class GenericResponseSerializer(serializers.Serializer):

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Branch } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { AppLayout, Header } from "@/components/layout/Layout";
@@ -34,6 +34,8 @@ import {
   MoreVertical,
   Copy,
   Truck,
+  Send,
+  MessageCircleQuestion,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDateLong, formatPhone } from "@/lib/formatters";
@@ -49,6 +51,7 @@ import { OutsourceRepairModal } from "@/components/jobs/OutsourceRepairModal";
 import { OutsourceReturnModal } from "@/components/jobs/OutsourceReturnModal";
 import { OutsourceDetailsCard } from "@/components/jobs/OutsourceDetailsCard";
 import { useToast } from "@/context/ToastContext";
+import { JobCustomerResponseModal } from "@/components/jobs/JobCustomerResponseModal";
 
 // =====================================================
 // MoreMenu — overflow action dropdown
@@ -165,6 +168,7 @@ export default function JobDetailPage() {
   const jobId = params.id as string;
   const { hasPermission, isRole, accessibleBranches, currentBranch } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -172,6 +176,7 @@ export default function JobDetailPage() {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showOutsourceModal, setShowOutsourceModal] = useState(false);
   const [showOutsourceReturnModal, setShowOutsourceReturnModal] = useState(false);
+  const [showCustomerResponseModal, setShowCustomerResponseModal] = useState(false);
   const [activeOutsourceId, setActiveOutsourceId] = useState("");
   const [showPrintView, setShowPrintView] = useState(false);
   const [showStickerPrintView, setShowStickerPrintView] = useState(false);
@@ -195,6 +200,15 @@ export default function JobDetailPage() {
     queryKey: ["job", jobId],
     queryFn: () => jobsApi.get(jobId),
     enabled: !!jobId,
+  });
+
+  const shareEstimateMutation = useMutation({
+    mutationFn: () => jobsApi.shareEstimate(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      toast.success("Estimate shared with the customer.");
+    },
+    onError: (mutationError: Error) => toast.error(mutationError.message || "Could not share the estimate."),
   });
 
   if (isLoading) {
@@ -251,14 +265,21 @@ export default function JobDetailPage() {
       isRole("OWNER", "SUPER_ADMIN"));
   const showOutsource =
     ["DIAGNOSIS", "APPROVED", "WAITING_FOR_PARTS", "REPAIR_IN_PROGRESS"].includes(job.status) &&
-    canEdit;
+    canEdit && isRole("OWNER", "MANAGER");
+  const canManageCustomerApproval = isRole("OWNER", "MANAGER", "RECEPTIONIST");
+  const showShareEstimate =
+    job.status === "DIAGNOSIS" && Boolean(job.estimated_cost) && canManageCustomerApproval;
+  const showRecordResponse =
+    job.status === "ESTIMATE_SHARED" && canManageCustomerApproval;
   const hasAnyAction =
     showDeliver ||
     showUpdateStatus ||
     showInvoice ||
     showAssign ||
     showDiagnosis ||
-    showOutsource;
+    showOutsource ||
+    showShareEstimate ||
+    showRecordResponse;
 
   // ── Handlers ────────────────────────────────────────────────────
   const handlePrint = (selectedBranch: Branch | null, customName?: string) => {
@@ -656,6 +677,25 @@ export default function JobDetailPage() {
                         Add Diagnosis
                       </Button>
                     )}
+                    {showShareEstimate && (
+                      <Button
+                        className="w-full justify-start"
+                        onClick={() => shareEstimateMutation.mutate()}
+                        isLoading={shareEstimateMutation.isPending}
+                        leftIcon={<Send className="h-4 w-4" />}
+                      >
+                        Share Estimate
+                      </Button>
+                    )}
+                    {showRecordResponse && (
+                      <Button
+                        className="w-full justify-start"
+                        onClick={() => setShowCustomerResponseModal(true)}
+                        leftIcon={<MessageCircleQuestion className="h-4 w-4" />}
+                      >
+                        Record Customer Response
+                      </Button>
+                    )}
                     {showOutsource && (
                       <Button
                         variant="secondary"
@@ -793,6 +833,9 @@ export default function JobDetailPage() {
           onClose={() => setShowStatusModal(false)}
           jobId={jobId}
           currentStatus={job.status}
+          allowedTransitions={job.allowed_transitions?.filter(
+            (transition) => !["ESTIMATE_SHARED", "APPROVED", "REJECTED"].includes(transition.value),
+          )}
         />
         <JobDiagnosisModal
           isOpen={showDiagnosisModal}
@@ -805,6 +848,13 @@ export default function JobDetailPage() {
           onClose={() => setShowDeliveryModal(false)}
           jobId={jobId}
           customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
+        />
+        <JobCustomerResponseModal
+          isOpen={showCustomerResponseModal}
+          onClose={() => setShowCustomerResponseModal(false)}
+          jobId={jobId}
+          customerName={`${job.customer?.first_name ?? ""} ${job.customer?.last_name ?? ""}`.trim()}
+          estimatedCost={job.estimated_cost}
         />
         <OutsourceRepairModal
           isOpen={showOutsourceModal}

@@ -2,7 +2,8 @@ import pytest
 from decimal import Decimal
 
 from core.exceptions import InsufficientInventory
-from inventory.models import InventoryItem, InventoryAdjustment, Purchase
+from inventory.models import InventoryItem, InventoryAdjustment, Purchase, StockTransfer
+from inventory.serializers import StockTransferSerializer
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -18,6 +19,22 @@ def _make_item(branch, name="LCD Screen", quantity=10, selling_price="500.00", c
         low_stock_threshold=3,
         gst_rate=Decimal("18.00"),
     )
+
+
+@pytest.mark.django_db
+class TestStockTransfers:
+    def test_transfer_requires_items(self, branch, owner):
+        from core.models import Branch
+        other = Branch.objects.create(
+            organization=branch.organization, name='Other', code='OTH', email='other@example.com',
+            phone='+919000000001', address_line1='Other street', city='Pune', state='Maharashtra', pincode='411001',
+        )
+        serializer = StockTransferSerializer(data={
+            'from_branch': str(branch.id), 'to_branch': str(other.id), 'items': [],
+        }, context={'request': type('Request', (), {'user': owner})()})
+        assert serializer.is_valid(), serializer.errors
+        with pytest.raises(Exception, match='at least one item'):
+            serializer.save(initiated_by=owner)
 
 
 # ─── add_stock / deduct_stock ─────────────────────────────────────────────────

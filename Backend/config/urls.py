@@ -17,7 +17,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from core.views import HealthCheckView
+from core.views import HealthCheckView, ReadinessCheckView
 
 urlpatterns = [
     # Admin
@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Health check — no auth, used by load balancers / Docker HEALTHCHECK
     path('api/healthz/', HealthCheckView.as_view(), name='healthz'),
+    path('api/readyz/', ReadinessCheckView.as_view(), name='readyz'),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

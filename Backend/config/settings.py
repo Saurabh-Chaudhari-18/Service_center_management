@@ -561,21 +561,32 @@ X_FRAME_OPTIONS = 'DENY'
 # reachable-but-slow host drains SOCKET_CONNECT_TIMEOUT on every call.
 # Rate limiting has no value in local dev, so we skip it entirely.
 # -----------------------------------------------------------------------
+# Scoped views still need their rate definitions in development, even when
+# global throttling is disabled. Keeping rates available avoids runtime errors
+# for explicitly throttled endpoints such as public job tracking.
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'anon': '60/min',
+    'user': '1000/min',
+    'login': '10/min',
+    'token_refresh': '30/min',
+    'otp': '5/min',
+    'public_track': '30/min',
+}
+CELERY_BEAT_SCHEDULE = {
+    'service-reminders-hourly': {
+        'task': 'marketing.process_due_service_reminders',
+        'schedule': 60 * 60,
+    },
+}
+DELIVERY_OTP_TTL_MINUTES = env.int('DELIVERY_OTP_TTL_MINUTES', default=10)
+DELIVERY_OTP_MAX_ATTEMPTS = env.int('DELIVERY_OTP_MAX_ATTEMPTS', default=5)
+
 if not DEBUG:
     REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
         'rest_framework.throttling.ScopedRateThrottle',
     ]
-    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-        'anon': '60/min',
-        'user': '1000/min',
-        'login': '10/min',
-        'token_refresh': '30/min',
-        'otp': '5/min',
-        'public_track': '30/min',
-    }
-
 # -----------------------------------------------------------------------
 # Sentry Error Tracking (backend)
 # Set SENTRY_DSN in .env to enable. Free tier: 5k events/month.

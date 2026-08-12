@@ -182,6 +182,7 @@ export interface User extends BaseEntity {
   is_staff: boolean;
   last_login: string | null;
   date_joined: string;
+  onboarding_dismissed: boolean;
 }
 
 export interface AuthTokens {
@@ -367,6 +368,8 @@ export interface JobCard extends BaseEntity {
   engineer_diagnosis?: { selected: string[]; other_text?: string } | string | null;
   engineer_diagnosis_display?: string;
   status: JobStatus;
+  allowed_transitions?: { value: string; label: string }[];
+  is_readonly?: boolean;
   assigned_technician: string | null;
   assigned_technician_name?: string;
   received_by: string;
@@ -511,6 +514,24 @@ export interface StockAdjustment extends BaseEntity {
   job: string | null;
 }
 
+export interface StockTransferItem {
+  id: string;
+  inventory_item: string;
+  item_name: string;
+  quantity: number;
+}
+
+export interface StockTransfer extends BaseEntity {
+  from_branch: string;
+  from_branch_name: string;
+  to_branch: string;
+  to_branch_name: string;
+  status: "PENDING" | "IN_TRANSIT" | "COMPLETED" | "CANCELLED";
+  initiated_by_name: string;
+  notes: string;
+  items: StockTransferItem[];
+}
+
 export interface PurchaseItem extends BaseEntity {
   inventory_item: string;
   item_name: string;
@@ -591,8 +612,9 @@ export interface Invoice extends BaseEntity {
   branch_name?: string;
   branch_details?: Branch;
   invoice_number: string;
-  job: string;
+  job: string | null;
   job_number?: string;
+  customer?: string | null;
   customer_name: string;
   customer_mobile: string;
   customer_email: string;
@@ -620,6 +642,17 @@ export interface Invoice extends BaseEntity {
   created_by: string;
   line_items?: InvoiceLineItem[];
   payments?: Payment[];
+}
+
+export interface CreditNote extends BaseEntity {
+  branch: string;
+  credit_note_number: string;
+  invoice: string;
+  invoice_number: string;
+  amount: number;
+  total_amount: number;
+  reason: string;
+  created_by_name: string;
 }
 
 // =====================================================
@@ -1090,6 +1123,32 @@ export interface Supplier extends BaseEntity {
   rating: number;
   notes: string;
   is_active: boolean;
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  inventory_item?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  received_quantity: number;
+}
+
+export interface PurchaseOrder extends BaseEntity {
+  branch?: string;
+  supplier?: string;
+  supplier_name: string;
+  po_number: string;
+  order_date: string;
+  expected_delivery_date?: string | null;
+  status: string;
+  status_display: string;
+  total_amount: number;
+  paid_amount: number;
+  tax_amount?: number;
+  notes?: string;
+  items?: PurchaseOrderItem[];
 }
 
 // =====================================================

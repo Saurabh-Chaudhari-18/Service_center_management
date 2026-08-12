@@ -55,6 +55,14 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     branch_field = 'branch'
     queryset = PurchaseOrder.objects.all()
 
+    def perform_destroy(self, instance):
+        raise ValidationError('Purchase orders are permanent procurement records. Cancel the order instead.')
+
+    def perform_update(self, serializer):
+        if serializer.instance.status != 'DRAFT':
+            raise ValidationError('Only draft purchase orders can be edited.')
+        serializer.save()
+
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -66,6 +74,29 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if self.action == 'list':
             return PurchaseOrderListSerializer
         return PurchaseOrderSerializer
+
+    def _transition(self, request, allowed_statuses, new_status, message):
+        with transaction.atomic():
+            po = PurchaseOrder.objects.select_for_update().get(pk=self.get_object().pk)
+            if po.status not in allowed_statuses:
+                raise ValidationError(
+                    f'Cannot {message.lower()} a purchase order that is {po.get_status_display()}.'
+                )
+            po.status = new_status
+            po.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(po).data)
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        return self._transition(request, ['DRAFT'], 'SENT', 'Send')
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        return self._transition(request, ['SENT'], 'CONFIRMED', 'Confirm')
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        return self._transition(request, ['DRAFT', 'SENT', 'CONFIRMED'], 'CANCELLED', 'Cancel')
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -88,6 +119,8 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         from inventory.models import InventoryItem
 
         items_data = self.request.data.get('items', [])
+        if not items_data:
+            raise ValidationError({'items': 'Add at least one item to the purchase order.'})
         subtotal = Decimal('0')
         for item_data in items_data:
             quantity = int(item_data.get('quantity', 0))
@@ -120,36 +153,55 @@ class PurchaseOrderViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
         """Mark items as received and add to inventory."""
-        po = self.get_object()
-
-        if po.status in ['CANCELLED', 'RECEIVED']:
-            raise ValidationError(f'Cannot receive items for {po.get_status_display()} PO.')
-
         items_received = request.data.get('items', [])
+        if not items_received:
+            raise ValidationError({'items': 'Select at least one item to receive.'})
         
         with transaction.atomic():
-            all_received = True
+            po = PurchaseOrder.objects.select_for_update().get(pk=pk)
+            if po.status not in ['SENT', 'CONFIRMED', 'PARTIAL']:
+                raise ValidationError(f'Cannot receive items for {po.get_status_display()} PO.')
+
+            requested_ids = {str(item.get('id')) for item in items_received}
+            po_items = {str(item.id): item for item in po.items.select_for_update()}
+            unknown_ids = requested_ids - set(po_items)
+            if unknown_ids:
+                raise ValidationError({'items': 'One or more purchase-order items are invalid.'})
+
             for item_data in items_received:
-                try:
-                    po_item = po.items.get(pk=item_data['id'])
-                    qty = int(item_data.get('quantity', 0))
-                    po_item.received_quantity += qty
-                    po_item.save()
+                po_item = po_items[str(item_data['id'])]
+                qty = int(item_data.get('quantity', 0))
+                outstanding = po_item.quantity - po_item.received_quantity
+                if qty <= 0 or qty > outstanding:
+                    raise ValidationError({
+                        'items': f'{po_item.description}: quantity must be between 1 and {outstanding}.'
+                    })
 
-                    # Add to inventory
-                    if po_item.inventory_item:
-                        po_item.inventory_item.add_stock(
-                            quantity=qty,
-                            reason=f"Received from PO {po.po_number} ({po.supplier.name})",
-                            user=request.user
-                        )
+                inventory_item = po_item.inventory_item
+                if inventory_item is None:
+                    from inventory.models import InventoryItem
+                    inventory_item, _ = InventoryItem.objects.get_or_create(
+                        branch=po.branch,
+                        name=po_item.description,
+                        defaults={
+                            'cost_price': po_item.unit_price,
+                            'selling_price': po_item.unit_price,
+                            'gst_rate': Decimal('18.00'),
+                            'quantity': 0,
+                        },
+                    )
+                    po_item.inventory_item = inventory_item
 
-                    if po_item.received_quantity < po_item.quantity:
-                        all_received = False
-                except PurchaseOrderItem.DoesNotExist:
-                    continue
+                inventory_item.add_stock(
+                    quantity=qty,
+                    reason=f"Received from PO {po.po_number} ({po.supplier.name})",
+                    user=request.user,
+                )
+                po_item.received_quantity += qty
+                po_item.save(update_fields=['inventory_item', 'received_quantity', 'updated_at'])
 
+            all_received = all(item.received_quantity >= item.quantity for item in po.items.all())
             po.status = 'RECEIVED' if all_received else 'PARTIAL'
-            po.save()
+            po.save(update_fields=['status', 'updated_at'])
 
-        return Response({'message': 'Items received and stock updated.'})
+        return Response(self.get_serializer(po).data)

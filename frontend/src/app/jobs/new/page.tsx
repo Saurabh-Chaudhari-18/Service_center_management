@@ -373,7 +373,7 @@ function AccessoriesChecklist({ value, onChange }: AccessoriesChecklistProps) {
 
 export default function CreateJobCardPage() {
   const router = useRouter();
-  const { currentBranch, hasPermission } = useAuth();
+  const { currentBranch, hasPermission, isRole } = useAuth();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
@@ -647,10 +647,12 @@ export default function CreateJobCardPage() {
                           value={selectedBranchId}
                           onChange={(e) => setSelectedBranchId(e.target.value)}
                           options={[
-                            {
-                              value: "universal",
-                              label: "🌍 Universal / All Branches",
-                            },
+                            ...(isRole("SUPER_ADMIN")
+                              ? [{
+                                  value: "universal",
+                                  label: "🌍 Universal / All Branches",
+                                }]
+                              : []),
                             ...(Array.isArray(branches)
                               ? branches
                               : Object.hasOwn(branches, "results")

@@ -489,7 +489,7 @@ class TestMarkReadyAndDeliver:
             format='json', **bh(branch),
         )
         job.refresh_from_db()
-        otp = job.delivery_otp  # read OTP set by mark_ready
+        otp, _ = job.generate_delivery_otp()
         resp = auth_client.post(
             f'/api/jobs/{job.id}/deliver/',
             {'otp': otp},
@@ -499,11 +499,39 @@ class TestMarkReadyAndDeliver:
         job.refresh_from_db()
         assert job.status == JobStatus.DELIVERED
 
+    def test_deliver_without_proof_is_rejected(self, auth_client, job, branch):
+        self._to_repair_in_progress(auth_client, job, branch)
+        auth_client.post(
+            f'/api/jobs/{job.id}/mark-ready/',
+            {'completion_notes': 'Done'},
+            format='json', **bh(branch),
+        )
+        resp = auth_client.post(
+            f'/api/jobs/{job.id}/deliver/',
+            {'notes': 'No proof supplied'},
+            format='json', **bh(branch),
+        )
+        assert resp.status_code == 400
+
+    def test_deliver_with_wrong_otp_is_rejected(self, auth_client, job, branch):
+        self._to_repair_in_progress(auth_client, job, branch)
+        auth_client.post(
+            f'/api/jobs/{job.id}/mark-ready/',
+            {'completion_notes': 'Done'},
+            format='json', **bh(branch),
+        )
+        resp = auth_client.post(
+            f'/api/jobs/{job.id}/deliver/',
+            {'otp': '000000'},
+            format='json', **bh(branch),
+        )
+        assert resp.status_code == 400
+
     def test_delivered_status_is_terminal(self, auth_client, job, branch):
         self._to_repair_in_progress(auth_client, job, branch)
         auth_client.post(f'/api/jobs/{job.id}/mark-ready/', {'completion_notes': ''}, format='json', **bh(branch))
         job.refresh_from_db()
-        otp = job.delivery_otp
+        otp, _ = job.generate_delivery_otp()
         auth_client.post(f'/api/jobs/{job.id}/deliver/', {'otp': otp}, format='json', **bh(branch))
         # Now try to re-transition
         resp = auth_client.post(

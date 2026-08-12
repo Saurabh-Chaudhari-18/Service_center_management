@@ -16,6 +16,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.throttling import ScopedRateThrottle
 
 from jobs.models import (
     JobCard, JobStatus, JobStatusHistory, JobAccessory,
@@ -43,7 +44,8 @@ from audit.services import AuditLogService
 from core.permissions import (
     IsBranchMember, CanManageJobs, IsTechnicianOrAbove,
     CanAccessDevicePasswords, CanOverrideStatus, BranchScopedMixin,
-    IsOwnerOrManager, require_accessible_branch, get_requested_branch_id,
+    IsOwnerOrManager, CanManageOutsourcing, CanManageCustomerApproval, require_accessible_branch,
+    get_requested_branch_id,
 )
 from core.models import Role, User, Branch
 from core.exceptions import JobReadOnlyError, InvalidStatusTransition, ProtectedResourceError
@@ -61,10 +63,19 @@ class JobCardFilter(filters.FilterSet):
     status = filters.CharFilter(method='filter_status')
     device_type = filters.CharFilter(field_name='device_type')
     is_urgent = filters.BooleanFilter(field_name='is_urgent')
+    is_overdue = filters.BooleanFilter(method='filter_is_overdue')
 
     class Meta:
         model = JobCard
-        fields = ['status', 'device_type', 'is_urgent', 'assigned_technician', 'is_pending']
+        fields = ['status', 'device_type', 'is_urgent', 'is_overdue', 'assigned_technician', 'is_pending']
+
+    def filter_is_overdue(self, queryset, name, value):
+        if not value:
+            return queryset
+        from django.utils import timezone
+        return queryset.filter(
+            estimated_completion_date__lt=timezone.localdate(),
+        ).exclude(status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED])
 
     def filter_assigned_technician(self, queryset, name, value):
         if not value or value.upper() == 'ALL':
@@ -120,6 +131,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     branch_field = 'branch'
     queryset = JobCard.objects.all()
     pagination_class = JobCardPagination
+    throttle_scope = None
 
     def get_queryset(self):
         """Filter jobs based on user's role and branch access."""
@@ -245,7 +257,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             raise ValidationError(str(exc)) from exc
         return Response(result)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember], url_path='share-estimate')
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageCustomerApproval], url_path='share-estimate')
     def share_estimate(self, request, pk=None):
         """Share estimate with customer."""
         job = self.get_object()
@@ -263,16 +275,12 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 f'Estimate of ₹{job.estimated_cost} shared with customer'
             )
             
-            # Send notification to customer
-            from notifications.services import NotificationService
-            NotificationService.send_estimate(job)
-        
         return Response({
             'message': 'Estimate shared with customer.',
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'], url_path='record-customer-response')
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsBranchMember, CanManageCustomerApproval], url_path='record-customer-response')
     def record_customer_response(self, request, pk=None):
         """Record customer's approval or rejection of estimate."""
         job = self.get_object()
@@ -343,7 +351,7 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[ScopedRateThrottle], throttle_scope='otp')
     def deliver(self, request, pk=None):
         """
         Deliver job to customer.
@@ -366,6 +374,10 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             
             job.delivery_date = timezone.now()
             job.delivered_by = request.user
+            job.delivery_otp = ''
+            job.delivery_otp_created_at = None
+            job.delivery_otp_expires_at = None
+            job.delivery_otp_attempts = 0
             job.save()
             
             job.transition_status(
@@ -373,13 +385,15 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
                 request.user,
                 serializer.validated_data.get('notes', 'Device delivered to customer')
             )
+            from marketing.services import schedule_service_reminders
+            schedule_service_reminders(job)
         
         return Response({
             'message': 'Job delivered successfully.',
             'status': job.status
         })
 
-    @action(detail=True, methods=['post'], url_path='resend-delivery-otp')
+    @action(detail=True, methods=['post'], url_path='resend-delivery-otp', throttle_classes=[ScopedRateThrottle], throttle_scope='otp')
     def resend_delivery_otp(self, request, pk=None):
         """Resend delivery OTP to customer."""
         job = self.get_object()
@@ -387,11 +401,15 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if job.status != JobStatus.READY_FOR_DELIVERY:
             raise ValidationError('Job must be ready for pickup.')
         
-        otp = job.generate_delivery_otp()
+        _, delivery_result = job.generate_delivery_otp()
+        if not delivery_result or delivery_result.get('queued', 0) == 0:
+            raise ValidationError(
+                'OTP was generated but could not be sent. Check the customer communication preferences, provider credentials, and worker connection, or use customer signature instead.'
+            )
         
         return Response({
-            'message': 'OTP sent to customer.',
-            'otp': otp if request.user.role in [Role.OWNER, Role.MANAGER] else '******'
+            'message': 'OTP queued for delivery to the customer.',
+            'channels': delivery_result.get('channels', []),
         })
 
     @action(detail=True, methods=['post'], permission_classes=[CanAccessDevicePasswords], url_path='access-device-password')
@@ -593,6 +611,30 @@ class JobCardViewSet(BranchScopedMixin, viewsets.ModelViewSet):
             'by_status': result,
             'urgent': urgent,
             'pending': pending,
+        })
+
+    @action(detail=False, methods=['get'])
+    def schedule(self, request):
+        """Return the complete pending schedule and per-technician workload."""
+        queryset = self.get_queryset().exclude(
+            status__in=[JobStatus.DELIVERED, JobStatus.CANCELLED, JobStatus.REJECTED]
+        ).filter(estimated_completion_date__isnull=False).order_by('estimated_completion_date', '-is_urgent')
+        technicians = queryset.filter(assigned_technician__isnull=False).values(
+            'assigned_technician_id',
+            'assigned_technician__first_name',
+            'assigned_technician__last_name',
+        ).annotate(job_count=django_models.Count('id')).order_by('-job_count')
+        return Response({
+            'jobs': JobCardListSerializer(queryset, many=True).data,
+            'technician_load': [
+                {
+                    'id': str(item['assigned_technician_id']),
+                    'name': f"{item['assigned_technician__first_name']} {item['assigned_technician__last_name']}".strip(),
+                    'job_count': item['job_count'],
+                }
+                for item in technicians
+            ],
+            'unassigned_count': queryset.filter(assigned_technician__isnull=True).count(),
         })
 
     @action(detail=False, methods=['get'], url_path='next-number')
@@ -918,26 +960,28 @@ class PublicTrackingView(APIView):
 
     TRACKING_ERROR = 'Could not find job with provided details. Please check your phone number and PIN.'
 
-    def get(self, request, job_number):
-        phone = request.query_params.get('phone')
-        pin = (request.query_params.get('pin') or '').strip()
-
+    def _get_verified_job(self, request, job_number, lock=False):
+        phone = request.query_params.get('phone') or request.data.get('phone')
+        pin = (request.query_params.get('pin') or request.data.get('pin') or '').strip()
         if not phone:
             raise ValidationError('Phone number is required for verification.')
         if not pin or len(pin) != 4 or not pin.isdigit():
             raise ValidationError('A valid 4-digit PIN is required for verification.')
-
         digits = ''.join(ch for ch in phone if ch.isdigit())
         if len(digits) < 10:
             raise NotFound(self.TRACKING_ERROR)
-
-        job = JobCard.objects.filter(
+        queryset = JobCard.objects.select_for_update() if lock else JobCard.objects
+        job = queryset.filter(
             job_number=job_number,
             customer__mobile__endswith=digits[-10:],
             tracking_pin=pin,
         ).first()
         if not job:
             raise NotFound(self.TRACKING_ERROR)
+        return job
+
+    def get(self, request, job_number):
+        job = self._get_verified_job(request, job_number)
             
         timeline = []
         for history in job.status_history.all():
@@ -966,9 +1010,32 @@ class PublicTrackingView(APIView):
             'current_status_display': job.get_status_display(),
             'estimated_cost': job.estimated_cost,
             'estimated_completion_date': job.estimated_completion_date,
+            'customer_response_allowed': job.status == JobStatus.ESTIMATE_SHARED,
+            'customer_approval_date': job.customer_approval_date,
+            'customer_rejection_reason': job.customer_rejection_reason,
             'timeline': timeline,
             'photos': photos
         })
+
+    def post(self, request, job_number):
+        """Let the verified customer approve or reject a shared estimate."""
+        serializer = JobEstimateApprovalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            job = self._get_verified_job(request, job_number, lock=True)
+            if job.status != JobStatus.ESTIMATE_SHARED:
+                raise ValidationError('This estimate is no longer awaiting a response.')
+            if serializer.validated_data['approved']:
+                job.customer_approval_date = timezone.now()
+                job.save(update_fields=['customer_approval_date', 'updated_at'])
+                job.transition_status(JobStatus.APPROVED, job.received_by, 'Customer approved estimate through tracking portal')
+                message = 'Thank you. Your approval has been recorded.'
+            else:
+                job.customer_rejection_reason = serializer.validated_data['rejection_reason']
+                job.save(update_fields=['customer_rejection_reason', 'updated_at'])
+                job.transition_status(JobStatus.REJECTED, job.received_by, f'Customer rejected through tracking portal: {job.customer_rejection_reason}')
+                message = 'Your decision has been recorded. The service center will contact you if needed.'
+        return Response({'message': message, 'status': job.status})
 
 
 # =====================================================
@@ -982,7 +1049,7 @@ class OutsourceVendorViewSet(BranchScopedMixin, viewsets.ModelViewSet):
     """
     queryset = OutsourceVendor.objects.filter(is_active=True)
     serializer_class = OutsourceVendorSerializer
-    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageOutsourcing]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'contact_person', 'phone', 'city', 'specialization']
     ordering_fields = ['name', 'created_at']
@@ -997,7 +1064,7 @@ class OutsourcedRepairViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         'job', 'job__customer', 'inventory_item', 'vendor', 'branch', 'sent_by', 'received_by'
     ).all()
     serializer_class = OutsourcedRepairSerializer
-    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageOutsourcing]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'repair_outcome', 'vendor', 'job', 'is_warranty_repair']
     search_fields = [
@@ -1074,7 +1141,7 @@ from rest_framework.views import APIView
 
 class JobOutsourceView(APIView):
     """POST /jobs/{job_id}/outsource/ — create outsource record + change status."""
-    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageOutsourcing]
     serializer_class = OutsourcedRepairCreateSerializer
 
     def post(self, request, job_id):
@@ -1108,7 +1175,7 @@ class JobOutsourceView(APIView):
 
 class JobOutsourceReturnView(APIView):
     """POST /jobs/{job_id}/outsource/{outsource_id}/return/ — mark returned."""
-    permission_classes = [IsAuthenticated, IsBranchMember, CanManageJobs]
+    permission_classes = [IsAuthenticated, IsBranchMember, CanManageOutsourcing]
     serializer_class = OutsourcedRepairReturnSerializer
 
     def post(self, request, job_id, outsource_id):

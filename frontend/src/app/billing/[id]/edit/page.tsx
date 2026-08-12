@@ -334,7 +334,7 @@ function InvoiceTemplate({
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
   return createPortal(
-    <div id="print-portal-root" className="print-container">{children}</div>,
+    <div id="print-portal-root" className="print-container" aria-hidden="true" hidden inert>{children}</div>,
     document.body,
   );
 };
@@ -699,10 +699,6 @@ function EditInvoiceContent() {
                     value={selectedBranchId}
                     onChange={(e) => setSelectedBranchId(e.target.value)}
                     options={[
-                      {
-                        value: "universal",
-                        label: "🌍 Universal / All Branches",
-                      },
                       ...(Array.isArray(branches)
                         ? branches
                         : Object.hasOwn(branches, "results")
@@ -715,9 +711,6 @@ function EditInvoiceContent() {
                       ).map((b) => ({ value: b.id, label: b.name })),
                     ]}
                   />
-                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
-                    Universal invoices are visible across all branches.
-                  </p>
                 </div>
               </Card>
             )}

@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 const PrintPortal = ({ children }: { children: React.ReactNode }) => {
   if (typeof window === "undefined") return null;
   return createPortal(
-    <div id="print-portal-root" className="print-container">{children}</div>,
+    <div id="print-portal-root" className="print-container" aria-hidden="true" hidden inert>{children}</div>,
     document.body,
   );
 };
@@ -573,7 +573,7 @@ function BillingContent() {
 
         <Header
           title="Billing & Invoices"
-          subtitle={`${data?.count || 0} total invoices`}
+          subtitle={isLoading ? "Loading invoices…" : `${data?.count || 0} total invoices`}
           actions={
             <Button
               leftIcon={<Plus className="w-4 h-4" />}
@@ -593,6 +593,7 @@ function BillingContent() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
               <div className="md:col-span-5">
                 <Input
+                  aria-label="Search invoices"
                   placeholder="Search by invoice number or customer..."
                   leftIcon={<Search className="w-5 h-5" />}
                   value={searchInput}
@@ -606,6 +607,7 @@ function BillingContent() {
                   onChange={(e) => setDateFrom(e.target.value)}
                   className="w-full text-sm font-normal text-neutral-800"
                   title="From date"
+                  aria-label="Invoices from date"
                 />
                 <Input
                   type="date"
@@ -613,10 +615,12 @@ function BillingContent() {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="w-full text-sm font-normal text-neutral-800"
                   title="To date"
+                  aria-label="Invoices to date"
                 />
               </div>
               <div className="md:col-span-3">
                 <Select
+                  aria-label="Filter invoices by status"
                   options={statusOptions}
                   value={statusFilter}
                   onChange={(e) => {

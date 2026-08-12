@@ -16,7 +16,9 @@ Business rules enforced:
 """
 import pytest
 from decimal import Decimal
-from billing.models import Invoice, InvoiceLineItem, InvoiceStatus, Payment
+from billing.models import Invoice, InvoiceLineItem, InvoiceStatus, Payment, CreditNote
+from billing.serializers import InvoiceListSerializer, CreditNoteSerializer
+from marketing.models import CustomerLedgerEntry
 from tests.conftest import bh
 
 INVOICES_URL = '/api/billing/invoices/'
@@ -36,6 +38,45 @@ def _add_line(auth_client, invoice, branch, **kwargs):
         defaults,
         format='json', **bh(branch),
     )
+
+
+@pytest.mark.django_db
+class TestCreditNotes:
+    def test_credit_note_gets_number_and_gst_totals(self, invoice, owner):
+        invoice.total_amount = Decimal('1180.00')
+        invoice.subtotal = Decimal('1000.00')
+        invoice.cgst_total = Decimal('90.00')
+        invoice.sgst_total = Decimal('90.00')
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
+        invoice.save(update_fields=['total_amount', 'subtotal', 'cgst_total', 'sgst_total', 'is_finalized', 'status'])
+        serializer = CreditNoteSerializer(data={
+            'invoice': str(invoice.id),
+            'amount': '100.00',
+            'reason': 'Returned service',
+        }, context={'request': type('Request', (), {'user': owner})()})
+        assert serializer.is_valid(), serializer.errors
+        note = serializer.save(created_by=owner)
+        assert note.credit_note_number.startswith('CN')
+        assert note.total_amount == Decimal('118.00')
+
+    def test_cumulative_credit_cannot_exceed_invoice(self, invoice, owner):
+        invoice.total_amount = Decimal('118.00')
+        invoice.subtotal = Decimal('100.00')
+        invoice.cgst_total = Decimal('9.00')
+        invoice.sgst_total = Decimal('9.00')
+        invoice.is_finalized = True
+        invoice.status = InvoiceStatus.PENDING
+        invoice.save(update_fields=['total_amount', 'subtotal', 'cgst_total', 'sgst_total', 'is_finalized', 'status'])
+        CreditNote.objects.create(
+            branch=invoice.branch, invoice=invoice, credit_note_number='CN-OLD',
+            amount=Decimal('50.00'), total_amount=Decimal('59.00'), created_by=owner,
+        )
+        serializer = CreditNoteSerializer(data={
+            'invoice': str(invoice.id), 'amount': '60.00', 'reason': 'Too much',
+        }, context={'request': type('Request', (), {'user': owner})()})
+        assert not serializer.is_valid()
+        assert 'amount' in serializer.errors
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +119,18 @@ class TestCreateInvoice:
         assert r2.status_code == 201
         assert r1.data['invoice_number'] != r2.data['invoice_number']
 
+    def test_job_invoice_inherits_customer_account(self, make_invoice, job):
+        inv = make_invoice(job=job)
+
+        assert inv.customer == job.customer
+
+    def test_invoice_list_includes_branch_name(self, make_invoice, branch):
+        inv = make_invoice()
+        inv.refresh_from_db()
+
+        data = InvoiceListSerializer(inv).data
+
+        assert data['branch_name'] == branch.name
     def test_create_invoice_missing_customer_name_returns_400(self, auth_client, branch):
         resp = auth_client.post(INVOICES_URL, {
             'customer_mobile': '9876543212',
@@ -179,6 +232,22 @@ class TestInvoiceFinalization:
         assert inv.is_finalized is True
         assert inv.status == InvoiceStatus.PENDING
 
+    def test_finalize_creates_customer_ledger_credit(self, auth_client, make_invoice, branch, customer):
+        inv = make_invoice(customer=customer)
+        _add_line(auth_client, inv, branch, unit_price='1000.00', gst_rate='18.00')
+
+        resp = auth_client.post(f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch))
+
+        assert resp.status_code == 200
+        entry = CustomerLedgerEntry.objects.get(
+            reference_type='INVOICE',
+            reference_id=str(inv.id),
+        )
+        assert entry.customer == customer
+        assert entry.entry_type == 'CREDIT'
+        assert entry.amount == Decimal('1180.00')
+        assert entry.running_balance == Decimal('1180.00')
+
     def test_finalize_already_finalized_invoice_returns_400(self, auth_client, make_invoice, branch):
         inv = make_invoice()
         _add_line(auth_client, inv, branch)
@@ -231,6 +300,24 @@ class TestPayments:
         assert resp.status_code == 200
         inv.refresh_from_db()
         assert inv.status == InvoiceStatus.PAID
+
+    def test_payment_creates_customer_ledger_debit(self, auth_client, make_invoice, branch, customer):
+        inv = make_invoice(customer=customer)
+        _add_line(auth_client, inv, branch, unit_price='1000.00', gst_rate='18.00')
+        auth_client.post(f'{INVOICES_URL}{inv.id}/finalize/', {}, format='json', **bh(branch))
+
+        resp = auth_client.post(
+            f'{INVOICES_URL}{inv.id}/record-payment/',
+            {'amount': '180.00', 'payment_method': 'UPI'},
+            format='json', **bh(branch),
+        )
+
+        assert resp.status_code == 200
+        entry = CustomerLedgerEntry.objects.get(reference_type='PAYMENT')
+        assert entry.customer == customer
+        assert entry.entry_type == 'DEBIT'
+        assert entry.amount == Decimal('180.00')
+        assert entry.running_balance == Decimal('1000.00')
 
     def test_partial_payment_sets_status_to_partial(self, auth_client, make_invoice, branch):
         inv = self._finalized_invoice(auth_client, make_invoice, branch)

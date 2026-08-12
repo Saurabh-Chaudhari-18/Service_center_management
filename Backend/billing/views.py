@@ -29,7 +29,7 @@ from billing.serializers import (
 )
 from core.permissions import (
     IsBranchMember, CanManageBilling, BranchScopedMixin,
-    IsOwnerOrManager
+    IsOwnerOrManager, CanManageFinance
 )
 from core.models import Role
 from core.serializers import KeyValueSerializer
@@ -390,7 +390,8 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 class CreditNoteViewSet(viewsets.ModelViewSet):
     """ViewSet for credit notes."""
     serializer_class = CreditNoteSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrManager]
+    permission_classes = [IsAuthenticated, CanManageFinance]
+    http_method_names = ['get', 'post', 'head', 'options']
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     ordering = ['-created_at']
 
@@ -407,6 +408,47 @@ class CreditNoteViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
         from audit.services import AuditLogService
         AuditLogService.log_create(self.request.user, serializer.instance, request=self.request)
+
+    @action(detail=False, methods=['get'], url_path='eligible-invoices')
+    def eligible_invoices(self, request):
+        invoices = Invoice.objects.filter(
+            branch__in=request.user.get_accessible_branches(),
+            is_finalized=True,
+        ).exclude(status=InvoiceStatus.CANCELLED).order_by('-invoice_date')[:200]
+        return Response([{
+            'id': str(invoice.id),
+            'invoice_number': invoice.invoice_number,
+            'customer_name': invoice.customer_name,
+            'total_amount': invoice.total_amount,
+            'balance_due': invoice.balance_due,
+        } for invoice in invoices if invoice.balance_due > 0])
+
+    @action(detail=True, methods=['get'], url_path='download-pdf')
+    def download_pdf(self, request, pk=None):
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from io import BytesIO
+
+        note = self.get_object()
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        lines = [
+            note.branch.name, 'CREDIT NOTE', note.credit_note_number,
+            f'Against invoice: {note.invoice.invoice_number}',
+            f'Customer: {note.invoice.customer_name}',
+            f'Reason: {note.reason}', f'Credit before tax: {note.amount}',
+            f'CGST: {note.cgst_amount}', f'SGST: {note.sgst_amount}',
+            f'IGST: {note.igst_amount}', f'Total credit: {note.total_amount}',
+        ]
+        y = 800
+        for line in lines:
+            pdf.drawString(60, y, str(line))
+            y -= 28
+        pdf.save()
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{note.credit_note_number}.pdf"'
+        return response
 
 
 class PaymentMethodsView(APIView):

@@ -19,6 +19,7 @@ export interface JobUpdateStatusModalProps {
   onClose: () => void;
   jobId: string;
   currentStatus: JobStatus;
+  allowedTransitions?: { value: string; label: string }[];
 }
 
 export function JobUpdateStatusModal({
@@ -26,34 +27,45 @@ export function JobUpdateStatusModal({
   onClose,
   jobId,
   currentStatus,
+  allowedTransitions = [],
 }: JobUpdateStatusModalProps) {
   const queryClient = useQueryClient();
   const [newStatus, setNewStatus] = useState("");
   const [notes, setNotes] = useState("");
 
-  const { mutate, isPending } = useMutation({
+  const { mutate, isPending, error, reset } = useMutation({
     mutationFn: () => jobsApi.updateStatus(jobId, newStatus, notes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      setNewStatus("");
+      setNotes("");
       onClose();
     },
   });
 
-  const availableStatuses = Object.keys(JOB_STATUS_CONFIG)
-    .filter((status) => status !== currentStatus)
-    .map((status) => ({
-      value: status,
-      label: JOB_STATUS_CONFIG[status as JobStatus]?.label || status,
-    }));
+  const availableStatuses = allowedTransitions.map((transition) => ({
+    value: transition.value,
+    label:
+      transition.label ||
+      JOB_STATUS_CONFIG[transition.value as JobStatus]?.label ||
+      transition.value,
+  }));
+
+  const handleClose = () => {
+    setNewStatus("");
+    setNotes("");
+    reset();
+    onClose();
+  };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Update Status"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           <Button
@@ -67,6 +79,11 @@ export function JobUpdateStatusModal({
       }
     >
       <div className="space-y-4">
+        {error && (
+          <Alert variant="error">
+            {error instanceof Error ? error.message : "Status update failed."}
+          </Alert>
+        )}
         <div className="flex items-center gap-2 p-3 bg-neutral-50 rounded-lg">
           <span className="text-sm text-neutral-500">Current Status:</span>
           <JobStatusBadge status={currentStatus} />
@@ -91,7 +108,7 @@ export function JobUpdateStatusModal({
           </>
         ) : (
           <Alert variant="info">
-            No further status transitions available for this job.
+            This job has no further standard status transitions.
           </Alert>
         )}
       </div>

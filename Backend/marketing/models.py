@@ -112,6 +112,9 @@ class ServiceReminder(TimeStampedModel):
 
     class Meta:
         ordering = ['scheduled_date']
+        constraints = [
+            models.UniqueConstraint(fields=['job', 'reminder_type'], name='unique_job_service_reminder'),
+        ]
         indexes = [
             models.Index(fields=['branch', 'scheduled_date', 'status']),
             models.Index(fields=['customer']),

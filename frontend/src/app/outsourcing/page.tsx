@@ -328,7 +328,7 @@ export default function OutsourcingPage() {
   };
 
   return (
-    <ProtectedRoute requiredPermission="canViewJobCards">
+    <ProtectedRoute requiredRoles={["OWNER", "MANAGER"]}>
       <AppLayout>
         <Header
           title="Outsourced Repairs"

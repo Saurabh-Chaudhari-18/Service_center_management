@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient, mockAuthValue } from "../test-utils";
+import type { UserRole } from "@/types";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -67,8 +68,8 @@ import { useAuth } from "@/context/AuthContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function renderPage() {
-  vi.mocked(useAuth).mockReturnValue(mockAuthValue("OWNER") as ReturnType<typeof useAuth>);
+function renderPage(role: UserRole = "OWNER") {
+  vi.mocked(useAuth).mockReturnValue(mockAuthValue(role) as ReturnType<typeof useAuth>);
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
       <NewJobPage />
@@ -113,6 +114,19 @@ describe("New Job page (jobs/new) — regression tests", () => {
     renderPage();
     expect(
       screen.getByRole("button", { name: /register new customer/i }),
+    ).toBeInTheDocument();
+  });
+  it("does not offer universal assignment to an owner", () => {
+    renderPage("OWNER");
+    expect(
+      screen.queryByRole("option", { name: /universal.*all branches/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers universal assignment only to a super admin", () => {
+    renderPage("SUPER_ADMIN");
+    expect(
+      screen.getByRole("option", { name: /universal.*all branches/i }),
     ).toBeInTheDocument();
   });
 });

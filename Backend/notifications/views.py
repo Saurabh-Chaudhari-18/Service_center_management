@@ -61,44 +61,8 @@ class NotificationTemplateViewSet(BranchScopedMixin, viewsets.ModelViewSet):
         if not request.user.has_branch_access(branch):
             raise PermissionDenied('Access denied')
         
-        # Create default templates
-        default_templates = [
-            {
-                'notification_type': NotificationType.JOB_CREATED,
-                'channel': NotificationChannel.SMS,
-                'template_text': (
-                    "Dear {customer_name}, your device has been received at {branch_name}. "
-                    "Job Number: {job_number}. We will update you shortly."
-                )
-            },
-            {
-                'notification_type': NotificationType.JOB_READY,
-                'channel': NotificationChannel.SMS,
-                'template_text': (
-                    "Dear {customer_name}, your device is ready for pickup! "
-                    "Job: {job_number}. Please visit {branch_name}."
-                )
-            },
-            {
-                'notification_type': NotificationType.DELIVERY_OTP,
-                'channel': NotificationChannel.SMS,
-                'template_text': (
-                    "Your delivery OTP for Job {job_number} is {otp}. "
-                    "Please share with our staff during pickup."
-                )
-            },
-        ]
-        
-        created_count = 0
-        for template_data in default_templates:
-            _, created = NotificationTemplate.objects.get_or_create(
-                branch=branch,
-                notification_type=template_data['notification_type'],
-                channel=template_data['channel'],
-                defaults={'template_text': template_data['template_text']}
-            )
-            if created:
-                created_count += 1
+        from notifications.defaults import ensure_default_notification_templates
+        created_count = ensure_default_notification_templates(branch)
         
         return Response({
             'message': f'Created {created_count} default templates.'

@@ -34,7 +34,7 @@ class NotificationService:
         except Exception as e:
             logger.warning(f"Could not generate job card PDF: {e}")
 
-        NotificationService._send_customer_notification(
+        return NotificationService._send_customer_notification(
             job=job,
             notification_type=NotificationType.JOB_CREATED,
             context={
@@ -68,6 +68,7 @@ class NotificationService:
                 'branch_name': job.branch.name if job.branch else 'Service Center',
                 'device': f"{job.brand} {job.model}",
                 'status': new_status.label,
+                'amount': str(job.estimated_cost or 0),
             }
             
             if new_status == JobStatus.ESTIMATE_SHARED and job.estimated_cost:
@@ -80,9 +81,9 @@ class NotificationService:
             )
 
     @staticmethod
-    def send_delivery_otp(job):
+    def send_delivery_otp(job, raw_otp):
         """Send delivery OTP to customer."""
-        NotificationService._send_customer_notification(
+        return NotificationService._send_customer_notification(
             job=job,
             notification_type=NotificationType.DELIVERY_OTP,
             context={
@@ -90,7 +91,7 @@ class NotificationService:
                 'job_number': job.job_number,
                 'branch_name': job.branch.name,
                 'device': f"{job.brand} {job.model}",
-                'otp': job.delivery_otp,
+                'otp': raw_otp,
             }
         )
 
@@ -118,10 +119,10 @@ class NotificationService:
             invoice=invoice,
             context={
                 'customer_name': invoice.customer_name,
-                'job_number': invoice.job.job_number,
+                'job_number': invoice.job.job_number if invoice.job else '',
                 'invoice_number': invoice.invoice_number,
                 'amount': str(payment.amount),
-                'branch_name': invoice.branch.name,
+                'branch_name': invoice.branch.name if invoice.branch else '',
             }
         )
 
@@ -134,9 +135,9 @@ class NotificationService:
             invoice=invoice,
             context={
                 'customer_name': invoice.customer_name,
-                'job_number': invoice.job.job_number,
+                'job_number': invoice.job.job_number if invoice.job else '',
                 'invoice_number': invoice.invoice_number,
-                'branch_name': invoice.branch.name,
+                'branch_name': invoice.branch.name if invoice.branch else '',
             }
         )
 
@@ -182,10 +183,10 @@ class NotificationService:
             invoice=invoice,
             context={
                 'customer_name': invoice.customer_name,
-                'job_number': invoice.job.job_number,
+                'job_number': invoice.job.job_number if invoice.job else '',
                 'invoice_number': invoice.invoice_number,
                 'amount': str(invoice.balance_due),
-                'branch_name': invoice.branch.name,
+                'branch_name': invoice.branch.name if invoice.branch else '',
             }
         )
 
@@ -195,13 +196,17 @@ class NotificationService:
         Internal method to send notification to customer.
         Tries WhatsApp first (if enabled), then SMS.
         """
-        customer = job.customer
-        branch = job.branch
+        customer = job.customer if job else getattr(invoice, 'customer', None)
+        branch = job.branch if job else getattr(invoice, 'branch', None)
+        if customer is None:
+            logger.info("Notification skipped because no customer account is linked.")
+            return {'queued': 0, 'failed': 0, 'channels': [], 'reason': 'no_customer'}
 
-        # Universal jobs (branch=null) have no branch settings — skip mobile notifications
+        # Universal records (branch=null) have no branch settings — skip mobile notifications
         if branch is None:
+            reference = job.job_number if job else getattr(invoice, 'invoice_number', '')
             logger.info(
-                f"Job {job.job_number} has no branch assigned (Universal). "
+                f"Record {reference} has no branch assigned (Universal). "
                 "Skipping mobile notifications; email-only if customer has email."
             )
             channels_to_try = [NotificationChannel.EMAIL] if customer.email else []
@@ -214,6 +219,10 @@ class NotificationService:
             if customer.email:
                 channels_to_try.append(NotificationChannel.EMAIL)
         
+        result = {'queued': 0, 'failed': 0, 'channels': [], 'reason': ''}
+        if not channels_to_try:
+            result['reason'] = 'no_enabled_channel'
+
         for channel in channels_to_try:
             try:
                 # Get template
@@ -246,6 +255,7 @@ class NotificationService:
                     invoice=invoice,
                     status='PENDING'
                 )
+                result['channels'].append(channel)
 
                 # Dispatch to background worker.
                 # Each .delay() call is individually wrapped so that a Celery broker
@@ -262,6 +272,9 @@ class NotificationService:
                             "Notification logged as FAILED — will retry on next worker restart."
                         )
                         log.mark_failed(f"Celery dispatch failed: {celery_err}")
+                        result['failed'] += 1
+                    else:
+                        result['queued'] += 1
 
                 elif channel == NotificationChannel.SMS:
                     try:
@@ -272,12 +285,19 @@ class NotificationService:
                             "Notification logged as FAILED — will retry on next worker restart."
                         )
                         log.mark_failed(f"Celery dispatch failed: {celery_err}")
+                        result['failed'] += 1
+                    else:
+                        result['queued'] += 1
 
                 elif channel == NotificationChannel.EMAIL:
                     default_subject = (
                         f"Job Card {job.job_number} — Device Received"
-                        if notification_type == NotificationType.JOB_CREATED
-                        else f"Update on Job {job.job_number}"
+                        if notification_type == NotificationType.JOB_CREATED and job
+                        else (
+                            f"Invoice {invoice.invoice_number}"
+                            if invoice and not job
+                            else f"Update on Job {job.job_number}"
+                        )
                     )
                     subject = template.subject if template and template.subject else default_subject
 
@@ -299,6 +319,9 @@ class NotificationService:
                             "Notification logged as FAILED — will retry on next worker restart."
                         )
                         log.mark_failed(f"Celery dispatch failed: {celery_err}")
+                        result['failed'] += 1
+                    else:
+                        result['queued'] += 1
                 
                 # Only break if we successfully sent a mobile notification (SMS/WA). 
                 # We still want the loop to continue to send the EMAIL (which is the last channel in the list).
@@ -309,6 +332,8 @@ class NotificationService:
                 
             except Exception as e:
                 logger.error(f"Failed to send {channel} notification: {str(e)}")
+                result['failed'] += 1
+        return result
 
     @staticmethod
     def _get_default_message(notification_type, context):
@@ -340,7 +365,7 @@ class NotificationService:
                 "Job: {job_number}. Thank you for choosing {branch_name}!"
             ),
             NotificationType.CUSTOM: (
-                "Dear {customer_name}, your invoice {invoice_number} for Job {job_number} is generated. "
+                "Dear {customer_name}, your invoice {invoice_number} is generated. "
                 "Thank you for choosing {branch_name}!"
             ),
             NotificationType.PAYMENT_RECEIVED: (

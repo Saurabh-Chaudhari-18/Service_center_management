@@ -325,10 +325,12 @@ export default function EditJobPage() {
                     value={selectedBranchId}
                     onChange={(e) => setSelectedBranchId(e.target.value)}
                     options={[
-                      {
-                        value: "universal",
-                        label: "🌍 Universal / All Branches",
-                      },
+                      ...(isRole("SUPER_ADMIN")
+                        ? [{
+                            value: "universal",
+                            label: "🌍 Universal / All Branches",
+                          }]
+                        : []),
                       ...(Array.isArray(branches)
                         ? branches
                         : Object.hasOwn(branches, "results")
@@ -337,9 +339,11 @@ export default function EditJobPage() {
                       ).map((b: any) => ({ value: b.id, label: b.name })),
                     ]}
                   />
-                  <p className="text-sm text-neutral-500 mt-1 col-span-full">
-                    Universal jobs are visible across all branches.
-                  </p>
+                  {isRole("SUPER_ADMIN") && (
+                    <p className="text-sm text-neutral-500 mt-1 col-span-full">
+                      Universal jobs are visible across all branches.
+                    </p>
+                  )}
                 </div>
               </Card>
             )}

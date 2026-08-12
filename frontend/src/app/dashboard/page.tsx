@@ -20,6 +20,7 @@ import {
   pickupsApi,
   reportsApi,
   inventoryApi,
+  authApi,
 } from "@/lib/api";
 import {
   FileText,
@@ -222,34 +223,25 @@ function ShopBriefing() {
 // =====================================================
 
 function OnboardingChecklist() {
-  const { currentBranch } = useAuth();
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("onboarding_dismissed") === "true";
-  });
+  const { currentBranch, user, refreshUser } = useAuth();
+  const [dismissed, setDismissed] = useState(Boolean(user?.onboarding_dismissed));
 
   const { data } = useQuery({
-    queryKey: ["total-jobs-count", currentBranch?.id],
-    queryFn: () => jobsApi.list({ branch: currentBranch?.id, page_size: 1 }),
+    queryKey: ["onboarding", currentBranch?.id],
+    queryFn: () => authApi.getOnboarding(currentBranch?.id),
     enabled: !!currentBranch && !dismissed,
     staleTime: 5 * 60 * 1000,
   });
 
-  const totalJobs = data?.count ?? -1;
+  if (dismissed || !data || data.steps.every(step => step.done)) return null;
 
-  if (dismissed || totalJobs === -1 || totalJobs > 0) return null;
-
-  const handleDismiss = () => {
-    localStorage.setItem("onboarding_dismissed", "true");
+  const handleDismiss = async () => {
+    await authApi.dismissOnboarding();
     setDismissed(true);
+    await refreshUser();
   };
 
-  const steps = [
-    { label: "Account created", done: true, href: null },
-    { label: "Add shop details & GSTIN", done: false, href: "/branches" },
-    { label: "Set up SMS notifications", done: false, href: "/notifications" },
-    { label: "Create your first job card", done: false, href: "/jobs/new" },
-  ];
+  const steps = data.steps;
 
   const completed = steps.filter((s) => s.done).length;
 
@@ -331,68 +323,73 @@ function OnboardingChecklist() {
 // =====================================================
 
 function DashboardStats() {
-  const { currentBranch } = useAuth();
+  const { currentBranch, hasPermission } = useAuth();
+  const canViewJobs = hasPermission("canViewJobCards");
+  const canViewBilling = hasPermission("canViewBilling");
+  const canViewPickups = hasPermission("canViewPickups");
 
   const { data: pendingJobsData } = useQuery({
     queryKey: ["pending-jobs", currentBranch?.id],
     queryFn: () => jobsApi.getPending(),
-    enabled: !!currentBranch,
+    enabled: !!currentBranch && canViewJobs,
   });
 
   const { data: invoiceStats } = useQuery({
     queryKey: ["invoice-stats", currentBranch?.id],
     queryFn: () => billingApi.getStats(),
-    enabled: !!currentBranch,
+    enabled: !!currentBranch && canViewBilling,
   });
 
   const { data: pickupStats } = useQuery({
     queryKey: ["pickup-stats", currentBranch?.id],
     queryFn: () => pickupsApi.getStats(),
-    enabled: !!currentBranch,
+    enabled: !!currentBranch && canViewPickups,
   });
 
   const stats = [
-    {
+    canViewJobs && {
       label: "Pending Jobs",
       value: pendingJobsData?.count || 0,
       icon: <FileText className="w-6 h-6 text-primary-600" />,
       variant: "primary" as const,
       href: "/jobs",
     },
-    {
+    canViewBilling && {
       label: "Total Revenue",
-      value: `₹${(invoiceStats?.total_paid || 0).toLocaleString("en-IN")}`,
+      value: "₹" + (invoiceStats?.total_paid || 0).toLocaleString("en-IN"),
       icon: <DollarSign className="w-6 h-6 text-green-600" />,
       variant: "success" as const,
       href: "/billing",
     },
-    {
+    canViewBilling && {
       label: "Pending Payments",
-      value: `₹${(invoiceStats?.total_pending || 0).toLocaleString("en-IN")}`,
+      value: "₹" + (invoiceStats?.total_pending || 0).toLocaleString("en-IN"),
       icon: <Clock className="w-6 h-6 text-amber-600" />,
       variant: "warning" as const,
       href: "/billing?status=PENDING",
     },
-    {
+    canViewPickups && {
       label: "Pending Pickups",
       value: pickupStats?.pending || 0,
       icon: <Truck className="w-6 h-6 text-indigo-600" />,
       variant: "accent" as const,
       href: "/pickups",
     },
-  ];
+  ].filter((stat): stat is Exclude<typeof stat, false> => Boolean(stat));
+
+  if (stats.length === 0) return null;
 
   return (
     <Card>
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-neutral-900">Overview Stats</h3>
-        <p className="text-xs text-neutral-400 mt-0.5">Live counts · All-time financials</p>
+        <p className="text-xs text-neutral-400 mt-0.5">Information available to your role</p>
       </div>
       <div className="flex flex-col space-y-1">
         {stats.map((stat) => (
           <Link key={stat.label} href={stat.href} className="flex justify-between items-center p-3 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-0">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg stats-icon-${stat.variant}`}>
+              <div className={"p-2 rounded-lg stats-icon-" + stat.variant}>
                 {stat.icon}
               </div>
               <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
@@ -408,7 +405,6 @@ function DashboardStats() {
     </Card>
   );
 }
-
 // =====================================================
 // Revenue Trend Chart Component
 // =====================================================
@@ -629,7 +625,7 @@ function NetProfitWidget() {
   return (
     <Card className="flex flex-col">
       <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
-        Net Profit
+        Profit & Loss
       </h3>
       <p className="text-sm text-neutral-500 mb-4">This month so far</p>
 
@@ -671,11 +667,11 @@ function NetProfitWidget() {
           >
             <span className={`text-sm font-bold ${
               isPositive ? "text-violet-700 dark:text-violet-300" : "text-amber-700 dark:text-amber-300"
-            }`}>Net Profit</span>
+            }`}>{isPositive ? "Net Profit" : "Net Loss"}</span>
             <span className={`text-lg font-bold ${
               isPositive ? "text-violet-700 dark:text-violet-300" : "text-amber-700 dark:text-amber-300"
             }`}>
-              ₹{Math.abs(netProfit).toLocaleString("en-IN")}
+              {isPositive ? "" : "-"}₹{Math.abs(netProfit).toLocaleString("en-IN")}
             </span>
           </div>
 
@@ -756,8 +752,9 @@ function JobStatusChart() {
           />
         </div>
       ) : (
-        <div className="h-32 sm:h-40">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-32 min-w-0 sm:h-40">
+          <div aria-hidden="true" className="h-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <PieChart>
               <Pie
                 data={chartData}
@@ -799,6 +796,12 @@ function JobStatusChart() {
               />
             </PieChart>
           </ResponsiveContainer>
+          </div>
+          <ul className="sr-only" aria-label="Active jobs by status">
+            {chartData.map((entry) => (
+              <li key={entry.name}>{entry.name}: {entry.value}</li>
+            ))}
+          </ul>
         </div>
       )}
     </Card>
@@ -870,7 +873,7 @@ function RecentJobs() {
                     )}
                   </div>
                   <p className="mt-1 text-sm text-neutral-600 truncate">
-                    {job.customer?.first_name} {job.customer?.last_name} •{" "}
+                    {job.customer_name || [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ") || "Unknown customer"} •{" "}
                     {job.brand} {job.model}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">
@@ -907,7 +910,7 @@ function QuickActions() {
       icon: <Users className="w-5 h-5" />,
       href: "/customers/new",
       iconClass: "bg-gradient-to-br from-blue-500 to-indigo-600",
-      visible: isRole("SUPER_ADMIN", "OWNER", "MANAGER", "RECEPTIONIST"),
+      visible: isRole("OWNER", "MANAGER", "RECEPTIONIST"),
     },
     {
       label: "Create Invoice",
@@ -1150,7 +1153,7 @@ function TechnicianJobs() {
                     <JobStatusBadge status={job.status} />
                   </div>
                   <p className="mt-1 text-sm text-neutral-600 truncate">
-                    {job.customer?.first_name} {job.customer?.last_name} •{" "}
+                    {job.customer_name || [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ") || "Unknown customer"} •{" "}
                     {job.brand} {job.model}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">
@@ -1209,7 +1212,7 @@ export default function DashboardPage() {
 
         <PageShell className="space-y-5">
           {/* Shop Briefing — actionable status overview */}
-          {hasPermission("canViewJobCards") && <ShopBriefing />}
+          {hasPermission("canViewJobCards") && hasPermission("canViewReports") && <ShopBriefing />}
 
           {/* Onboarding checklist — only for new accounts */}
           <OnboardingChecklist />
@@ -1223,18 +1226,18 @@ export default function DashboardPage() {
           </section>
 
           {/* Jobs & Stats */}
-          <section aria-label="Jobs and statistics">
+          <section aria-label={hasPermission("canViewJobCards") ? "Jobs and statistics" : "Billing overview"}>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-              Jobs &amp; Activity
+              {hasPermission("canViewJobCards") ? "Jobs & Activity" : "Billing Overview"}
             </p>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <div className="lg:col-span-2 min-w-0">
-                {hasPermission("canViewJobCards") && <RecentJobs />}
+              <div className={(hasPermission("canViewJobCards") ? "lg:col-span-2 " : "hidden ") + "min-w-0"}>
+                {hasPermission("canViewJobCards") && !isRole("TECHNICIAN") && <RecentJobs />}
                 {isRole("TECHNICIAN") && <TechnicianJobs />}
               </div>
-              <div className="space-y-5">
+              <div className={"space-y-5 " + (hasPermission("canViewJobCards") ? "" : "lg:col-span-3 max-w-xl")}>
                 <DashboardStats />
-                {hasPermission("canViewJobCards") && <JobStatusChart />}
+                {hasPermission("canViewJobCards") && hasPermission("canViewReports") && <JobStatusChart />}
               </div>
             </div>
           </section>

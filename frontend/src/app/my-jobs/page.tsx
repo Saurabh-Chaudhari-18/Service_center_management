@@ -98,11 +98,11 @@ function TechnicianJobCard({
             Customer
           </p>
           <p className="font-medium text-neutral-900">
-            {job.customer?.first_name} {job.customer?.last_name}
+            {job.customer_name || [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ") || "—"}
           </p>
           <p className="text-sm text-neutral-500 flex items-center gap-1 mt-1">
             <Phone className="w-3.5 h-3.5" />
-            {formatPhone(job.customer?.mobile)}
+            {formatPhone(job.customer_mobile || job.customer?.mobile || "")}
           </p>
         </div>
         <div>
@@ -499,7 +499,7 @@ function LiveLocationBanner() {
               ? lastUpdate
                 ? `Last sent: ${formatDistanceToNow(lastUpdate, { addSuffix: true })} · Updates every 30s`
                 : "Sending first update..."
-              : "Enable so managers can track you on the pickup map when EN_ROUTE"}
+              : "Enable so managers can see your location while you travel to a pickup"}
           </p>
           {locationError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -638,7 +638,7 @@ export default function MyJobsPage() {
                           <JobStatusBadge status={job.status} />
                         </td>
                         <td className="px-4 py-3 align-middle font-medium text-neutral-900 dark:text-white">
-                          {job.customer?.first_name} {job.customer?.last_name}
+                          {job.customer_name || [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ") || "—"}
                         </td>
                         <td className="px-4 py-3 align-middle text-neutral-600 dark:text-slate-400">
                           {job.brand} {job.model}
