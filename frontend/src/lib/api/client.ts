@@ -9,9 +9,12 @@ import axios, {
 } from "axios";
 import { tokenRefreshCoordinator } from "./refreshCoordinator";
 
-// API Base URL - configurable via environment (export for direct fetch use)
+// API Base URL - in the browser, ALWAYS use same-origin "/api" proxy so HTTP-only cookies work seamlessly.
+// Server-side (SSR) can use BACKEND_API_URL or NEXT_PUBLIC_API_URL.
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "/api";
+  typeof window !== "undefined"
+    ? "/api"
+    : (process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || "/api");
 
 const CURRENT_BRANCH_KEY = "scm_current_branch";
 
@@ -131,7 +134,14 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         tokenManager.clearTokens();
-        if (typeof window !== "undefined") window.location.href = "/login";
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.startsWith("/login")
+        ) {
+          window.location.href = `/login?next=${encodeURIComponent(
+            window.location.pathname + window.location.search
+          )}`;
+        }
         return Promise.reject(refreshError);
       }
     }

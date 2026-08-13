@@ -364,8 +364,14 @@ export function ProtectedRoute({
   }, [isLoading, isAuthenticated, user]);
 
   React.useEffect(() => {
-    if (shouldRedirect && typeof window !== "undefined") {
-      window.location.href = "/login";
+    if (
+      shouldRedirect &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      window.location.href = `/login?next=${encodeURIComponent(
+        window.location.pathname + window.location.search
+      )}`;
     }
   }, [shouldRedirect]);
 
