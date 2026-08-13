@@ -8,6 +8,7 @@ All tests go through the HTTP layer — no model methods called directly.
 """
 import pytest
 from django.conf import settings
+from django.test import override_settings
 
 TOKEN_URL = '/api/auth/token/'
 REFRESH_URL = '/api/auth/token/refresh/'
@@ -29,6 +30,18 @@ class TestLogin:
         access_cookie = resp.cookies[settings.JWT_ACCESS_COOKIE_NAME]
         assert access_cookie.value
         assert access_cookie['httponly'] is True
+
+    @override_settings(DEBUG=False, JWT_COOKIE_SAMESITE='None')
+    def test_production_login_cookies_support_cross_site_requests(self, api_client, owner):
+        resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
+        assert resp.status_code == 200
+
+        refresh_cookie = resp.cookies[settings.JWT_REFRESH_COOKIE_NAME]
+        access_cookie = resp.cookies[settings.JWT_ACCESS_COOKIE_NAME]
+        assert refresh_cookie['samesite'] == 'None'
+        assert refresh_cookie['secure'] is True
+        assert access_cookie['samesite'] == 'None'
+        assert access_cookie['secure'] is True
 
     def test_wrong_password_returns_401(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'WRONG'}, format='json')

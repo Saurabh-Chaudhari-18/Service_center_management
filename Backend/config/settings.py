@@ -158,6 +158,10 @@ REST_FRAMEWORK = {
 # Refresh token httpOnly cookie (set on API domain; sent with credentials on refresh)
 JWT_REFRESH_COOKIE_NAME = 'scm_refresh_token'
 JWT_ACCESS_COOKIE_NAME = 'scm_access_token'
+JWT_COOKIE_SAMESITE = env(
+    'JWT_COOKIE_SAMESITE',
+    default='Lax' if DEBUG else 'None',
+)
 
 # JWT Settings
 SIMPLE_JWT = {

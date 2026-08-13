@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import { tokenManager } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 import { authApi } from "@/lib/api/services";
 import type {
   AuthUser,
@@ -44,6 +45,27 @@ interface AuthContextValue extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function isMissingRefreshSession(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 400) {
+    return false;
+  }
+
+  if (typeof error.message === "string" && error.message.includes("refresh")) {
+    return true;
+  }
+
+  const data = error.responseData;
+  if (typeof data === "object" && data !== null) {
+    const refresh = (data as Record<string, unknown>).refresh;
+    return (
+      typeof refresh === "string" ||
+      (Array.isArray(refresh) && refresh.length > 0)
+    );
+  }
+
+  return false;
+}
 
 // =====================================================
 // Auth Provider Component
@@ -116,7 +138,9 @@ export function AuthProvider({
           });
         }
       } catch (error) {
-        console.error("Auth initialization failed:", error);
+        if (!isMissingRefreshSession(error)) {
+          console.error("Auth initialization failed:", error);
+        }
         tokenManager.clearTokens();
         if (isMounted) {
           setState({

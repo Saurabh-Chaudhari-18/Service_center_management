@@ -25,40 +25,43 @@ from core.serializers import EmptySerializer
 def _set_refresh_cookie(response, refresh_token: str) -> None:
     """Store refresh token in an httpOnly cookie (API domain)."""
     max_age = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+    cookie_samesite = settings.JWT_COOKIE_SAMESITE
     response.set_cookie(
         settings.JWT_REFRESH_COOKIE_NAME,
         refresh_token,
         max_age=max_age,
         httponly=True,
         secure=not settings.DEBUG,
-        samesite='Lax',
+        samesite=cookie_samesite,
         path='/',
     )
 
 
 def _set_access_cookie(response, access_token: str) -> None:
     max_age = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+    cookie_samesite = settings.JWT_COOKIE_SAMESITE
     response.set_cookie(
         settings.JWT_ACCESS_COOKIE_NAME,
         access_token,
         max_age=max_age,
         httponly=True,
         secure=not settings.DEBUG,
-        samesite='Lax',
+        samesite=cookie_samesite,
         path='/',
     )
 
 
 def _clear_refresh_cookie(response) -> None:
+    cookie_samesite = settings.JWT_COOKIE_SAMESITE
     response.delete_cookie(
         settings.JWT_REFRESH_COOKIE_NAME,
         path='/',
-        samesite='Lax',
+        samesite=cookie_samesite,
     )
     response.delete_cookie(
         settings.JWT_ACCESS_COOKIE_NAME,
         path='/',
-        samesite='Lax',
+        samesite=cookie_samesite,
     )
 
 

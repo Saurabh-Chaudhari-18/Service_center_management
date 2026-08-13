@@ -20,6 +20,17 @@ import { tokenManager } from "@/lib/api/client";
 // ── Mock the API layer so AuthProvider never hits the network ─────────────────
 
 vi.mock("@/lib/api/client", () => ({
+  ApiError: class ApiError extends Error {
+    status?: number;
+    responseData?: unknown;
+
+    constructor(message: string, status?: number, responseData?: unknown) {
+      super(message);
+      this.name = "ApiError";
+      this.status = status;
+      this.responseData = responseData;
+    }
+  },
   tokenManager: {
     getAccessToken: vi.fn(() => "fake-access-token"),
     getRefreshToken: vi.fn(() => null),
