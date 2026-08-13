@@ -1,7 +1,7 @@
 # render.yaml (put in project root)
 services:
   - type: web
-    name: servicehub-backend
+    name: servicehub-backend1
     runtime: docker
     dockerfilePath: ./Backend/Dockerfile
     dockerContext: ./Backend

@@ -8,6 +8,7 @@ job lifecycle tracking, and auditability for Indian service centers.
 from pathlib import Path
 from datetime import timedelta
 import environ
+import os
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -433,7 +434,12 @@ globals().update(build_runtime_settings(env, TIME_ZONE))
 # -----------------------------------------------------------------------
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
+    SECURE_SSL_REDIRECT = env.bool(
+        'SECURE_SSL_REDIRECT',
+        # Disable during test runs: Django's test client uses http://testserver
+        # and SSL redirect would 301 every request, breaking all assertions.
+        default=not bool(os.environ.get('PYTEST_CURRENT_TEST')),
+    )
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True

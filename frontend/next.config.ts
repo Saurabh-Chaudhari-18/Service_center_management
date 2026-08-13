@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const backendApi = process.env.BACKEND_API_URL
-      || (process.env.VERCEL ? "https://servicehub-backend.onrender.com/api" : "");
+      || (process.env.VERCEL ? "https://servicehub-backend1.onrender.com/api" : "");
     return backendApi ? [{
       source: "/api/:path*",
       // DRF uses APPEND_SLASH and cannot redirect POST bodies. Force the
@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "servicehub-backend.onrender.com",
+        hostname: "servicehub-backend1.onrender.com",
         pathname: "/media/**",
       },
     ],
