@@ -21,7 +21,8 @@ const nextConfig: NextConfig = {
     }];
   },
   async rewrites() {
-    const backendApi = process.env.BACKEND_API_URL;
+    const backendApi = process.env.BACKEND_API_URL
+      || (process.env.VERCEL ? "https://servicehub-backend.onrender.com/api" : "");
     return backendApi ? [{
       source: "/api/:path*",
       // DRF uses APPEND_SLASH and cannot redirect POST bodies. Force the
