@@ -15,4 +15,6 @@ services:
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://servicehub.vercel.app"
+        value: "https://service-center-management.vercel.app"
+      - key: CORS_ALLOW_VERCEL
+        value: "True"
