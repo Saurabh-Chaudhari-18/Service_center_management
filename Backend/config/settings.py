@@ -162,6 +162,7 @@ JWT_COOKIE_SAMESITE = env(
     'JWT_COOKIE_SAMESITE',
     default='Lax' if DEBUG else 'None',
 )
+JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=not DEBUG)
 
 # JWT Settings
 SIMPLE_JWT = {

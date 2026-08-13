@@ -31,9 +31,26 @@ class TestLogin:
         assert access_cookie.value
         assert access_cookie['httponly'] is True
 
-    @override_settings(DEBUG=False, JWT_COOKIE_SAMESITE='None')
+    @override_settings(DEBUG=False, JWT_COOKIE_SAMESITE='None', JWT_COOKIE_SECURE=True)
     def test_production_login_cookies_support_cross_site_requests(self, api_client, owner):
         resp = api_client.post(TOKEN_URL, {'email': owner.email, 'password': 'testpass123'}, format='json')
+        assert resp.status_code == 200
+
+        refresh_cookie = resp.cookies[settings.JWT_REFRESH_COOKIE_NAME]
+        access_cookie = resp.cookies[settings.JWT_ACCESS_COOKIE_NAME]
+        assert refresh_cookie['samesite'] == 'None'
+        assert refresh_cookie['secure'] is True
+        assert access_cookie['samesite'] == 'None'
+        assert access_cookie['secure'] is True
+
+    @override_settings(DEBUG=True, JWT_COOKIE_SAMESITE='Lax', JWT_COOKIE_SECURE=False)
+    def test_hosted_frontend_origin_forces_cross_site_cookies(self, api_client, owner):
+        resp = api_client.post(
+            TOKEN_URL,
+            {'email': owner.email, 'password': 'testpass123'},
+            format='json',
+            HTTP_ORIGIN='https://service-center-management.vercel.app',
+        )
         assert resp.status_code == 200
 
         refresh_cookie = resp.cookies[settings.JWT_REFRESH_COOKIE_NAME]
