@@ -96,7 +96,22 @@ export function AuthProvider({
 
     const initializeAuth = async () => {
       try {
-        await authApi.refreshToken();
+        const session = await authApi.refreshToken();
+        if (!session.authenticated) {
+          tokenManager.clearTokens();
+          if (isMounted) {
+            setState({
+              user: null,
+              isLoading: false,
+              isAuthenticated: false,
+              currentBranch: null,
+              accessibleBranches: [],
+              organizationBranding: null,
+            });
+          }
+          return;
+        }
+
         // Fetch current user
         const user = await authApi.getMe();
         const branches = await authApi.getMyBranches();

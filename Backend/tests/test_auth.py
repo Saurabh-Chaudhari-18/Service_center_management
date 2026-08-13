@@ -95,9 +95,10 @@ class TestTokenRefresh:
         resp = api_client.post(REFRESH_URL, {'refresh': 'not.a.token'}, format='json')
         assert resp.status_code == 401
 
-    def test_missing_refresh_token_returns_400(self, api_client):
+    def test_missing_refresh_token_returns_unauthenticated_session(self, api_client):
         resp = api_client.post(REFRESH_URL, {}, format='json')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        assert resp.data == {'authenticated': False}
 
     def test_refresh_for_deleted_user_returns_401(self, api_client, owner):
         from audit.models import LoginLog

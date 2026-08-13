@@ -112,10 +112,13 @@ class ThrottledTokenRefreshView(TokenRefreshView):
     serializer_class = TokenRefreshSerializer
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
         refresh = request.data.get('refresh') or request.COOKIES.get(
             settings.JWT_REFRESH_COOKIE_NAME
         )
+        if not refresh:
+            return Response({'authenticated': False}, status=status.HTTP_200_OK)
+
+        response = super().post(request, *args, **kwargs)
         if response.status_code == 200 and refresh:
             access = response.data.pop('access', None)
             new_refresh = response.data.get('refresh')
