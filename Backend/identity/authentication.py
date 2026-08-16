@@ -32,12 +32,43 @@ class CookieJWTAuthentication(JWTAuthentication):
             return
         origin = request.headers.get('Origin')
         if not origin:
+            referer = request.headers.get('Referer')
+            if referer:
+                from urllib.parse import urlparse
+                parsed = urlparse(referer)
+                if parsed.scheme and parsed.netloc:
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+        if not origin:
             return
-        allowed = set(settings.CORS_ALLOWED_ORIGINS) | set(
+
+        allowed = set(getattr(settings, 'CORS_ALLOWED_ORIGINS', [])) | set(
             getattr(settings, 'CSRF_TRUSTED_ORIGINS', [])
         )
-        if origin not in allowed:
-            raise AuthenticationFailed('Untrusted request origin.')
+        if origin in allowed:
+            return
+
+        import re
+        regexes = getattr(settings, 'CORS_ALLOWED_ORIGIN_REGEXES', [])
+        for pattern in regexes:
+            if re.match(pattern, origin):
+                return
+
+        import fnmatch
+        for trusted in getattr(settings, 'CSRF_TRUSTED_ORIGINS', []):
+            if '*' in trusted:
+                if fnmatch.fnmatch(origin, trusted):
+                    return
+
+        if getattr(settings, 'CORS_ALLOW_ALL_ORIGINS', False) or getattr(settings, 'CORS_ORIGIN_ALLOW_ALL', False):
+            return
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            'Untrusted request origin rejected: origin=%s, allowed=%s, regexes=%s',
+            origin, allowed, regexes,
+        )
+        raise AuthenticationFailed('Untrusted request origin.')
 
 
 class TenantSessionAuthentication(SessionAuthentication):
