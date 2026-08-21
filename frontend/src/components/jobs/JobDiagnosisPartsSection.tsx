@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Input, Select, Modal } from "@/components/ui";
-import { Plus, Trash2, Package, ChevronDown, Check, PlusCircle } from "lucide-react";
+import { Trash2, Package, ChevronDown, Check, PlusCircle } from "lucide-react";
 import { inventoryApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { InventoryItem } from "@/types";
@@ -231,7 +231,7 @@ function InventoryPartCombobox({
   inventoryItems,
   isLoading,
 }: InventoryPartComboboxProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -416,6 +416,10 @@ export function JobDiagnosisPartsSection({
     if (!parts[index]?.quantity || parts[index]?.quantity === "0") {
       onPartChange(index, "quantity", "1");
     }
+    // Auto-add a new empty row when the last row gets a selection
+    if (index === parts.length - 1) {
+      onAddPart();
+    }
   };
 
   const handleOpenNewItem = (index: number, typedValue: string) => {
@@ -430,9 +434,23 @@ export function JobDiagnosisPartsSection({
       onPartChange(quickAddForIndex, "price", String(item.selling_price || 0));
       onPartChange(quickAddForIndex, "warranty_months", String(item.warranty_period_months || 0));
       onPartChange(quickAddForIndex, "quantity", "1");
+      // Auto-add a new empty row after the newly created item is populated
+      if (quickAddForIndex === parts.length - 1) {
+        onAddPart();
+      }
     }
     setQuickAddForIndex(null);
     setQuickAddInitialName("");
+  };
+
+  // Handler for "New Item" button — opens quick-add modal on a new row
+  const handleNewItemButton = () => {
+    // Add a new empty row first, then open the quick-add modal for that row
+    onAddPart();
+    const newIndex = parts.length; // this will be the index of the newly added row
+    setQuickAddForIndex(newIndex);
+    setQuickAddInitialName("");
+    setQuickAddOpen(true);
   };
 
   return (
@@ -452,11 +470,11 @@ export function JobDiagnosisPartsSection({
           <Button
             size="sm"
             variant="secondary"
-            leftIcon={<Plus className="w-4 h-4" />}
-            onClick={onAddPart}
+            leftIcon={<PlusCircle className="w-4 h-4" />}
+            onClick={handleNewItemButton}
             type="button"
           >
-            Add Part Row
+            New Item
           </Button>
         </div>
 

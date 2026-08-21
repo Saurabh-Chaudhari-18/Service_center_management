@@ -5,7 +5,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, Header } from "@/components/layout/Layout";
-import { ProtectedRoute } from "@/context/AuthContext";
+import { ProtectedRoute, useAuth } from "@/context/AuthContext";
 import { Button, Checkbox, Input, Badge, Modal, LoadingState, EmptyState } from "@/components/ui";
 import { PageShell } from "@/components/shell/PageShell";
 import { RegisterToolbar } from "@/components/shell/RegisterToolbar";
@@ -64,6 +64,7 @@ interface BranchModalProps {
 function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { refreshUser } = useAuth();
   const isEditing = !!branch;
 
   const {
@@ -117,6 +118,7 @@ function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
+      refreshUser();
       toast.success(isEditing ? "Branch updated" : "Branch created");
       onClose();
       reset();

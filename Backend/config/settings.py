@@ -223,16 +223,24 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://service-center-management.vercel.app',
 ])
 # When True, allow any https://*.vercel.app origin (preview + production on vercel.app).
 # For stricter production, set False and list exact origins in CORS_ALLOWED_ORIGINS only.
-CORS_ALLOW_VERCEL = env.bool('CORS_ALLOW_VERCEL', default=False)
+CORS_ALLOW_VERCEL = env.bool('CORS_ALLOW_VERCEL', default=True)
 CORS_ALLOWED_ORIGIN_REGEXES = []
 if CORS_ALLOW_VERCEL:
     CORS_ALLOWED_ORIGIN_REGEXES = [
         r'^https://[\w.-]+\.vercel\.app$',
     ]
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://service-center-management.vercel.app',
+])
+if CORS_ALLOW_VERCEL:
+    CSRF_TRUSTED_ORIGINS += ['https://*.vercel.app']
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',

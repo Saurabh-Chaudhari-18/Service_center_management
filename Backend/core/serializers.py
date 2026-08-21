@@ -192,19 +192,24 @@ class UserSerializer(serializers.ModelSerializer):
     )
     full_name = serializers.CharField(source='get_full_name', read_only=True)
     permissions = serializers.SerializerMethodField()
+    accessible_branches = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
             'phone', 'organization', 'organization_name', 'role',
-            'branches', 'branch_ids', 'is_active', 'last_login',
+            'branches', 'branch_ids', 'accessible_branches', 'is_active', 'last_login',
             'date_joined', 'created_at', 'updated_at', 'permissions', 'onboarding_dismissed'
         ]
         read_only_fields = [
             'id', 'organization', 'last_login', 'date_joined',
             'created_at', 'updated_at'
         ]
+
+    def get_accessible_branches(self, obj):
+        branches = obj.get_accessible_branches()
+        return BranchMinimalSerializer(branches, many=True).data
 
     def validate_branch_ids(self, branches):
         """Ensure all branches belong to user's organization."""
