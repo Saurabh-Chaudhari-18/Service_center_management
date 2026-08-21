@@ -430,28 +430,37 @@ export function JobDiagnosisPartsSection({
 
   const handleNewItemCreated = (item: InventoryItem) => {
     if (quickAddForIndex !== null) {
-      onPartChange(quickAddForIndex, "name", item.name);
-      onPartChange(quickAddForIndex, "price", String(item.selling_price || 0));
-      onPartChange(quickAddForIndex, "warranty_months", String(item.warranty_period_months || 0));
-      onPartChange(quickAddForIndex, "quantity", "1");
-      // Auto-add a new empty row after the newly created item is populated
-      if (quickAddForIndex === parts.length - 1) {
-        onAddPart();
+      const targetIndex =
+        quickAddForIndex < parts.length ? quickAddForIndex : parts.length - 1;
+      if (targetIndex >= 0 && targetIndex < parts.length) {
+        onPartChange(targetIndex, "name", item.name);
+        onPartChange(targetIndex, "price", String(item.selling_price || 0));
+        onPartChange(targetIndex, "warranty_months", String(item.warranty_period_months || 0));
+        onPartChange(targetIndex, "quantity", "1");
+        // Auto-add a new empty row only if this was the last row
+        if (targetIndex === parts.length - 1) {
+          onAddPart();
+        }
       }
     }
     setQuickAddForIndex(null);
     setQuickAddInitialName("");
   };
 
-  // Handler for "New Item" button — opens quick-add modal on a new row
+  // Handler for "New Item" button — reuses empty row if one exists, otherwise creates one
   const handleNewItemButton = () => {
-    // Add a new empty row first, then open the quick-add modal for that row
-    onAddPart();
-    const newIndex = parts.length; // this will be the index of the newly added row
-    setQuickAddForIndex(newIndex);
+    const emptyIndex = parts.findIndex((p) => !p.name.trim());
+    if (emptyIndex !== -1) {
+      setQuickAddForIndex(emptyIndex);
+    } else {
+      onAddPart();
+      setQuickAddForIndex(parts.length);
+    }
     setQuickAddInitialName("");
     setQuickAddOpen(true);
   };
+
+  const filledPartsCount = parts.filter((p) => p.name && p.name.trim().length > 0).length;
 
   return (
     <>
@@ -562,7 +571,7 @@ export function JobDiagnosisPartsSection({
           {parts.length > 0 && (
             <div className="flex justify-between items-center pt-3 px-1 border-t border-neutral-100 dark:border-slate-800">
               <span className="text-xs text-neutral-500 font-medium">
-                {parts.length} part{parts.length > 1 ? "s" : ""} included
+                {filledPartsCount} {filledPartsCount === 1 ? "part" : "parts"} included
               </span>
               <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                 Total Parts Cost:{" "}

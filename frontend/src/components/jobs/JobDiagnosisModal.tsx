@@ -83,19 +83,31 @@ export function JobDiagnosisModal({
   }, [isOpen, initialData]);
 
 
-  const totalPartsPrice = parts.reduce((sum, part) => {
-    return sum + (parseFloat(part.price) || 0) * (parseInt(part.quantity) || 1);
-  }, 0);
+  const totalPartsPrice = parts
+    .filter((p) => p.name && p.name.trim().length > 0)
+    .reduce((sum, part) => {
+      return sum + (parseFloat(part.price) || 0) * (parseInt(part.quantity) || 1);
+    }, 0);
 
   const handleAddPart = () => {
-    setParts([
-      ...parts,
-      { name: "", price: "", warranty_months: "0", quantity: "1" },
-    ]);
+    setParts((prev) => {
+      if (prev.length > 0 && !prev[prev.length - 1].name.trim()) {
+        return prev;
+      }
+      return [
+        ...prev,
+        { name: "", price: "", warranty_months: "0", quantity: "1" },
+      ];
+    });
   };
 
   const handleRemovePart = (index: number) => {
-    setParts(parts.filter((_, i) => i !== index));
+    setParts((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length === 0
+        ? [{ name: "", price: "", warranty_months: "0", quantity: "1" }]
+        : next;
+    });
   };
 
   const handlePartChange = (
@@ -115,12 +127,14 @@ export function JobDiagnosisModal({
         diagnosis,
         estimatedCost ? parseFloat(estimatedCost) : undefined,
         estimatedDate || undefined,
-        parts.map((p) => ({
-          name: p.name,
-          price: parseFloat(p.price) || 0,
-          warranty_months: parseInt(p.warranty_months) || 0,
-          quantity: parseInt(p.quantity) || 1,
-        })),
+        parts
+          .filter((p) => p.name && p.name.trim().length > 0)
+          .map((p) => ({
+            name: p.name.trim(),
+            price: parseFloat(p.price) || 0,
+            warranty_months: parseInt(p.warranty_months) || 0,
+            quantity: parseInt(p.quantity) || 1,
+          })),
       ),
     onSuccess: async () => {
       if (damagePhotos.length > 0) {
