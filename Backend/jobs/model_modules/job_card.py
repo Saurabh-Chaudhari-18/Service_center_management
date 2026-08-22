@@ -37,17 +37,67 @@ class JobStatus(models.TextChoices):
     CANCELLED = 'CANCELLED', 'Cancelled'  # Job cancelled (dead end)
 
 
-# Define allowed status transitions (FRD Section 8.2: sequential only)
+# Define allowed status transitions
 ALLOWED_STATUS_TRANSITIONS = {
-    JobStatus.RECEIVED: [JobStatus.DIAGNOSIS, JobStatus.CANCELLED],
-    JobStatus.DIAGNOSIS: [JobStatus.ESTIMATE_SHARED, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
-    JobStatus.ESTIMATE_SHARED: [JobStatus.APPROVED, JobStatus.REJECTED, JobStatus.CANCELLED],
-    JobStatus.APPROVED: [JobStatus.WAITING_FOR_PARTS, JobStatus.REPAIR_IN_PROGRESS, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
-    JobStatus.REJECTED: [],  # Terminal state
-    JobStatus.WAITING_FOR_PARTS: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
-    JobStatus.REPAIR_IN_PROGRESS: [JobStatus.WAITING_FOR_PARTS, JobStatus.READY_FOR_DELIVERY, JobStatus.OUTSOURCED, JobStatus.CANCELLED],
-    JobStatus.OUTSOURCED: [JobStatus.REPAIR_IN_PROGRESS, JobStatus.READY_FOR_DELIVERY, JobStatus.CANCELLED],
-    JobStatus.READY_FOR_DELIVERY: [JobStatus.DELIVERED, JobStatus.REPAIR_IN_PROGRESS],  # Can go back if issues found
+    JobStatus.RECEIVED: [
+        JobStatus.DIAGNOSIS,
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.DIAGNOSIS: [
+        JobStatus.ESTIMATE_SHARED,
+        JobStatus.APPROVED,
+        JobStatus.REJECTED,
+        JobStatus.WAITING_FOR_PARTS,
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.ESTIMATE_SHARED: [
+        JobStatus.APPROVED,
+        JobStatus.REJECTED,
+        JobStatus.WAITING_FOR_PARTS,
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.APPROVED: [
+        JobStatus.WAITING_FOR_PARTS,
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.REJECTED: [
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.WAITING_FOR_PARTS: [
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.REPAIR_IN_PROGRESS: [
+        JobStatus.WAITING_FOR_PARTS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.OUTSOURCED,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.OUTSOURCED: [
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.WAITING_FOR_PARTS,
+        JobStatus.READY_FOR_DELIVERY,
+        JobStatus.CANCELLED,
+    ],
+    JobStatus.READY_FOR_DELIVERY: [
+        JobStatus.DELIVERED,
+        JobStatus.REPAIR_IN_PROGRESS,
+        JobStatus.CANCELLED,
+    ],
     JobStatus.DELIVERED: [],  # Terminal state (FRD: Job becomes read-only after delivery)
     JobStatus.CANCELLED: [],  # Terminal state
 }
