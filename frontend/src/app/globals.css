@@ -401,34 +401,48 @@ pre {
 }
 
 /* ─────────────────────────────────────────────────────
+   Print Portal (Screen Hiding)
+───────────────────────────────────────────────────── */
+#print-portal-root,
+.print-container {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────
    Print Styles
 ───────────────────────────────────────────────────── */
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide the entire screen application UI */
+  body > *:not(#print-portal-root) {
+    display: none !important;
   }
 
-  .print-container, .print-container * {
-    visibility: visible !important;
-  }
-
-  .print-container {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
+  body {
+    background: white !important;
+    color: black !important;
     margin: 0 !important;
     padding: 0 !important;
-  }
-
-  #print-portal-root, .print-container {
-    display: block !important;
-    background: white;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  #print-portal-root *, .print-container * {
+  /* Show and format print portal container */
+  #print-portal-root,
+  .print-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-portal-root *,
+  .print-container * {
     visibility: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -437,7 +451,10 @@ pre {
   .grid { display: grid !important; }
   .flex  { display: flex  !important; }
 
-  @page { size: A4; margin: 5mm; }
+  @page {
+    size: A4;
+    margin: 6mm;
+  }
 
   .print\:break-inside-avoid,
   .break-inside-avoid {
@@ -445,6 +462,7 @@ pre {
     break-inside: avoid !important;
   }
 }
+
 
 /* ─────────────────────────────────────────────────────
    Dark Mode Styles

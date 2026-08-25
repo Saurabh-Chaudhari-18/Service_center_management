@@ -27,10 +27,11 @@ export interface InvoicePreviewModalProps {
 function PrintPortal({ children }: { children: React.ReactNode }) {
   if (typeof window === "undefined") return null;
   return createPortal(
-    <div id="print-portal-root" className="print-container" aria-hidden="true" hidden inert>{children}</div>,
+    <div id="print-portal-root" className="print-container">{children}</div>,
     document.body,
   );
 }
+
 
 export function InvoicePreviewModal({
   isOpen,
