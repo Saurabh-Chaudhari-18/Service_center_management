@@ -615,6 +615,11 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
   const dialogRef = React.useRef<HTMLDivElement>(null);
+  const onCloseRef = React.useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     setMounted(true);
@@ -635,7 +640,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
@@ -663,7 +668,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md", footer }:
       document.body.style.overflow = prevOverflow;
       previouslyFocused?.focus();
     };
-  }, [isOpen, mounted, onClose]);
+  }, [isOpen, mounted]);
 
   if (!isOpen || !mounted) return null;
 
